@@ -14,6 +14,8 @@ import re
 from datetime import datetime
 
 from excel_to_skill import (
+    _extract_trigger_keywords,
+    _generate_slug,
     compute_quality_metrics,
     generate_skill_md,
     group_by_category,
@@ -23,9 +25,10 @@ from excel_to_skill import (
 )
 
 
-def _slugify(name: str) -> str:
-    s = re.sub(r"[^\w\u4e00-\u9fff\-]+", "-", (name or "skill").strip())
-    return s.strip("-") or "skill"
+def _slugify(name: str, config: dict | None = None, version_info: dict | None = None,
+             domain: str = "", records: list | None = None) -> str:
+    """\u751f\u6210 agentskills.io \u517c\u5bb9 slug\uff0c\u59d4\u6258 excel_to_skill._generate_slug\u3002"""
+    return _generate_slug(name, config, version_info, domain, records)
 
 
 def _item_key(rec: dict, index: int) -> str:
@@ -275,8 +278,11 @@ def generate_openclaw_skill_md(
     scenario_name: str,
     version_info: dict,
 ) -> tuple[str, dict]:
-    """在标准 SKILL 基础上增加 OpenClaw 兼容 frontmatter 与 manifest。"""
-    base_md = generate_skill_md(records, groups, config, scenario_name, version_info)
+    """生成 agentskills.io 标准 SKILL.md + OpenClaw/Hermes 兼容 manifest。
+
+    frontmatter 使用 metadata.openclaw / metadata.hermes 命名空间，
+    保证在 OpenClaw、Hermes、Claude Code 等平台均可导入。
+    """
     anchor = version_info.get("scenario_anchor") or {}
     display_name = (
         config.get("display_name")
@@ -284,36 +290,75 @@ def generate_openclaw_skill_md(
         or version_info.get("场景名称", scenario_name)
         or scenario_name
     )
-    slug = _slugify(scenario_name or display_name)
+    domain = config.get("domain", version_info.get("业务领域", "通用"))
+    skill_slug = _slugify(scenario_name or display_name, config, version_info, domain, records)
+    trigger_kw = _extract_trigger_keywords(records, config, domain)
+    app_version = version_info.get("模板版本", config.get("version", "1.0.0"))
 
+    # -- 生成标准 agentskills.io 正文（base 函数会写 frontmatter） --
+    base_md = generate_skill_md(records, groups, config, scenario_name, version_info)
+
+    # 替换 frontmatter，注入 OpenClaw / Hermes 命名空间
     if base_md.startswith("---"):
         end = base_md.find("---", 3)
         if end != -1:
-            front = base_md[3:end].strip()
-            body = base_md[end + 3 :].lstrip("\n")
-            extra = (
-                f"openclaw_compatible: true\n"
-                f"openclaw_entry: SKILL.md\n"
-                f"openclaw_skill_format: markdown\n"
-                f"generator: tacit-knowledge-pipeline\n"
-            )
-            skill_md = "---\n" + front + "\n" + extra + "---\n\n" + body
+            body = base_md[end + 3:].lstrip("\n")
+
+            fm_lines = ["---"]
+            fm_lines.append(f"name: {skill_slug}")
+            desc_parts = [f"{display_name} 专家经验 Skill，含 {len(records)} 条确认知识。"]
+            if trigger_kw:
+                desc_parts.append(f"触发场景：{'、'.join(trigger_kw)}。")
+            fm_lines.append(f"description: {''.join(desc_parts)}")
+            if app_version:
+                fm_lines.append(f"version: {app_version}")
+            fm_lines.append("metadata:")
+            # OpenClaw 命名空间
+            fm_lines.append("  openclaw:")
+            fm_lines.append("    emoji: \"📋\"")
+            if trigger_kw:
+                fm_lines.append(f"    tags: [{', '.join(trigger_kw[:6])}]")
+            fm_lines.append("    requires:")
+            fm_lines.append("      bins: []")
+            # Hermes 命名空间
+            fm_lines.append("  hermes:")
+            if trigger_kw:
+                fm_lines.append(f"    tags: [{', '.join(trigger_kw[:6])}]")
+            fm_lines.append("    related_skills: []")
+            fm_lines.append("    requires_toolsets: []")
+            fm_lines.append("---")
+            skill_md = "\n".join(fm_lines) + "\n\n" + body
         else:
             skill_md = base_md
     else:
         skill_md = base_md
 
+    # -- 生成 manifest（Sidecar JSON） --
     manifest = {
-        "schema": "openclaw.skill/v1",
-        "name": slug,
+        "schema": "agentskills.io/manifest/v1",
+        "name": skill_slug,
         "display_name": display_name,
         "description": f"{display_name} 专家经验 Skill（{len(records)} 条知识）",
+        "version": app_version,
         "entry": "SKILL.md",
-        "compatible": ["openclaw"],
+        "generator": "tacit-knowledge-pipeline",
+        "compatible": ["openclaw", "hermes", "claude-code", "cursor", "codex", "windsurf"],
         "metadata": {
-            "generator": "tacit-knowledge-pipeline",
-            "knowledge_count": len(records),
-            "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "openclaw": {
+                "tags": trigger_kw[:6] if trigger_kw else [],
+                "emoji": "📋",
+                "requires": {"bins": []},
+            },
+            "hermes": {
+                "tags": trigger_kw[:6] if trigger_kw else [],
+                "related_skills": [],
+                "requires_toolsets": [],
+            },
+            "tacit_knowledge": {
+                "knowledge_count": len(records),
+                "generated_at": datetime.now().isoformat(timespec="seconds"),
+
+            },
         },
     }
     return skill_md, manifest
@@ -329,6 +374,50 @@ def _normalize_formats(formats) -> set[str]:
         parts = {str(p).strip().lower() for p in formats if str(p).strip()}
     picked = parts & allowed
     return picked or allowed
+
+
+def _build_skill_directory(
+    skill_md: str,
+    manifest: dict,
+    skill_slug: str,
+    output_dir: str,
+) -> dict:
+    """创建 agentskills.io 标准 Skill 目录结构。
+
+    skill-name/
+    ├── SKILL.md          # 必需 — 知识正文
+    ├── manifest.json     # agentskills.io 清单
+    ├── scripts/          # 可执行脚本（目录占位）
+    ├── references/       # 详细参考文档（目录占位）
+    └── assets/           # 模板/静态资源（目录占位）
+    """
+    skill_dir = os.path.join(output_dir, skill_slug)
+    os.makedirs(skill_dir, exist_ok=True)
+
+    # SKILL.md
+    skill_path = os.path.join(skill_dir, "SKILL.md")
+    with open(skill_path, "w", encoding="utf-8") as f:
+        f.write(skill_md)
+
+    # manifest.json
+    manifest_path = os.path.join(skill_dir, "manifest.json")
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+    # 标准子目录（占位 .gitkeep）
+    for subdir in ("scripts", "references", "assets"):
+        d = os.path.join(skill_dir, subdir)
+        os.makedirs(d, exist_ok=True)
+        gitkeep = os.path.join(d, ".gitkeep")
+        if not os.path.exists(gitkeep):
+            with open(gitkeep, "w", encoding="utf-8") as f:
+                f.write("")
+
+    return {
+        "skill_dir": skill_dir,
+        "skill_path": skill_path,
+        "manifest_path": manifest_path,
+    }
 
 
 def excel_to_delivery_bundle(
@@ -406,19 +495,32 @@ def excel_to_delivery_bundle(
         skill_content, openclaw_manifest = generate_openclaw_skill_md(
             records, groups, config, scenario_name, version_info
         )
-        skill_path = os.path.join(output_dir, "SKILL.md")
-        with open(skill_path, "w", encoding="utf-8") as f:
+        skill_slug = openclaw_manifest.get("name", "knowledge-skill")
+
+        # 标准 agentskills.io 目录结构
+        dir_info = _build_skill_directory(
+            skill_content, openclaw_manifest, skill_slug, output_dir
+        )
+        skill_path = dir_info["skill_path"]
+
+        # 同时保留扁平副本在 output_dir 根（向后兼容）
+        flat_skill = os.path.join(output_dir, "SKILL.md")
+        with open(flat_skill, "w", encoding="utf-8") as f:
             f.write(skill_content)
-        manifest_path = os.path.join(output_dir, "openclaw.skill.json")
-        with open(manifest_path, "w", encoding="utf-8") as f:
+        flat_manifest = os.path.join(output_dir, "manifest.json")
+        with open(flat_manifest, "w", encoding="utf-8") as f:
             json.dump(openclaw_manifest, f, ensure_ascii=False, indent=2)
+
         artifacts["skill"] = {
-            "label": "Skill (OpenClaw)",
+            "label": "Skill (OpenClaw / Hermes)",
             "file_name": "SKILL.md",
-            "manifest_file_name": "openclaw.skill.json",
+            "manifest_file_name": "manifest.json",
             "path": skill_path,
-            "manifest_path": manifest_path,
+            "manifest_path": dir_info["manifest_path"],
+            "skill_dir": dir_info["skill_dir"],
+            "skill_slug": skill_slug,
             "openclaw_compatible": True,
+            "hermes_compatible": True,
         }
 
     return {

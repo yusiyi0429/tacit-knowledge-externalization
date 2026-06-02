@@ -33,7 +33,7 @@ WORKDIR /app
 
 # 不安装 curl/apt 依赖，避免 ARM64 交叉构建时访问 deb.debian.org 失败（内网/受限网络）
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn
 
 COPY VERSION ./
 COPY backend/ ./backend/

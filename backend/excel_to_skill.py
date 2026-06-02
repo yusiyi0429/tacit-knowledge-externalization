@@ -12,8 +12,10 @@ Step 5: 智能转化 — 将确认版 Excel 转换为 SKILL.md
 """
 
 import argparse
+import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime
 
@@ -37,6 +39,149 @@ NON_KNOWLEDGE_SHEETS = {"场景配置", "版本追踪", "配置", "config"}
 
 # 记录未填子场景时的分组占位名，不用于 SKILL 正文分节标题
 EMPTY_SUB_FALLBACK = "未分子场景"
+
+# 常见中文 → 拼音映射（银行业务/风控/信贷领域高频字）
+_CHINESE_PINYIN_MAP = {
+    "科": "ke", "技": "ji", "企": "qi", "业": "ye", "普": "pu", "惠": "hui",
+    "贷": "dai", "款": "kuan", "银": "yin", "行": "hang", "信": "xin",
+    "风": "feng", "控": "kong", "审": "shen", "批": "pi", "授": "shou",
+    "金": "jin", "融": "rong", "资": "zi", "产": "chan", "管": "guan",
+    "理": "li", "运": "yun", "营": "ying", "市": "shi", "场": "chang",
+    "客": "hu", "户": "hu", "销": "xiao", "合": "he", "规": "gui",
+    "法": "fa", "律": "lv", "制": "zhi", "度": "du", "流": "liu",
+    "程": "cheng", "操": "cao", "作": "zuo", "检": "jian", "查": "cha",
+    "监": "jian", "测": "ce", "报": "bao", "告": "gao", "数": "shu",
+    "据": "ju", "系": "xi", "统": "tong", "文": "wen", "件": "jian",
+    "档": "dang", "案": "an", "知": "zhi", "识": "shi", "经": "jing",
+    "验": "yan", "判": "pan", "断": "duan", "决": "jue", "策": "ce",
+    "评": "ping", "估": "gu", "分": "fen", "析": "xi", "计": "ji",
+    "算": "suan", "复": "fu", "核": "he", "确": "que", "认": "ren",
+    "验": "yan", "证": "zheng", "追": "zhui", "踪": "zong", "溯": "su",
+    "保": "bao", "险": "xian", "基": "ji", "础": "chu", "设": "she",
+    "施": "shi", "研": "yan", "发": "fa", "创": "chuang", "新": "xin",
+    "医": "yi", "药": "yao", "软": "ruan", "硬": "ying", "芯": "xin",
+    "片": "pian", "物": "wu", "联": "lian", "网": "wang", "造": "zao",
+    "供": "gong", "链": "lian", "贸": "mao", "易": "yi", "汇": "hui",
+    "率": "lv", "外": "wai", "园": "yuan", "区": "qu", "转": "zhuan",
+    "型": "xing", "升": "sheng", "级": "ji", "绿": "lv", "色": "se",
+    "持": "chi", "续": "xu", "安": "quan", "全": "quan", "隐": "yin",
+    "私": "si", "敏": "min", "感": "gan", "重": "zhong", "要": "yao",
+    "关": "guan", "键": "jian", "心": "xin", "目": "mu", "标": "biao",
+    "方": "fang", "案": "an", "略": "lve", "划": "hua", "执": "zhi",
+    "落": "luo", "跟": "gen", "进": "jin", "反": "fan", "馈": "kui",
+    "优": "you", "化": "hua", "迭": "die", "代": "dai", "处": "chu",
+    "置": "zhi", "异": "yi", "常": "chang", "预": "yu", "警": "jing",
+    "响": "xiang", "匹": "pi", "配": "pei", "校": "xiao", "对": "dui",
+    "版": "ban", "本": "ben", "更": "geng", "迭": "die", "导": "dao",
+    "入": "ru", "出": "chu", "错": "cuo", "误": "wu", "成": "cheng",
+    "功": "gong", "失": "shi", "败": "bai", "日": "ri", "期": "qi",
+    "时": "shi", "间": "jian", "生": "sheng", "物": "wu", "纺": "fang",
+    "织": "zhi", "服": "fu", "装": "zhuang", "建": "jian", "筑": "zhu",
+    "材": "cai", "料": "liao", "汽": "qi", "车": "che", "零": "ling",
+    "部": "bu", "电": "dian", "子": "zi", "商": "shang", "务": "wu",
+    "税": "shui", "财": "cai", "会": "kuai", "人": "ren", "员": "yuan",
+    "培": "pei", "训": "xun", "考": "kao", "绩": "ji", "效": "xiao",
+}
+
+
+def _transliterate_chinese(text: str) -> str:
+    """将中文文本转写为拼音 slug 片段。"""
+    parts = []
+    for ch in str(text or ""):
+        pinyin = _CHINESE_PINYIN_MAP.get(ch)
+        if pinyin:
+            parts.append(pinyin)
+    return "-".join(parts) if parts else ""
+
+
+def _generate_slug(
+    scenario_name: str = "",
+    config: dict | None = None,
+    version_info: dict | None = None,
+    domain: str = "",
+    records: list | None = None,
+) -> str:
+    """生成 agentskills.io 兼容的 slug: [a-z0-9]+(-[a-z0-9]+)*
+
+    优先级：config.slug > version_info.slug > scenario_name(如已合规) > 拼音转写 > domain+hash
+    """
+    cfg = config or {}
+    vinfo = version_info or {}
+    anchor = vinfo.get("scenario_anchor") or {}
+
+    def _is_valid_slug(s: str) -> bool:
+        return bool(re.match(r"^[a-z0-9]+(-[a-z0-9]+)*$", s))
+
+    # 1. 显式 slug 配置
+    for source in (cfg.get("slug"), anchor.get("slug"), vinfo.get("slug")):
+        slug = str(source or "").strip().lower()
+        if _is_valid_slug(slug):
+            return slug
+
+    # 2. scenario_name 本身已合规
+    if _is_valid_slug(scenario_name.lower()):
+        return scenario_name.lower()
+
+    # 3. 拼音转写
+    pinyin = _transliterate_chinese(scenario_name)
+    if pinyin and _is_valid_slug(pinyin):
+        return pinyin
+
+    # 4. domain 转写
+    domain_pinyin = _transliterate_chinese(domain)
+    if domain_pinyin and _is_valid_slug(domain_pinyin):
+        return domain_pinyin
+
+    # 5. 从知识分类中提取英文/拼音关键词
+    if records:
+        cats = set()
+        for r in records:
+            cat = str(r.get("知识分类", "")).strip()
+            if cat:
+                cats.add(cat)
+        cat_parts = []
+        for c in sorted(cats):
+            p = _transliterate_chinese(c)
+            if p:
+                cat_parts.append(p)
+        if cat_parts:
+            slug = "-".join(cat_parts[:4])
+            slug = re.sub(r"[^a-z0-9]+", "-", slug.lower()).strip("-")
+            if _is_valid_slug(slug):
+                return slug[:64]
+
+    # 6. 终极 fallback: domain 短哈希
+    base = domain or scenario_name or "knowledge-skill"
+    h = hashlib.sha256(base.encode()).hexdigest()[:8]
+    base_slug = re.sub(r"[^a-z0-9]+", "-", _transliterate_chinese(base) or "knowledge-skill").strip("-")
+    fallback = f"{base_slug}-{h}"[:64].strip("-")
+    return fallback or "knowledge-skill"
+
+
+def _extract_trigger_keywords(records: list, config: dict | None = None, domain: str = "") -> list[str]:
+    """从知识分类和配置中提取业务触发关键词，用于 description 注入。"""
+    keywords = []
+    seen = set()
+
+    def add(k: str):
+        k = str(k).strip()
+        if k and k not in seen and len(k) >= 2:
+            seen.add(k)
+            keywords.append(k)
+
+    if domain and domain != "通用":
+        add(domain)
+
+    cfg = config or {}
+    for cat in cfg.get("categories", []):
+        add(str(cat).strip())
+
+    for r in (records or []):
+        add(str(r.get("知识分类", "")).strip())
+        add(str(r.get("子场景", "")).strip())
+        add(str(r.get("子场景说明", "")).strip()[:20])
+
+    return keywords[:8]
 
 CONTENT_HEADER_MARKERS = (
     "具体方法", "知识描述", "知识内容", "数据规则", "知识要点", "专家经验",
@@ -781,12 +926,32 @@ def generate_skill_md(records: list, groups: dict, config: dict, scenario_name: 
 
     lines = []
 
-    # Front matter
+    # Front matter (agentskills.io / OpenClaw / Hermes 兼容)
+    skill_slug = _generate_slug(scenario_name, config, version_info, domain, records)
+    trigger_kw = _extract_trigger_keywords(records, config, domain)
+    desc_parts = [f"{display_name} 专家经验 Skill，含 {len(records)} 条确认知识。"]
+    if trigger_kw:
+        desc_parts.append(f"触发场景：{'、'.join(trigger_kw)}。")
+    description = "".join(desc_parts)
+
+    app_version = version_info.get("模板版本", config.get("version", "1.0.0"))
+
     lines.append("---")
-    slug = (scenario_name or display_name or "skill").replace(" ", "-")
-    lines.append(f"name: {slug}")
-    desc = f"{display_name}专家经验 Skill：含场景说明（Step1）与 {len(records)} 条确认知识"
-    lines.append(f"description: {desc}")
+    lines.append(f"name: {skill_slug}")
+    lines.append(f"description: {description}")
+    if app_version:
+        lines.append(f"version: {app_version}")
+    lines.append("metadata:")
+    lines.append("  openclaw:")
+    if trigger_kw:
+        lines.append(f"    tags: [{', '.join(trigger_kw[:6])}]")
+    lines.append("  hermes:")
+    if trigger_kw:
+        lines.append(f"    tags: [{', '.join(trigger_kw[:6])}]")
+    cat_names = [str(r.get('知识分类', '')).strip() for r in records if str(r.get('知识分类', '')).strip()]
+    if cat_names:
+        unique_cats = list(dict.fromkeys(cat_names))[:5]
+        lines.append(f"    related_skills: []  # 关联 Skill: {', '.join(unique_cats)}")
     lines.append("---")
     lines.append("")
 
