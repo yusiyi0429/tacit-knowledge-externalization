@@ -38,7 +38,7 @@ from pipeline_artifacts import (
     is_step1_filename,
     is_step2_preextract_filename,
     is_step3_revision_filename,
-    is_step4_final_filename,
+    is_step3_final_filename,
     resolve_cache_file_path,
     resolve_client_excel_path,
     safe_workspace_path,
@@ -47,6 +47,20 @@ from pipeline_artifacts import (
     PROTECTED_WORKSPACE_FILES,
 )
 from release_info import STEP2_EXCEL_BUILD, get_release_info
+from knowledge_fusion import (
+    merge_extraction_results,
+    fuse_sources,
+    detect_duplicates,
+    detect_conflicts,
+    interview_answers_to_records,
+    aggregate_signals,
+)
+from interview_session import (
+    execute_interview_session,
+    collect_interview_answers,
+    build_interview_prompt,
+    INTERVIEW_METHODS,
+)
 
 # 旧部署曾误用私有函数名，保留别名避免 NameError
 _is_step2_preextract_filename = is_step2_preextract_filename
@@ -713,7 +727,7 @@ def api_file_cache_upload():
         base = os.path.basename(saved_path)
         resp = {"status": "ok", "file_name": base}
 
-        if pipeline_id and step in {"2", "3", "4"}:
+        if pipeline_id and step in {"2", "3"}:
             with _pipelines_lock:
                 pipelines = load_pipelines()
                 for p in pipelines:
@@ -1377,64 +1391,10 @@ def api_step2_prev_output():
 
 # ─── Validation (Steps 2, 3, 4) ──────────────────────────────────
 
-# ─── Step 5: Compile ──────────────────────────────────────────────
+# ─── Step 4: Compile ──────────────────────────────────────────────
 
-@app.route("/api/step5/prev_output", methods=["GET"])
-def api_step5_prev_output():
-    """Get alignment output info for compile step."""
-    pipeline_id = request.args.get("pipeline_id", "")
-    with _pipelines_lock:
-        pipelines = load_pipelines()
-        pipeline = None
-        for p in pipelines:
-            if p["id"] == pipeline_id:
-                # Deep copy to avoid race conditions after lock release
-                pipeline = dict(p)
-                pipeline["step_data"] = dict(p.get("step_data", {}))
-                break
-    if not pipeline:
-        return jsonify({"status": "error", "error": "Pipeline not found"})
-
-    step_data = pipeline.get("step_data", {})
-    resolved_path, source_key = resolve_knowledge_workbook_path(WORKSPACE, step_data, purpose="compile")
-    if not resolved_path:
-        return jsonify({"status": "ok", "has_output": False})
-    final_file = resolved_path.name
-
-    result = {"status": "ok", "has_output": True, "file_name": final_file}
-    if source_key == "step4_final_file":
-        result["download_url"] = step_data.get("step4_download_url", f"/downloads/{final_file}")
-        result["markdown_file"] = step_data.get("step4_md_file", "")
-        result["markdown_download_url"] = step_data.get("step4_md_download_url", "")
-    elif source_key == "step3_revision_file":
-        result["download_url"] = step_data.get("step3_download_url", f"/downloads/{final_file}")
-        result["markdown_file"] = step_data.get("step3_md_file", "")
-        result["markdown_download_url"] = step_data.get("step3_md_download_url", "")
-    else:
-        result["download_url"] = step_data.get("step2_download_url", f"/downloads/{final_file}")
-        result["markdown_file"] = step_data.get("step2_md_file", "")
-        result["markdown_download_url"] = step_data.get("step2_md_download_url", "")
-
-    # Read Excel fields info
-    try:
-        with _safe_workbook(str(resolved_path)) as wb:
-            fields_info = []
-            total_rows = 0
-            for ws in wb.worksheets:
-                headers = [str(c.value or "") for c in next(ws.iter_rows(min_row=1, max_row=1))]
-                row_count = max(0, ws.max_row - 1) if ws.max_row else 0
-                total_rows += row_count
-                fields_info.append({"sheet": ws.title, "headers": headers, "data_rows": row_count})
-        result["fields_info"] = fields_info
-        result["total_rows"] = total_rows
-    except Exception:
-        pass
-
-    return jsonify(result)
-
-
-@app.route("/api/step5/compile", methods=["POST"])
-def api_step5_compile():
+@app.route("/api/step4/compile", methods=["POST"])
+def api_step4_compile():
     """智能转化：生成思维链 / QA 对 / OpenClaw Skill 三类交付物。"""
     pipeline_id = request.form.get("pipeline_id", "")
     excel_file = request.files.get("excel")
@@ -1442,8 +1402,8 @@ def api_step5_compile():
     _agent_debug_log(
         "run-2",
         "H6",
-        "app_server.py:api_step5_compile:entry",
-        "step5 compile request received",
+        "app_server.py:api_step4_compile:entry",
+        "step4 compile request received",
         {
             "has_pipeline_id": bool(pipeline_id),
             "has_upload": bool(excel_file),
@@ -1480,15 +1440,15 @@ def api_step5_compile():
     _agent_debug_log(
         "run-2",
         "H6",
-        "app_server.py:api_step5_compile:input",
-        "step5 compile input resolved",
+        "app_server.py:api_step4_compile:input",
+        "step4 compile input resolved",
         {"input_basename": os.path.basename(input_path), "input_exists": os.path.exists(input_path)},
     )
     # endregion
     _debug_log(
         "H5",
-        "app_server.py:api_step5_compile",
-        "step5 compile start",
+        "app_server.py:api_step4_compile",
+        "step4 compile start",
         {"has_pipeline_id": bool(pipeline_id), "input_basename": os.path.basename(input_path)},
     )
 
@@ -1519,15 +1479,15 @@ def api_step5_compile():
         _agent_debug_log(
             "run-2",
             "H7",
-            "app_server.py:api_step5_compile:exception",
-            "step5 delivery generation raised exception",
+            "app_server.py:api_step4_compile:exception",
+            "step4 delivery generation raised exception",
             {"error": str(e)[:500], "input_basename": os.path.basename(input_path)},
         )
         # endregion
         _debug_log(
             "H5",
-            "app_server.py:api_step5_compile",
-            "step5 compile exception",
+            "app_server.py:api_step4_compile",
+            "step4 compile exception",
             {"error": str(e)[:300]},
         )
         return jsonify({"status": "error", "error": f"智能转化失败: {str(e)}"})
@@ -1538,15 +1498,15 @@ def api_step5_compile():
         _agent_debug_log(
             "run-2",
             "H7",
-            "app_server.py:api_step5_compile:result_error",
-            "step5 delivery generation returned error",
+            "app_server.py:api_step4_compile:result_error",
+            "step4 delivery generation returned error",
             {"error": str(err)[:500], "input_basename": os.path.basename(input_path)},
         )
         # endregion
         _debug_log(
             "H5",
-            "app_server.py:api_step5_compile",
-            "step5 compile failed",
+            "app_server.py:api_step4_compile",
+            "step4 compile failed",
             {"error": str(err)[:300]},
         )
         return jsonify({"status": "error", "error": err})
@@ -1615,27 +1575,27 @@ def api_step5_compile():
                 if p["id"] == pipeline_id:
                     sd = p.setdefault("step_data", {})
                     if skill_pub:
-                        sd["step5_skill_file"] = skill_pub[0]
-                        sd["step5_download_url"] = skill_pub[1]
+                        sd["step4_skill_file"] = skill_pub[0]
+                        sd["step4_download_url"] = skill_pub[1]
                     if cot_pub:
-                        sd["step5_cot_file"] = cot_pub[0]
-                        sd["step5_cot_download_url"] = cot_pub[1]
+                        sd["step4_cot_file"] = cot_pub[0]
+                        sd["step4_cot_download_url"] = cot_pub[1]
                     if qa_pub:
-                        sd["step5_qa_file"] = qa_pub[0]
-                        sd["step5_qa_download_url"] = qa_pub[1]
+                        sd["step4_qa_file"] = qa_pub[0]
+                        sd["step4_qa_download_url"] = qa_pub[1]
                     if qa_md_pub:
-                        sd["step5_qa_md_file"] = qa_md_pub[0]
-                        sd["step5_qa_md_download_url"] = qa_md_pub[1]
+                        sd["step4_qa_md_file"] = qa_md_pub[0]
+                        sd["step4_qa_md_download_url"] = qa_md_pub[1]
                     if manifest_pub:
-                        sd["step5_openclaw_manifest_file"] = manifest_pub[0]
-                        sd["step5_openclaw_manifest_url"] = manifest_pub[1]
+                        sd["step4_manifest_file"] = manifest_pub[0]
+                        sd["step4_manifest_url"] = manifest_pub[1]
                     save_pipelines(pipelines)
                     break
     return jsonify(result)
 
 
-@app.route("/api/step5/quality", methods=["POST"])
-def api_step5_quality():
+@app.route("/api/step4/quality", methods=["POST"])
+def api_step4_quality():
     """Generate quality report — auto-reads Step4 output if pipeline_id provided."""
     pipeline_id = request.form.get("pipeline_id", "")
     excel_file = request.files.get("excel")
@@ -1682,8 +1642,8 @@ def api_step5_quality():
                 pipelines = load_pipelines()
                 for p in pipelines:
                     if p["id"] == pipeline_id:
-                        p.setdefault("step_data", {})["step5_quality_file"] = report_name
-                        p.setdefault("step_data", {})["step5_quality_url"] = "/downloads/" + report_name
+                        p.setdefault("step_data", {})["step4_quality_file"] = report_name
+                        p.setdefault("step_data", {})["step4_quality_url"] = "/downloads/" + report_name
                         save_pipelines(pipelines)
                         break
 
@@ -2094,10 +2054,10 @@ def api_excel_save():
                         elif str(step) == "3" and is_step3_revision_filename(base):
                             sd["step3_revision_file"] = base
                             sd["step3_download_url"] = "/downloads/" + save_name
-                        elif str(step) == "4" and is_step4_final_filename(base):
-                            sd["step4_final_file"] = base
-                            sd["step4_download_url"] = "/downloads/" + save_name
-                        elif str(step) == "4" and is_step3_revision_filename(base):
+                        elif str(step) == "3" and is_step3_final_filename(base):
+                            sd["step3_final_file"] = base
+                            sd["step3_final_download_url"] = "/downloads/" + save_name
+                        elif str(step) == "3" and is_step3_revision_filename(base):
                             sd["step3_revision_file"] = base
                             sd["step3_download_url"] = "/downloads/" + save_name
                         save_pipelines(pipelines)
@@ -2362,7 +2322,7 @@ SKILL_REGISTRY = {
             "本Skill会自动检测这些注释对应的知识条目，标记为「已被质疑」并建议重新评估。"
         ),
         "usage_guide": (
-            "1. 进入Step5（智能转化）后的保鲜审计，或直接访问Skill面板\n"
+            "1. 进入Step4（智能转化）后的保鲜审计，或直接访问Skill面板\n"
             "2. 选择关联的流水线ID（自动读取知识Excel + 隐性注释），或直接上传知识Excel文件\n"
             "3. 选择模型（用于深度审计），点击执行\n"
             "4. 查看保鲜风险指标和深度审计建议\n"
@@ -2400,7 +2360,7 @@ SKILL_REGISTRY = {
             "案例复盘与知识条目的矛盾检测",
             "保鲜优先级排序与更新建议",
         ],
-        "related_step": 5,
+        "related_step": 4,
         "enabled": True,
     },
 }
@@ -3134,17 +3094,17 @@ def _publish_final_from_source(
         for p in pipelines:
             if p["id"] == pipeline_id:
                 sd = p.setdefault("step_data", {})
-                sd["step4_final_file"] = output_name
-                sd["step4_download_url"] = "/downloads/" + output_name
+                sd["step3_final_file"] = output_name
+                sd["step3_final_download_url"] = "/downloads/" + output_name
                 if md_name:
-                    sd["step4_md_file"] = md_name
-                    sd["step4_md_download_url"] = md_url
+                    sd["step3_final_md_file"] = md_name
+                    sd["step3_final_md_download_url"] = md_url
                 else:
-                    sd.pop("step4_md_file", None)
-                    sd.pop("step4_md_download_url", None)
-                sd["step4_final_notes"] = (expert_text or "")[:500]
-                sd["step4_final_style"] = style
-                sd["step4_final_count"] = 0
+                    sd.pop("step3_final_md_file", None)
+                    sd.pop("step3_final_md_download_url", None)
+                sd["step3_final_notes"] = (expert_text or "")[:500]
+                sd["step3_final_style"] = style
+                sd["step3_final_count"] = 0
                 sd.pop("_align_preview_notes", None)
                 sd.pop("_align_preview_style", None)
                 sd.pop("_align_source_file", None)
@@ -3898,7 +3858,7 @@ def _execute_freshness_audit():
             for p in pipelines:
                 if p["id"] == pipeline_id:
                     sd = p.get("step_data", {})
-                    tacit_annotations = sd.get("step4_tacit_annotations") or []
+                    tacit_annotations = sd.get("step3_tacit_annotations") or []
                     resolved, _src = resolve_knowledge_workbook_path(WORKSPACE, sd, purpose="compile")
                     if resolved:
                         input_path = str(resolved)
@@ -4076,7 +4036,7 @@ def api_step3_revision_context():
         })
 
     # 隐性注释提醒
-    ta = sd.get("step4_tacit_annotations") or []
+    ta = sd.get("step3_tacit_annotations") or []
     if ta:
         ctx["insights"].append({
             "source": "隐性注释",
@@ -4129,6 +4089,23 @@ def api_step3_prev_output():
                     except Exception:
                         pass
 
+                # 读取融合元数据（多源融合场景）
+                fusion_meta = None
+                fusion_file = sd.get("step2_fusion_file", "")
+                if fusion_file:
+                    fp = safe_workspace_path(WORKSPACE, fusion_file, must_exist=True)
+                    if fp:
+                        try:
+                            fusion_data = json.loads(fp.read_text(encoding="utf-8"))
+                            fusion_meta = {
+                                "duplicates": fusion_data.get("duplicates", []),
+                                "conflicts": fusion_data.get("conflicts", []),
+                                "source_stats": fusion_data.get("source_stats", {}),
+                                "confidence_distribution": fusion_data.get("confidence_distribution", {}),
+                            }
+                        except Exception:
+                            pass
+
                 return jsonify({
                     "status": "ok", "has_output": True,
                     "file_name": step2_file,
@@ -4140,12 +4117,13 @@ def api_step3_prev_output():
                     "style": sd.get("skill_extract_style", ""),
                     "extracted_count": sd.get("step2_extracted_count", 0),
                     "step1_file": sd.get("step1_output_file", ""),
+                    "fusion_meta": fusion_meta,
                 })
     return jsonify({"status": "ok", "has_output": False})
 
 
-@app.route("/api/step4/prev_output", methods=["GET"])
-def api_step4_prev_output():
+@app.route("/api/step3/align_output", methods=["GET"])
+def api_step3_align_output():
     """获取知识对齐稿（final_*.xlsx），供智能转化等下游使用"""
     pipeline_id = request.args.get("pipeline_id", "")
     if not pipeline_id:
@@ -4173,12 +4151,12 @@ def api_step4_prev_output():
                                     headers.append(str(cell.value) if cell.value else "")
                             row_count = ws.max_row - 1 if ws.max_row > 1 else 0
                             fields_info.append({"sheet": ws_name, "headers": headers, "rows": row_count})
-                    if source_key == "step4_final_file":
-                        dl_url = sd.get("step4_download_url") or ("/downloads/" + out_name)
-                        md_name = sd.get("step4_md_file", "")
-                        md_url = sd.get("step4_md_download_url") or (f"/downloads/{md_name}" if md_name else "")
-                        align_style = sd.get("step4_final_style", "")
-                        align_count = sd.get("step4_final_count", 0)
+                    if source_key == "step3_final_file":
+                        dl_url = sd.get("step3_final_download_url") or ("/downloads/" + out_name)
+                        md_name = sd.get("step3_final_md_file", "")
+                        md_url = sd.get("step3_final_md_download_url") or (f"/downloads/{md_name}" if md_name else "")
+                        align_style = sd.get("step3_final_style", "")
+                        align_count = sd.get("step3_final_count", 0)
                     elif source_key == "step3_revision_file":
                         dl_url = sd.get("step3_download_url") or ("/downloads/" + out_name)
                         md_name = sd.get("step3_md_file", "")
@@ -4207,8 +4185,8 @@ def api_step4_prev_output():
     return jsonify({"status": "ok", "has_output": False})
 
 
-@app.route("/api/step4/finalize", methods=["POST"])
-def api_step4_finalize():
+@app.route("/api/step3/finalize", methods=["POST"])
+def api_step3_finalize():
     """知识对齐：基于 Step3 修订稿（或 Step2 萃取稿）+专家意见，生成最终稿"""
     pipeline_id = request.form.get("pipeline_id", "")
     expert_text = request.form.get("expert_text", "")
@@ -4221,7 +4199,7 @@ def api_step4_finalize():
         return jsonify({"status": "error", "error": "缺少 pipeline_id"})
     _debug_log(
         "H4",
-        "app_server.py:api_step4_finalize",
+        "app_server.py:api_step3_finalize",
         "step4 finalize start",
         {"has_pipeline_id": bool(pipeline_id), "style": style, "has_expert_text": bool(expert_text)},
     )
@@ -4391,17 +4369,17 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
             pipelines = load_pipelines()
             for p in pipelines:
                 if p["id"] == pipeline_id:
-                    p.setdefault("step_data", {})["step4_final_file"] = output_name
-                    p.setdefault("step_data", {})["step4_download_url"] = "/downloads/" + output_name
-                    p.setdefault("step_data", {})["step4_final_notes"] = expert_text[:500]
-                    p.setdefault("step_data", {})["step4_final_style"] = style
-                    p.setdefault("step_data", {})["step4_final_count"] = revision_count
+                    p.setdefault("step_data", {})["step3_final_file"] = output_name
+                    p.setdefault("step_data", {})["step3_final_download_url"] = "/downloads/" + output_name
+                    p.setdefault("step_data", {})["step3_final_notes"] = expert_text[:500]
+                    p.setdefault("step_data", {})["step3_final_style"] = style
+                    p.setdefault("step_data", {})["step3_final_count"] = revision_count
                     if md_name:
-                        p.setdefault("step_data", {})["step4_md_file"] = md_name
-                        p.setdefault("step_data", {})["step4_md_download_url"] = md_url
+                        p.setdefault("step_data", {})["step3_final_md_file"] = md_name
+                        p.setdefault("step_data", {})["step3_final_md_download_url"] = md_url
                     else:
-                        p.setdefault("step_data", {}).pop("step4_md_file", None)
-                        p.setdefault("step_data", {}).pop("step4_md_download_url", None)
+                        p.setdefault("step_data", {}).pop("step3_final_md_file", None)
+                        p.setdefault("step_data", {}).pop("step3_final_md_download_url", None)
                     save_pipelines(pipelines)
                     break
 
@@ -4428,7 +4406,7 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
     except Exception as e:
         _debug_log(
             "H4",
-            "app_server.py:api_step4_finalize",
+            "app_server.py:api_step3_finalize",
             "step4 failure",
             {"error": str(e)[:300]},
         )
@@ -4653,9 +4631,9 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
     }
 
 
-@app.route("/api/step4/align_preview", methods=["POST"])
-def api_step4_align_preview():
-    """交互式对齐 Phase 1：返回 AI 对齐建议列表，但不实际修改 Excel。"""
+@app.route("/api/step3/align_preview", methods=["POST"])
+def api_step3_align_preview():
+    """知识校验 - 校正性：返回 AI 校验建议列表，但不实际修改 Excel。"""
     pipeline_id = request.form.get("pipeline_id", "")
     expert_text = request.form.get("expert_text", "")
     expert_cached_file = os.path.basename(request.form.get("expert_cached_file", "").strip())
@@ -4669,7 +4647,7 @@ def api_step4_align_preview():
     _agent_debug_log(
         "run-1",
         "H1",
-        "app_server.py:api_step4_align_preview:entry",
+        "app_server.py:api_step3_align_preview:entry",
         "align_preview request received",
         {
             "has_pipeline_id": bool(pipeline_id),
@@ -4710,9 +4688,9 @@ def api_step4_align_preview():
     return jsonify(preview)
 
 
-@app.route("/api/step4/align_chat", methods=["POST"])
-def api_step4_align_chat():
-    """对话式知识对齐：按聊天轮次累积专家意见，返回模型回复与可审核修订建议。"""
+@app.route("/api/step3/align_chat", methods=["POST"])
+def api_step3_align_chat():
+    """知识校验 - 校正性：对话式知识校验，按聊天轮次累积专家意见，返回模型回复与可审核修订建议。"""
     pipeline_id = request.form.get("pipeline_id", "")
     message = (request.form.get("message", "") or request.form.get("expert_text", "")).strip()
     expert_cached_file = os.path.basename(request.form.get("expert_cached_file", "").strip())
@@ -4807,8 +4785,8 @@ def api_step4_align_chat():
     return jsonify(preview_result)
 
 
-@app.route("/api/step4/apply_notes", methods=["POST"])
-def api_step4_apply_notes():
+@app.route("/api/step3/apply_notes", methods=["POST"])
+def api_step3_apply_notes():
     """交互式对齐 Phase 2：按用户选择的建议子集生成 final_*.xlsx。"""
     data = request.get_json(force=True)
     pipeline_id = data.get("pipeline_id", "")
@@ -4819,7 +4797,7 @@ def api_step4_apply_notes():
     _agent_debug_log(
         "run-1",
         "H2",
-        "app_server.py:api_step4_apply_notes:entry",
+        "app_server.py:api_step3_apply_notes:entry",
         "apply_notes request received",
         {
             "has_pipeline_id": bool(pipeline_id),
@@ -4876,7 +4854,7 @@ def api_step4_apply_notes():
     _agent_debug_log(
         "run-1",
         "H3",
-        "app_server.py:api_step4_apply_notes:selection",
+        "app_server.py:api_step3_apply_notes:selection",
         "apply_notes selection materialized",
         {
             "cached_notes_count": len(cached_notes),
@@ -4908,28 +4886,28 @@ def api_step4_apply_notes():
             for p in pipelines:
                 if p["id"] == pipeline_id:
                     sd = p.setdefault("step_data", {})
-                    sd["step4_final_file"] = output_name
-                    sd["step4_download_url"] = "/downloads/" + output_name
-                    sd["step4_final_notes"] = json.dumps(
+                    sd["step3_final_file"] = output_name
+                    sd["step3_final_download_url"] = "/downloads/" + output_name
+                    sd["step3_final_notes"] = json.dumps(
                         [{"action": n.get("action"), "note": n.get("note", "")} for n in final_notes],
                         ensure_ascii=False,
                     )[:500]
                     if tacit_annotations:
-                        sd["step4_tacit_annotations"] = [
+                        sd["step3_tacit_annotations"] = [
                             {"note_id": a.get("note_id"), "action": a.get("action"),
                              "knowledge_id": a.get("knowledge_id", ""),
                              "category": a.get("category", "经验判断"),
                              "question": a.get("question"), "answer": a.get("answer")}
                             for a in tacit_annotations if a.get("answer")
                         ]
-                    sd["step4_final_style"] = cached_style
-                    sd["step4_final_count"] = revision_count
+                    sd["step3_final_style"] = cached_style
+                    sd["step3_final_count"] = revision_count
                     if md_name:
-                        sd["step4_md_file"] = md_name
-                        sd["step4_md_download_url"] = md_url
+                        sd["step3_final_md_file"] = md_name
+                        sd["step3_final_md_download_url"] = md_url
                     else:
-                        sd.pop("step4_md_file", None)
-                        sd.pop("step4_md_download_url", None)
+                        sd.pop("step3_final_md_file", None)
+                        sd.pop("step3_final_md_download_url", None)
                     sd.pop("_align_preview_notes", None)
                     sd.pop("_align_preview_style", None)
                     sd.pop("_align_source_file", None)
@@ -4940,7 +4918,7 @@ def api_step4_apply_notes():
         _agent_debug_log(
             "run-1",
             "H4",
-            "app_server.py:api_step4_apply_notes:success",
+            "app_server.py:api_step3_apply_notes:success",
             "apply_notes generated final file",
             {
                 "output_name": output_name,
@@ -4965,8 +4943,8 @@ def api_step4_apply_notes():
         return jsonify({"status": "error", "error": f"生成对齐稿失败: {str(e)}"})
 
 
-@app.route("/api/step4/confirm_as_is", methods=["POST"])
-def api_step4_confirm_as_is():
+@app.route("/api/step3/confirm_as_is", methods=["POST"])
+def api_step3_confirm_as_is():
     """专家无修订意见时，将当前对齐输入稿直接确认为 final_*.xlsx。"""
     data = request.get_json(force=True) or {}
     pipeline_id = data.get("pipeline_id", "")
@@ -5135,6 +5113,435 @@ def api_validate_replay():
         })
     except Exception as e:
         return jsonify({"status": "error", "error": f"校验回放失败: {str(e)}"})
+
+
+# ─── 多源知识融合路由 ────────────────────────────────────────
+
+def _llm_call_for_interview(system_prompt, user_prompt, model_name):
+    """访谈专用的 LLM 调用封装"""
+    cfg = get_model_by_name(model_name)
+    if not cfg:
+        raise ValueError(f"模型 '{model_name}' 不可用")
+    result = call_llm_with_retry(
+        cfg,
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        max_tokens=2048,
+        temperature=0.7,
+    )
+    return extract_assistant_content(result) if isinstance(result, dict) else str(result)
+
+
+@app.route("/api/step2/extract", methods=["POST"])
+def step2_extract_unified():
+    """统一知识萃取端点：支持单文件/多文件/文本输入，自动融合+信号报告。
+
+    接受:
+      - files[]: 多文件上传
+      - text_inputs: JSON [{content, label}]
+      - pipeline_id: 流水线 ID
+      - model: 模型名称
+      - style: 萃取风格 (默认 标准萃取)
+      - content_type: 可选 "case_review" 触发案例复盘模式
+
+    返回 JSON:
+      {status, preextract_file, preextract_download_url,
+       extracted_count, signal_report, source_count, dedup_count}
+    """
+    pipeline_id = request.form.get("pipeline_id", "")
+    model_name = request.form.get("model", "")
+    style = request.form.get("style", "标准萃取")
+    content_type = (request.form.get("content_type", "") or "").strip()
+
+    if not model_name:
+        models_list = load_llm_config()
+        if models_list:
+            model_name = models_list[0]["name"]
+    model_cfg = get_model_by_name(model_name)
+    if not model_cfg:
+        return jsonify({"status": "error", "error": f"模型 '{model_name}' 不可用"})
+
+    style = _normalize_extract_style(style)
+    style_rule = EXTRACT_STYLE_RULES[style]
+    target_columns = _extract_step2_target_columns(pipeline_id)
+    step1_path = _resolve_step1_workbook_path(pipeline_id)
+    skill_info = SKILL_REGISTRY.get("knowledge-extraction", {})
+    skill_caps = skill_info.get("capabilities", []) if isinstance(skill_info, dict) else []
+    cap_text = "；".join(skill_caps) if skill_caps else "结构化知识提取"
+
+    # 获取所有上传的文件和文本输入
+    uploaded_files = request.files.getlist("files")
+    text_inputs_raw = request.form.get("text_inputs", "[]")
+    try:
+        text_inputs = json.loads(text_inputs_raw)
+    except (json.JSONDecodeError, TypeError):
+        text_inputs = []
+
+    if not uploaded_files and not text_inputs:
+        return jsonify({"status": "error", "error": "请至少上传一个文件或输入文本"})
+
+    _debug_log("H2", "step2_extract_unified", "start", {
+        "files": len(uploaded_files),
+        "text_inputs": len(text_inputs),
+        "style": style,
+    })
+
+    # 构造 system_prompt（含案例复盘模式）
+    if content_type == "case_review":
+        system_prompt = (
+            f"你是一位资深银行知识工程专家，正在从「案例复盘」中同时提取两类内容：\n"
+            f"萃取风格：{style}\n\n"
+            f"## 任务一：识别隐性信号（重点）\n"
+            f"案例复盘中的隐性知识往往不是直接说出来的。请你特别注意以下四类信号：\n"
+            f"1. **规则覆盖不到的地方**：专家提到了哪些标准流程中没有的检查步骤？哪些「多余的动作」？\n"
+            f"2. **情感/直觉表达**：专家用了哪些不安/不对劲/怪怪的情感词汇？这些情感背后对应了什么可观测信号？\n"
+            f"3. **破例逻辑**：专家在哪次决策中突破了标准规则？他用来合理化的理由是什么？是否值得固化为例外条件？\n"
+            f"4. **关系依赖**：专家提到「问了某某人」吗？那个人知道什么别人不知道的东西？\n\n"
+            f"## 任务二：抽取可执行知识条目\n"
+            f"同时从案例中提取以下格式的结构化知识条目。\n\n"
+            f"请按以下JSON格式输出（一个数组，不要Markdown代码块，不要任何前后说明文字）：\n"
+            f'[{{\"隐性信号\": \"描述一个规则覆盖不到的场景或直觉信号（一句话）\", '
+            f'\"信号类型\": \"反模式|破例|直觉|关系依赖\", '
+            f'\"可执行知识\": \"从这个信号中可以提炼出什么可操作的知识？\", '
+            f'\"触发条件\": \"什么情况下应该特别关注这个信号？\", '
+            f'\"来源\": \"来自本案例复盘的哪个部分（标题/背景/判断/结果/重来/习惯）\", '
+            f'\"置信度\": \"高|中|低\"}}]\n\n'
+            f"要求：\n"
+            f"1. 每条隐性信号必须是完整、自包含的陈述\n"
+            f"2. 优先提取反模式和破例逻辑——这些是隐性知识的关键入口\n"
+            f"3. 输出条数尽量 {style_rule['min_items']}~{style_rule['max_items']} 条\n"
+            f"4. 可执行知识要具体——不能只写「注意风险」，要写「注意什么风险、怎么看、看哪里」"
+        )
+        target_columns = ["隐性信号", "信号类型", "可执行知识", "触发条件", "来源", "置信度"]
+    elif target_columns:
+        target_cols_json = json.dumps(target_columns, ensure_ascii=False)
+        example_obj = {k: "" for k in target_columns}
+        content_key = next(
+            (k for k in target_columns if any(m in k for m in ("方法", "描述", "内容", "引用"))),
+            target_columns[0],
+        )
+        example_obj[content_key] = "（示例：从文档抽取的一条可执行知识）"
+        example_json = json.dumps([example_obj], ensure_ascii=False)
+        system_prompt = (
+            f"你是一位知识工程专家，正在执行隐性知识显性化的第二步——知识萃取。\n"
+            f"萃取风格：{style}\n"
+            f"Skill能力参考：{cap_text}\n\n"
+            f"风格硬规则：{style_rule['prompt_hint']}\n"
+            f"请按用户上传的萃取模板抽取知识。前四列（场景/场景说明/子场景/子场景说明）已由系统填写，"
+            f"JSON 只需包含下列第5列及之后的字段（键名与表头完全一致）：\n"
+            f"【输出格式 — 必须严格遵守】\n"
+            f"1. 只输出一个 JSON 数组，不要用 Markdown 代码块，不要写任何前后说明文字。\n"
+            f"2. 数组元素为对象；每个对象的键名必须与下列列表完全一致（含连字符）：{target_cols_json}\n"
+            f"3. 键名与值均使用英文双引号；无信息的字段填空字符串 \"\"。\n"
+            f"4. 输出条数尽量 {style_rule['min_items']}~{style_rule['max_items']} 条。\n"
+            f"5. 输出示例（结构参考，请替换为真实抽取内容）：\n{example_json}"
+        )
+        if _pipeline_prefers_markdown(pipeline_id) or len(target_columns) >= 8:
+            system_prompt += (
+                "\n\n【深度萃取 — 多语义列】\n"
+                "适用条件、判断逻辑、反模式/踩坑提示、知识描述、知识引用等长文本字段须写完整"
+                "（每条通常不少于一两句），勿只填占位词；尽量让每条记录在多数语义列上都有实质内容。"
+            )
+    else:
+        system_prompt = (
+            f"你是一位知识工程专家，正在执行隐性知识显性化的第二步——知识萃取。\n"
+            f"萃取风格：{style}\n\n"
+            f"请从以下文档中提取结构化知识条目。\n"
+            f"输出格式：JSON数组，每个条目包含「知识描述」「适用条件」「判断逻辑」「知识分类」「反模式/踩坑提示」「置信度」字段。\n"
+            f"不要Markdown代码块，不要前后说明文字。\n"
+            f"要求：输出 5~20 条。"
+        )
+
+    # 对每个来源分别 LLM 提取
+    results = []
+    errors = []
+
+    for f in uploaded_files:
+        try:
+            doc_text = extract_text_from_file(f)
+            if not doc_text or len(doc_text.strip()) < 20:
+                errors.append({"source": f.filename or "未知文件", "error": "文件内容过少或为空"})
+                continue
+            user_prompt = f"请从以下文档中提取知识条目：\n\n{doc_text[:8000]}"
+            result = call_llm_with_retry(
+                model_cfg,
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=4096, temperature=0.3,
+            )
+            raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
+            records, _ = _parse_extracted_items(raw)
+            if records:
+                results.append({
+                    "records": records,
+                    "source_label": f.filename or "上传文件",
+                })
+            else:
+                errors.append({"source": f.filename or "未知文件", "error": "提取结果为空"})
+        except Exception as e:
+            errors.append({"source": f.filename or "未知文件", "error": str(e)})
+
+    for i, txt in enumerate(text_inputs):
+        try:
+            content = txt.get("content", "").strip()
+            label = txt.get("label", f"文本输入 {i+1}")
+            if not content or len(content) < 20:
+                continue
+            user_prompt = f"请从以下内容中提取知识条目：\n\n{content[:8000]}"
+            result = call_llm_with_retry(
+                model_cfg,
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=4096, temperature=0.3,
+            )
+            raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
+            records, _ = _parse_extracted_items(raw)
+            if records:
+                results.append({"records": records, "source_label": label + "（文本）"})
+        except Exception as e:
+            errors.append({"source": f"文本 {i+1}", "error": str(e)})
+
+    if not results:
+        return jsonify({"status": "error", "error": "所有来源提取均失败", "errors": errors})
+
+    source_count = len(results)
+
+    # N=1：直接写 preextract Excel
+    if len(results) == 1:
+        items = results[0]["records"]
+        source_label = results[0]["source_label"]
+        # 为单源记录生成信号报告（全量去重/冲突可能为空）
+        duplicates = detect_duplicates(items)
+        conflicts = detect_conflicts(items)
+        signal_report = aggregate_signals(items, duplicates, conflicts)
+        extracted_count = len(items)
+
+        # 写 Excel（单源直接使用 write_preextract_excel）
+        try:
+            from step2_preextract import write_preextract_excel
+            output_name = f"preextract_{uuid.uuid4().hex[:8]}.xlsx"
+            output_path = WORKSPACE / output_name
+            write_preextract_excel(
+                step1_path=step1_path,
+                output_path=output_path,
+                items=items,
+                pipeline_id=pipeline_id,
+            )
+            preextract_file = output_name
+            preextract_download_url = f"/downloads/{output_name}"
+        except Exception as e:
+            _debug_log("E", "step2_extract_unified", "excel_error", str(e)[-200:])
+            preextract_file = ""
+            preextract_download_url = ""
+
+        # 持久化 pipeline step_data
+        if output_name:
+            _persist_step2_excel_pipeline(
+                pipeline_id, output_name,
+                extracted_text=json.dumps(items, ensure_ascii=False)[:2000],
+                style=style,
+                count=extracted_count,
+            )
+        # 保存额外字段
+        try:
+            with _pipelines_lock:
+                pipelines = load_pipelines()
+                for p in pipelines:
+                    if p.get("id") == pipeline_id:
+                        sd = p.get("step_data", {}) or {}
+                        sd["step2_source_count"] = source_count
+                        sd["step2_dedup_count"] = 0
+                        save_pipelines(pipelines)
+                        break
+        except Exception:
+            pass
+
+        return jsonify({
+            "status": "ok",
+            "preextract_file": preextract_file,
+            "preextract_download_url": preextract_download_url,
+            "extracted_count": extracted_count,
+            "signal_report": signal_report,
+            "source_count": source_count,
+            "dedup_count": 0,
+            "errors": errors,
+        })
+
+    # N>1：融合多源结果
+    fused = merge_extraction_results(results)
+    dedup_count = fused["stats"]["duplicate_count"]
+    extracted_count = fused["stats"]["total_deduped"]
+    signal_report = fused.get("signal_report", {})
+
+    # 保存融合结果 JSON
+    fusion_name = f"fusion_{uuid.uuid4().hex[:8]}.json"
+    try:
+        fusion_path = WORKSPACE / fusion_name
+        fusion_path.write_text(json.dumps(fused, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        fusion_name = ""
+
+    # 生成融合 Excel
+    excel_file = ""
+    excel_download_url = ""
+    try:
+        from step2_preextract import write_fusion_to_excel
+        fusion_excel_path = write_fusion_to_excel(
+            fused, WORKSPACE, pipeline_id, step1_path=step1_path,
+        )
+        excel_file = Path(fusion_excel_path).name
+        excel_download_url = f"/downloads/{excel_file}"
+    except Exception as e:
+        _debug_log("E", "step2_extract_unified", "fusion_excel_error", str(e)[-200:])
+
+    # 保存信号报告到独立文件
+    signal_report_file = ""
+    signal_report_url = ""
+    try:
+        signal_report_name = f"signal_report_{uuid.uuid4().hex[:8]}.json"
+        signal_report_path = WORKSPACE / signal_report_name
+        signal_report_path.write_text(
+            json.dumps(signal_report, ensure_ascii=False, indent=2), encoding="utf-8",
+        )
+        signal_report_file = signal_report_name
+        signal_report_url = f"/downloads/{signal_report_name}"
+    except Exception:
+        pass
+
+    # 持久化 pipeline step_data
+    if excel_file:
+        _persist_step2_excel_pipeline(
+            pipeline_id, excel_file,
+            extracted_text=json.dumps(fused.get("records", [])[:10], ensure_ascii=False),
+            style=style,
+            count=extracted_count,
+        )
+    try:
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p.get("id") == pipeline_id:
+                    sd = p.get("step_data", {}) or {}
+                    sd["step2_signal_report_file"] = signal_report_file
+                    sd["step2_signal_report_url"] = signal_report_url
+                    sd["step2_source_count"] = source_count
+                    sd["step2_dedup_count"] = dedup_count
+                    save_pipelines(pipelines)
+                    break
+    except Exception:
+        pass
+
+    return jsonify({
+        "status": "ok",
+        "preextract_file": excel_file,
+        "preextract_download_url": excel_download_url,
+        "extracted_count": extracted_count,
+        "signal_report": signal_report,
+        "signal_report_file": signal_report_file,
+        "signal_report_url": signal_report_url,
+        "source_count": source_count,
+        "dedup_count": dedup_count,
+        "errors": errors,
+    })
+
+
+@app.route("/api/step2/multi_source_extract", methods=["POST"])
+def step2_multi_source_extract():
+    """[已废弃] 多源知识提取 — 内部委托到统一端点 /api/step2/extract"""
+    return step2_extract_unified()
+
+
+@app.route("/api/step2/fuse", methods=["POST"])
+def step2_fuse():
+    """[已废弃] 融合已有提取结果 — 内部委托到统一端点 /api/step2/extract"""
+    return step2_extract_unified()
+
+
+@app.route("/api/step2/interview/start", methods=["POST"])
+def step2_interview_start():
+    """[已废弃] 知识深挖 — 请使用 /api/step3/interview/start"""
+    return jsonify({"status": "deprecated", "message": "请使用 /api/step3/interview/start"})
+
+
+@app.route("/api/step2/interview/convert", methods=["POST"])
+def step2_interview_convert():
+    """[已废弃] 访谈转知识条目 — 请使用 /api/step3/interview/convert"""
+    return jsonify({"status": "deprecated", "message": "请使用 /api/step3/interview/convert"})
+
+
+@app.route("/api/step3/interview/start", methods=["POST"])
+def step3_interview_start():
+    """知识深挖（Step3 访谈）：对一批知识条目启动访谈追问（自动通过 LLM 生成追问问题）。"""
+    pipeline_id = request.form.get("pipeline_id", "")
+    method = request.form.get("method", "case_reverse")
+    model_name = request.form.get("model", "")
+    knowledge_json = request.form.get("knowledge_items", "[]")
+
+    if method not in INTERVIEW_METHODS:
+        return jsonify({"status": "error", "error": f"未知追问方法: {method}，可选: {', '.join(INTERVIEW_METHODS.keys())}"})
+
+    try:
+        items = json.loads(knowledge_json)
+    except (json.JSONDecodeError, TypeError):
+        return jsonify({"status": "error", "error": "knowledge_items 格式错误"})
+
+    if not items or not isinstance(items, list):
+        return jsonify({"status": "error", "error": "请提供至少一条知识条目"})
+
+    if not model_name:
+        models_list = load_llm_config()
+        if models_list:
+            model_name = models_list[0]["name"]
+
+    result = execute_interview_session(
+        method=method,
+        knowledge_items=items,
+        llm_call_fn=_llm_call_for_interview,
+        model_name=model_name,
+    )
+
+    # 保存到工作空间
+    interview_name = f"interview_{method}_{uuid.uuid4().hex[:8]}.json"
+    try:
+        interview_path = WORKSPACE / interview_name
+        interview_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        interview_name = ""
+
+    return jsonify({
+        "status": "ok",
+        "interview": result,
+        "interview_file": interview_name,
+        "interview_download_url": f"/downloads/{interview_name}" if interview_name else "",
+    })
+
+
+@app.route("/api/step3/interview/convert", methods=["POST"])
+def step3_interview_convert():
+    """知识深挖（Step3 访谈）：将已回答的访谈记录转换为知识条目，供后续融合使用。"""
+    answers_json = request.form.get("answers", "[]")
+    source_label = request.form.get("source_label", "访谈记录")
+
+    try:
+        answers = json.loads(answers_json)
+    except (json.JSONDecodeError, TypeError):
+        return jsonify({"status": "error", "error": "answers 格式错误"})
+
+    if not answers:
+        return jsonify({"status": "error", "error": "请提供访谈回答"})
+
+    records = interview_answers_to_records(answers, source_label=source_label)
+    return jsonify({
+        "status": "ok",
+        "records": records,
+        "count": len(records),
+    })
 
 
 # ─── Main ─────────────────────────────────────────────────────────

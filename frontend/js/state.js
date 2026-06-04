@@ -13,24 +13,33 @@
   /** 各步骤产出物字段 — 保存表单时不可覆盖丢失 */
   const PIPELINE_OUTPUT_KEYS = [
     'step1_output_file', 'step1_download_url', 'step1_md_file', 'step1_md_download_url', 'step1_output_format',
+    'step1_knowledge_columns', 'step1_template_source', 'step1_template_name',
     'step2_output_file', 'step2_download_url', 'step2_md_file', 'step2_md_download_url', 'step2_extracted_count',
     'skill_extract_result', 'skill_extract_style',
+    'step2_fusion_file', 'step2_fusion_download_url', 'step2_fusion_count', 'step2_fusion_conflicts', 'step2_fusion_sources',
+    'step2_interview_file', 'step2_interview_count',
+    'step2_signal_report_file', 'step2_signal_report_url', 'step2_source_count', 'step2_dedup_count',
     'step3_revision_file', 'step3_download_url', 'step3_md_file', 'step3_md_download_url', 'step3_revision_notes', 'step3_revision_style', 'step3_revision_count', 'step3_excel_path',
-    'step4_final_file', 'step4_download_url', 'step4_md_file', 'step4_md_download_url', 'step4_final_notes', 'step4_final_style', 'step4_final_count',
-    'step5_skill_file', 'step5_download_url',
-    'step5_cot_file', 'step5_cot_download_url',
-    'step5_qa_file', 'step5_qa_download_url', 'step5_qa_md_file', 'step5_qa_md_download_url',
-    'step5_openclaw_manifest_file', 'step5_openclaw_manifest_url',
+    'step3_final_file', 'step3_final_download_url', 'step3_final_md_file', 'step3_final_md_download_url', 'step3_final_notes', 'step3_final_style', 'step3_final_count',
+    'step4_skill_file', 'step4_download_url',
+    'step4_cot_file', 'step4_cot_download_url',
+    'step4_qa_file', 'step4_qa_download_url', 'step4_qa_md_file', 'step4_qa_md_download_url',
+    'step4_manifest_file', 'step4_manifest_url',
+    'step4_quality_file', 'step4_quality_url',
   ];
 
   const DOWNSTREAM_OUTPUT_KEYS = [
     'step2_output_file', 'step2_download_url', 'step2_md_file', 'step2_md_download_url', 'step2_extracted_count', 'skill_extract_result', 'skill_extract_style',
+    'step2_fusion_file', 'step2_fusion_download_url', 'step2_fusion_count', 'step2_fusion_conflicts', 'step2_fusion_sources',
+    'step2_interview_file', 'step2_interview_count',
+    'step2_signal_report_file', 'step2_signal_report_url', 'step2_source_count', 'step2_dedup_count',
     'step3_revision_file', 'step3_download_url', 'step3_md_file', 'step3_md_download_url', 'step3_revision_notes', 'step3_revision_style', 'step3_revision_count', 'step3_excel_path',
-    'step4_final_file', 'step4_download_url', 'step4_md_file', 'step4_md_download_url', 'step4_final_notes', 'step4_final_style', 'step4_final_count',
-    'step5_skill_file', 'step5_download_url',
-    'step5_cot_file', 'step5_cot_download_url',
-    'step5_qa_file', 'step5_qa_download_url', 'step5_qa_md_file', 'step5_qa_md_download_url',
-    'step5_openclaw_manifest_file', 'step5_openclaw_manifest_url',
+    'step3_final_file', 'step3_final_download_url', 'step3_final_md_file', 'step3_final_md_download_url', 'step3_final_notes', 'step3_final_style', 'step3_final_count',
+    'step4_skill_file', 'step4_download_url',
+    'step4_cot_file', 'step4_cot_download_url',
+    'step4_qa_file', 'step4_qa_download_url', 'step4_qa_md_file', 'step4_qa_md_download_url',
+    'step4_manifest_file', 'step4_manifest_url',
+    'step4_quality_file', 'step4_quality_url',
   ];
 
   // ── Internal State ──
@@ -116,9 +125,8 @@
         2: DOWNSTREAM_OUTPUT_KEYS.filter(function (k) { return k.indexOf('step2_') === 0 || k.indexOf('skill_') === 0; }),
         3: DOWNSTREAM_OUTPUT_KEYS.filter(function (k) { return k.indexOf('step3_') === 0; }),
         4: DOWNSTREAM_OUTPUT_KEYS.filter(function (k) { return k.indexOf('step4_') === 0; }),
-        5: DOWNSTREAM_OUTPUT_KEYS.filter(function (k) { return k.indexOf('step5_') === 0; }),
       };
-      for (var s = start; s <= 5; s++) {
+      for (var s = start; s <= 4; s++) {
         (keysByStep[s] || []).forEach(function (k) { delete _pipeline.step_data[k]; });
       }
       _notify('outputsCleared', fromStep);

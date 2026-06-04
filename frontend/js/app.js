@@ -5,12 +5,12 @@ let allModels = [];
 let currentPipeline = null; // { id, name, scenario, domain, current_step, step_status, step_data }
 const MAX_STEP = 4;
 const MAX_FORM_STEP = 3;
-const STEP_NAMES = { 1: "场景锚定", 2: "知识萃取", 3: "知识对齐", 4: "智能转化" };
+const STEP_NAMES = { 1: "场景锚定", 2: "知识萃取", 3: "知识校验", 4: "智能转化" };
 let _formSaveTimer = null;
 let _lastStep2ExtractedText = '';
 let _step2InputMode = 'doc'; // 'doc' | 'case'
 let _step2ActiveSkill = 'knowledge-extraction'; // 当前选中的 Skill
-let _alignTacitAnnotations = {}; // { noteId: { question, answer } } — Step3 隐性注释缓存
+let _alignTacitAnnotations = {}; // { noteId: { question, answer } } — Step3 修订经验批注缓存
 
 /* ===== Step2 Skill 卡片选择 ===== */
 function selectStep2Skill(skillId) {
@@ -101,24 +101,33 @@ function clearPatternFiles() {
 /** 各步骤产出物字段：保存表单时不得覆盖丢失 */
 const PIPELINE_OUTPUT_KEYS = [
   'step1_output_file', 'step1_download_url', 'step1_md_file', 'step1_md_download_url', 'step1_output_format',
+  'step1_knowledge_columns', 'step1_template_source', 'step1_template_name',
   'step2_output_file', 'step2_download_url', 'step2_md_file', 'step2_md_download_url', 'step2_extracted_count',
   'skill_extract_result', 'skill_extract_style',
+  'step2_fusion_file', 'step2_fusion_download_url', 'step2_fusion_count', 'step2_fusion_conflicts', 'step2_fusion_sources',
+  'step2_interview_file', 'step2_interview_count',
+  'step2_signal_report_file', 'step2_signal_report_url', 'step2_source_count', 'step2_dedup_count',
   'step3_revision_file', 'step3_download_url', 'step3_md_file', 'step3_md_download_url', 'step3_revision_notes', 'step3_revision_style', 'step3_revision_count', 'step3_excel_path',
-  'step4_final_file', 'step4_download_url', 'step4_md_file', 'step4_md_download_url', 'step4_final_notes', 'step4_final_style', 'step4_final_count',
-  'step5_skill_file', 'step5_download_url',
-  'step5_cot_file', 'step5_cot_download_url',
-  'step5_qa_file', 'step5_qa_download_url', 'step5_qa_md_file', 'step5_qa_md_download_url',
-  'step5_openclaw_manifest_file', 'step5_openclaw_manifest_url',
+  'step3_final_file', 'step3_final_download_url', 'step3_final_md_file', 'step3_final_md_download_url', 'step3_final_notes', 'step3_final_style', 'step3_final_count',
+  'step4_skill_file', 'step4_download_url',
+  'step4_cot_file', 'step4_cot_download_url',
+  'step4_qa_file', 'step4_qa_download_url', 'step4_qa_md_file', 'step4_qa_md_download_url',
+  'step4_manifest_file', 'step4_manifest_url',
+  'step4_quality_file', 'step4_quality_url',
 ];
 
 const DOWNSTREAM_OUTPUT_KEYS = [
   'step2_output_file', 'step2_download_url', 'step2_md_file', 'step2_md_download_url', 'step2_extracted_count', 'skill_extract_result', 'skill_extract_style',
+  'step2_fusion_file', 'step2_fusion_download_url', 'step2_fusion_count', 'step2_fusion_conflicts', 'step2_fusion_sources',
+  'step2_interview_file', 'step2_interview_count',
+  'step2_signal_report_file', 'step2_signal_report_url', 'step2_source_count', 'step2_dedup_count',
   'step3_revision_file', 'step3_download_url', 'step3_md_file', 'step3_md_download_url', 'step3_revision_notes', 'step3_revision_style', 'step3_revision_count', 'step3_excel_path',
-  'step4_final_file', 'step4_download_url', 'step4_md_file', 'step4_md_download_url', 'step4_final_notes', 'step4_final_style', 'step4_final_count',
-  'step5_skill_file', 'step5_download_url',
-  'step5_cot_file', 'step5_cot_download_url',
-  'step5_qa_file', 'step5_qa_download_url', 'step5_qa_md_file', 'step5_qa_md_download_url',
-  'step5_openclaw_manifest_file', 'step5_openclaw_manifest_url',
+  'step3_final_file', 'step3_final_download_url', 'step3_final_md_file', 'step3_final_md_download_url', 'step3_final_notes', 'step3_final_style', 'step3_final_count',
+  'step4_skill_file', 'step4_download_url',
+  'step4_cot_file', 'step4_cot_download_url',
+  'step4_qa_file', 'step4_qa_download_url', 'step4_qa_md_file', 'step4_qa_md_download_url',
+  'step4_manifest_file', 'step4_manifest_url',
+  'step4_quality_file', 'step4_quality_url',
 ];
 
 function mergeStepDataPreserveOutputs(serverData, localData, options) {
@@ -140,7 +149,7 @@ function isStep3RevisionFile(fileName) {
 
 function isStep4FinalFile(fileName) {
   const n = String(fileName || '').toLowerCase();
-  return n.endsWith('.xlsx') && (n.startsWith('final_') || n.startsWith('edited_step4_'));
+  return n.endsWith('.xlsx') && (n.startsWith('final_') || n.startsWith('edited_step3_'));
 }
 
 function prefersMarkdownFlow() {
@@ -166,9 +175,8 @@ function clearDownstreamOutputs(fromStep) {
     2: DOWNSTREAM_OUTPUT_KEYS.filter(k => k.startsWith('step2_') || k.startsWith('skill_')),
     3: DOWNSTREAM_OUTPUT_KEYS.filter(k => k.startsWith('step3_')),
     4: DOWNSTREAM_OUTPUT_KEYS.filter(k => k.startsWith('step4_')),
-    5: DOWNSTREAM_OUTPUT_KEYS.filter(k => k.startsWith('step5_')),
   };
-  for (let s = start; s <= 5; s++) {
+  for (let s = start; s <= 4; s++) {
     (keysByStep[s] || []).forEach(k => delete currentPipeline.step_data[k]);
   }
   if (fromStep <= 1) _lastStep2ExtractedText = '';
@@ -474,7 +482,7 @@ function collectStepFormData(step) {
     data.expert_text = document.getElementById('s3-expert-text')?.value || '';
     data.revision_style = document.getElementById('s3-revision-style')?.value || '';
   } else if (step === 4) {
-    // Step 4 (智能转化) has no form data to collect
+    // Step 3 (智能转化) has no form data to collect
   }
   return data;
 }
@@ -521,7 +529,7 @@ function restoreStepFormData(step, data) {
     if (expertEl && data.expert_text) expertEl.value = data.expert_text;
     if (styleEl && data.revision_style) styleEl.value = data.revision_style;
   } else if (step === 4) {
-    // Step 4 (智能转化) has no form data to restore
+    // Step 3 (智能转化) has no form data to restore
   }
 }
 
@@ -587,6 +595,29 @@ function step3LooksLikeNoOpinion(text) {
   return /(暂无意见|无意见|无需修订|无需修改|保持不变|确认通过|没有意见|无异议)/.test(t);
 }
 
+/* ===== Step2 文本输入行管理 ===== */
+function addStep2TextRow() {
+  var container = document.getElementById('s2-text-inputs');
+  if (!container) return;
+  var row = document.createElement('div');
+  row.className = 's2-text-input-row';
+  row.innerHTML = '<input class="s2-text-input-label" placeholder="来源标注（如：制度文件A）">'
+    + '<textarea class="s2-text-input-content" rows="2" placeholder="粘贴文档内容..."></textarea>'
+    + '<button type="button" class="s2-text-input-remove" onclick="this.parentElement.remove();updateStep2Readiness()" title="移除">×</button>';
+  container.appendChild(row);
+}
+
+/* ===== Step3 信号审核面板 ===== */
+function toggleSignalPanel() {
+  var panel = document.getElementById('s3-signal-panel');
+  var body = document.getElementById('s3-signal-body');
+  var toggle = document.getElementById('s3-signal-toggle');
+  if (!panel) return;
+  var isHidden = body ? body.classList.contains('hidden') : panel.classList.contains('hidden');
+  if (body) body.classList.toggle('hidden', !isHidden);
+  if (toggle) toggle.style.transform = isHidden ? '' : 'rotate(180deg)';
+}
+
 /* ===== Step2 输入模式切换（文档萃取 / 案例复盘） ===== */
 function switchStep2Mode(mode) {
   _step2InputMode = mode;
@@ -599,64 +630,164 @@ function switchStep2Mode(mode) {
   updateStep2Readiness();
 }
 
-function _buildCaseReviewText() {
-  var title = (document.getElementById('s2-case-title') || {}).value || '';
-  var ctx = (document.getElementById('s2-case-context') || {}).value || '';
-  var dec = (document.getElementById('s2-case-decision') || {}).value || '';
-  var out = (document.getElementById('s2-case-outcome') || {}).value || '';
-  var redo = (document.getElementById('s2-case-redo') || {}).value || '';
-  var habit = (document.getElementById('s2-case-habit') || {}).value || '';
-  var parts = [];
-  if (title) parts.push('## 案例标题\n' + title);
-  if (ctx) parts.push('## 背景 / 情境\n' + ctx);
-  if (dec) parts.push('## 当时的判断与行动\n' + dec);
-  if (out) parts.push('## 结果\n' + out);
-  if (redo) parts.push('## 如果重来\n' + redo);
-  if (habit) parts.push('## 养成的习惯 / 条件反射\n' + habit);
-  return parts.join('\n\n');
+/* ===== Step2 执行 ===== */
+function step2Execute() {
+  var btn = document.getElementById('s2-skill-extract');
+  if (!btn || btn._locked) return;
+  var model = resolveModelName('s2-model');
+  if (!currentPipeline || !model) { updateStep2Readiness(); showToast('请先补全执行条件', 'error'); return; }
+
+  btn._locked = true;
+  btn.disabled = true;
+  var origBtnHtml = btn.innerHTML;
+  btn.classList.add('loading');
+  btn.innerHTML = '执行中<span class="btn-estimate">· 通常 10-60s</span>';
+  renderLoading('s2-output');
+
+  var fd = new FormData();
+  fd.append('pipeline_id', currentPipeline.id);
+  fd.append('model', model);
+
+  // 收集多文件
+  var sourceFiles = document.getElementById('s2-source-files');
+  var hasFiles = false;
+  if (sourceFiles && sourceFiles.files && sourceFiles.files.length > 0) {
+    for (var i = 0; i < sourceFiles.files.length; i++) { fd.append('files', sourceFiles.files[i]); }
+    hasFiles = true;
+  }
+
+  // 收集文本输入行
+  var textRows = document.querySelectorAll('#s2-text-inputs .s2-text-input-row');
+  var textInputs = [];
+  textRows.forEach(function (row) {
+    var label = (row.querySelector('.s2-text-input-label') || {}).value || '';
+    var content = (row.querySelector('.s2-text-input-content') || {}).value || '';
+    if (content.trim()) textInputs.push({ source_label: label, content: content.trim() });
+  });
+  if (textInputs.length > 0) {
+    fd.append('text_inputs', JSON.stringify(textInputs));
+  }
+
+  if (!hasFiles && textInputs.length === 0) {
+    showToast('请至少上传一个文件或填入文本来源', 'error');
+    btn.disabled = false; btn.innerHTML = origBtnHtml; btn._locked = false;
+    return;
+  }
+
+  fetch(API_BASE + '/api/step2/extract', { method: 'POST', body: fd })
+    .then(function (r) { return r.text(); })
+    .then(function (text) {
+      var result;
+      try { result = JSON.parse(text); } catch (e) { result = { raw: text }; }
+
+      if (result.status !== 'ok') {
+        showToast(result.error || '萃取失败', 'error');
+        renderOutput('s2-output', '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '萃取失败') + '</div></div>');
+        return;
+      }
+
+      clearDownstreamOutputs(2);
+      var dlName = result.excel_file || result.file_name || '';
+      var dlUrl = result.excel_download_url || ('/downloads/' + dlName);
+      var extractedCount = result.extracted_count || 0;
+      var sourceCount = result.source_count || 0;
+      var dedupCount = result.dedup_count || 0;
+      var mdFile = result.markdown_file || '';
+      var mdUrl = result.markdown_download_url || '';
+
+      if (currentPipeline) {
+        currentPipeline.step_data = currentPipeline.step_data || {};
+        currentPipeline.step_data.step2_output_file = dlName;
+        currentPipeline.step_data.step2_download_url = dlUrl;
+        currentPipeline.step_data.step2_md_file = mdFile;
+        currentPipeline.step_data.step2_md_download_url = mdUrl;
+        currentPipeline.step_data.step2_extracted_count = extractedCount;
+        currentPipeline.step_data.step2_source_count = sourceCount;
+        currentPipeline.step_data.step2_dedup_count = dedupCount;
+        if (result.signal_report_file) {
+          currentPipeline.step_data.step2_signal_report_file = result.signal_report_file;
+          currentPipeline.step_data.step2_signal_report_url = result.signal_report_url || ('/downloads/' + result.signal_report_file);
+        }
+        persistPipeline({
+          step2_output_file: dlName,
+          step2_download_url: dlUrl,
+          step2_md_file: mdFile,
+          step2_md_download_url: mdUrl,
+          step2_extracted_count: extractedCount,
+          step2_source_count: sourceCount,
+          step2_dedup_count: dedupCount,
+          step2_signal_report_file: result.signal_report_file || '',
+          step2_signal_report_url: result.signal_report_url || '',
+        }).catch(function () {});
+      }
+
+      var html = '<div class="s2-result-success">';
+      html += '<div class="s2-result-header">知识萃取完成</div>';
+      html += '<div class="s2-result-meta">共提取 <strong>' + extractedCount + '</strong> 条知识';
+      if (sourceCount > 1) html += ' · ' + sourceCount + ' 源 · 去重 ' + dedupCount;
+      html += '</div>';
+
+      // 信号报告概览卡片
+      if (result.signal_report && typeof result.signal_report === 'object') {
+        var sr = result.signal_report;
+        html += '<div class="signal-review-panel" style="margin-top:12px;display:block;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
+        html += '<div class="signal-review-header" style="margin-bottom:8px;"><div class="signal-review-title" style="font-size:13px;font-weight:700;">&#128226; 信号报告</div></div>';
+        html += '<div class="signal-stats-grid">';
+        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.boundary_blur != null ? sr.boundary_blur : '-') + '</span><span class="signal-stat-label">边界模糊</span></div>';
+        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.island != null ? sr.island : '-') + '</span><span class="signal-stat-label">知识孤岛</span></div>';
+        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.low_consensus != null ? sr.low_consensus : '-') + '</span><span class="signal-stat-label">共识度低</span></div>';
+        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.conflict != null ? sr.conflict : '-') + '</span><span class="signal-stat-label">冲突</span></div>';
+        html += '</div></div>';
+      }
+
+      html += '<div class="s2-result-actions" style="margin-top:12px;">';
+      if (mdUrl) html += '<a class="s2-result-btn s2-result-btn-primary" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
+      if (dlUrl) {
+        var dlLabel = mdUrl ? '下载 Excel' : '下载萃取 Excel';
+        html += '<a class="s2-result-btn ' + (mdUrl ? '' : 's2-result-btn-primary') + '" href="' + API_BASE + dlUrl + '" download>' + dlLabel + '</a>';
+      }
+      if (mdFile) html += '<button class="s2-result-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
+      if (dlName) html += '<button class="s2-result-btn" onclick="editStep2Preextract()">在线编辑</button>';
+      html += '</div>';
+      html += '</div>';
+
+      renderOutput('s2-output', html);
+      markStepDone(2);
+    })
+    .catch(function (e) {
+      showToast('网络错误: ' + e.message, 'error');
+      renderOutput('s2-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
+    })
+    .finally(function () {
+      btn.disabled = false;
+      btn._locked = false;
+      btn.innerHTML = origBtnHtml;
+      btn.classList.remove('loading');
+    });
 }
 
 function updateStep2Readiness() {
-  const btn = document.getElementById('s2-skill-extract');
+  var btn = document.getElementById('s2-skill-extract');
   if (!btn) return;
-  const skillId = _step2ActiveSkill || 'knowledge-extraction';
-  const model = resolveModelName('s2-model');
-  var hasInput = false, hintMissing = '';
 
-  if (skillId === 'knowledge-gap-analysis') {
-    hasInput = !!currentPipeline;
-    hintMissing = '请先从总览进入一条流水线';
-  } else if (skillId === 'knowledge-pattern-mining') {
-    var pf = document.getElementById('s2-pattern-files');
-    var pt = document.getElementById('s2-pattern-text');
-    hasInput = (pf && pf.files && pf.files.length >= 2) || ((pt && pt.value || '').trim().length >= 50);
-    hintMissing = '请上传至少2个案例文件，或粘贴多个案例文本（≥50字）';
-  } else {
-    if (_step2InputMode === 'case') {
-      var ct = (document.getElementById('s2-case-title') || {}).value || '';
-      var cc = (document.getElementById('s2-case-context') || {}).value || '';
-      hasInput = !!(ct.trim() && cc.trim());
-      hintMissing = '请至少填写案例标题和背景情境';
-    } else {
-      var dt = document.getElementById('s2-doc-text')?.value || '';
-      var sf = document.getElementById('s2-source-file')?.files?.[0];
-      var cf = currentPipeline?.step_data?.step2_cached_file || '';
-      hasInput = !!dt.trim() || !!sf || !!cf;
-      hintMissing = '请上传知识来源文件或粘贴文档内容';
-    }
-  }
+  var model = resolveModelName('s2-model');
 
-  var ready = !!currentPipeline && !!model && hasInput;
+  // 检测是否有输入源
+  var sourceFiles = document.getElementById('s2-source-files');
+  var hasFiles = sourceFiles && sourceFiles.files && sourceFiles.files.length > 0;
+  var hasText = false;
+  document.querySelectorAll('#s2-text-inputs .s2-text-input-row').forEach(function (row) {
+    var content = (row.querySelector('.s2-text-input-content') || {}).value || '';
+    if (content.trim()) hasText = true;
+  });
+
+  var ready = !!currentPipeline && !!model && (hasFiles || hasText);
   btn.disabled = !ready;
-  if (!currentPipeline)  { renderStepReadiness('s2-readiness', '请先从总览进入一条流水线后再执行', 'warn'); return; }
-  if (!model)            { renderStepReadiness('s2-readiness', '请先配置并选择模型', 'warn'); return; }
-  if (!hasInput)         { renderStepReadiness('s2-readiness', hintMissing, 'warn'); return; }
-  var labels = {
-    'knowledge-extraction': (_step2InputMode === 'case' ? '已就绪：可执行案例复盘萃取' : '已就绪：可执行知识萃取'),
-    'knowledge-pattern-mining': '已就绪：可执行跨案例模式发现',
-    'knowledge-gap-analysis': '已就绪：可执行知识盲区检测'
-  };
-  renderStepReadiness('s2-readiness', labels[skillId] || '已就绪', 'ok');
+
+  if (!currentPipeline) { renderStepReadiness('s2-readiness', '请先从总览进入一条流水线后再执行', 'warn'); return; }
+  if (!model)           { renderStepReadiness('s2-readiness', '请先配置并选择模型', 'warn'); return; }
+  if (!hasFiles && !hasText) { renderStepReadiness('s2-readiness', '请至少上传一个文件或填入文本来源', 'warn'); return; }
+  renderStepReadiness('s2-readiness', '已就绪：可执行知识萃取', 'ok');
 }
 
 function updateStep3AlignModeHint() {
@@ -697,17 +828,15 @@ function setupFormAutoSave() {
   if (subBox) subBox.addEventListener('input', () => scheduleFormSave(1));
   const kBox = document.getElementById('s1-knowledge-columns');
   if (kBox) kBox.addEventListener('input', () => scheduleFormSave(1));
-  ['s2-doc-text', 's2-extract-style'].forEach(id => bind(id, 2));
   ['s3-expert-text', 's3-revision-style'].forEach(id => bind(id, 3));
-  const s2Skill = document.getElementById('s2-skill-select');
   const s2Model = document.getElementById('s2-model');
-  const s2Source = document.getElementById('s2-source-file');
-  const s2Doc = document.getElementById('s2-doc-text');
+  const s2SourceFiles = document.getElementById('s2-source-files');
+  const s2TextInputs = document.getElementById('s2-text-inputs');
   const s3Expert = document.getElementById('s3-expert-text');
   const s3File = document.getElementById('s3-expert-file');
-  [s2Skill, s2Model].forEach(el => el && el.addEventListener('change', updateStep2Readiness));
-  if (s2Source) s2Source.addEventListener('change', updateStep2Readiness);
-  if (s2Doc) s2Doc.addEventListener('input', updateStep2Readiness);
+  if (s2Model) s2Model.addEventListener('change', updateStep2Readiness);
+  if (s2SourceFiles) s2SourceFiles.addEventListener('change', updateStep2Readiness);
+  if (s2TextInputs) s2TextInputs.addEventListener('input', updateStep2Readiness);
   if (s3Expert) s3Expert.addEventListener('input', updateStep3AlignModeHint);
   if (s3File) s3File.addEventListener('change', updateStep3AlignModeHint);
   // 模式发现文件列表
@@ -717,16 +846,15 @@ function setupFormAutoSave() {
 
 /* ===== File upload name display ===== */
 document.addEventListener('DOMContentLoaded', () => {
-  [['s1-template-file', 's1-template-file-name'], ['s2-source-file', 's2-file-name'], ['s3-expert-file', 's3-file-name']].forEach(([inputId, nameId]) => {
+  [['s1-template-file', 's1-template-file-name'], ['s2-source-files', 's2-file-name'], ['s3-expert-file', 's3-file-name']].forEach(([inputId, nameId]) => {
     const input = document.getElementById(inputId);
     const nameEl = document.getElementById(nameId);
     if (input && nameEl) {
       input.addEventListener('change', async () => {
-        nameEl.textContent = input.files.length ? input.files[0].name : '';
+        nameEl.textContent = input.files.length ? (input.files.length + ' 个文件') : '';
         if (!input.files.length) return;
-        if (inputId === 's2-source-file') await cacheUploadedFile(2, input, nameEl);
+        if (inputId === 's2-source-files') updateStep2Readiness();
         if (inputId === 's3-expert-file') await cacheUploadedFile(3, input, nameEl);
-        if (inputId === 's2-source-file') updateStep2Readiness();
         if (inputId === 's3-expert-file') updateStep3AlignModeHint();
       });
     }
@@ -784,7 +912,7 @@ function renderPipelineProgressSummary(currentPanelStep) {
   const steps = [
     { n: 1, label: '场景锚定' },
     { n: 2, label: '知识萃取' },
-    { n: 3, label: '知识对齐' },
+    { n: 3, label: '知识校验' },
     { n: 4, label: '智能转化' },
   ];
   var html = '<div class="pipeline-progress-summary">';
@@ -852,18 +980,20 @@ function switchPanel(step) {
   }
 
   // Auto-load previous step output（先刷新流水线再检测上一步产出）
-  if (step === 2 && currentPipeline) {
-    refreshCurrentPipeline().then(() => {
-      loadStep2PrevOutput();
-      updateStep2Readiness();
-    });
+  if (step === 2) {
+    if (currentPipeline) {
+      refreshCurrentPipeline().then(() => {
+        loadStep2PrevOutput();
+        updateStep2Readiness();
+      });
+    }
   }
   if (step === 3 && currentPipeline) {
     loadStep3PrevOutput();
     loadStep3RevisionContext();
     updateStep3AlignModeHint();
   }
-  if (step === 4 && currentPipeline) loadStep5PrevOutput();
+  if (step === 4 && currentPipeline) loadStep4PrevOutput();
   refreshCachedUploadLabels(step);
 }
 
@@ -1090,21 +1220,18 @@ function clearCurrentPipeline() {
 
     resetValue('s1-scenario-name', '');
     resetValue('s1-scenario-content', '');
-    resetValue('s2-doc-text', '');
     resetValue('s3-expert-text', '');
 
     resetValue('s1-template-file', '');
-    resetValue('s2-source-file', '');
+    resetValue('s2-source-files', '');
     resetValue('s3-expert-file', '');
 
-    resetSelect('s2-extract-style', '标准萃取');
     resetSelect('s3-revision-style', '标准修订');
     resetSelect('s1-output-format', 'excel');
     resetSelect('s1-legacy-template', '');
     step1RenderKnowledgeColumns([]);
     resetSelect('s2-model', '');
     resetSelect('s3-model', '');
-    resetSelect('s2-skill-select', '');
     resetSelect('s3-skill-select', '');
 
     resetText('s1-template-file-name', '未选择');
@@ -1126,9 +1253,9 @@ function clearCurrentPipeline() {
     if (s3Info) s3Info.innerHTML = '';
     if (s3Tags) s3Tags.innerHTML = '';
 
-    const s4Info = document.getElementById('s4-info');
+    const s4Info = document.getElementById('s4-prev-info');
     if (s4Info) s4Info.innerHTML = '';
-    const s5Prev = document.getElementById('s5-prev-draft');
+    const s5Prev = document.getElementById('s4-prev-draft');
     if (s5Prev) s5Prev.innerHTML = '';
     _lastStep2ExtractedText = '';
     closeExcelEditor();
@@ -1143,12 +1270,10 @@ function clearCurrentPipeline() {
     if (s3Draft) s3Draft.style.display = 'none';
     if (s3Empty) s3Empty.style.display = '';
 
-    const s4Box = document.getElementById('s4-box');
-    const s4Empty = document.getElementById('s4-empty');
-    const s4Edit = document.getElementById('s4-edit');
+    const s4Box = document.getElementById('s4-prev-draft');
+    const s4Empty = document.getElementById('s4-prev-empty');
     if (s4Box) s4Box.style.display = 'none';
     if (s4Empty) s4Empty.style.display = 'flex';
-    if (s4Edit) s4Edit.style.display = 'none';
 
     loadStep1SchemaAndTemplates();
     showToast('流水线已清空');
@@ -1534,7 +1659,7 @@ function resolveModelName(selectId) {
 }
 
 function refreshModelSelects() {
-  const selects = ['s2-model', 's3-model', 's5-model', 's5-validate-model'];
+  const selects = ['s2-model', 's3-model', 's4-model', 's4-validate-model'];
   selects.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -1892,7 +2017,7 @@ async function step1Generate() {
         html += '<a class="action-btn small-btn" href="' + API_BASE + result.download_url + '" download>' + dlLabel + '</a>';
       }
       if (mdFlow && step1MdFile) {
-        html += `<button class="action-btn small-btn secondary-btn" onclick="previewStep5File('${escapeHtml(step1MdFile)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>`;
+        html += `<button class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(step1MdFile)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>`;
       }
       if (!mdFlow && result.excel_download_url) {
         html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + (result.excel_file || result.file_name) + '\')">预览 Excel</button>';
@@ -1987,7 +2112,7 @@ function renderStep2PrevOutputCard(data) {
       ${fieldsHtml}
       <div class="s2-result-actions" style="margin-top:8px;">
         ${data.markdown_download_url ? `<a class="s2-result-btn s2-result-btn-primary" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>` : ''}
-        ${data.markdown_file ? `<button class="s2-result-btn" onclick="previewStep5File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>` : ''}
+        ${data.markdown_file ? `<button class="s2-result-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>` : ''}
       </div>
     </div>
   `;
@@ -2063,211 +2188,6 @@ function resolveStep2DownloadInfo(result) {
   if (dlName && !dlUrl) dlUrl = '/downloads/' + dlName;
   return { dlName, dlUrl };
 }
-async function step2SkillExtract() {
-  const btn = document.getElementById('s2-skill-extract');
-  if (!btn || btn._locked) return;
-  const skillId = _step2ActiveSkill || 'knowledge-extraction';
-  const model = resolveModelName('s2-model');
-  const style = document.getElementById('s2-extract-style').value;
-
-  // ── 预校验 ──
-  if (!model || !currentPipeline) { updateStep2Readiness(); showToast('请先补全执行条件', 'error'); return; }
-  if (skillId === 'knowledge-pattern-mining') {
-    var pf = document.getElementById('s2-pattern-files');
-    var pt = document.getElementById('s2-pattern-text');
-    if ((!pf || !pf.files || pf.files.length < 2) && (!pt || (pt.value || '').trim().length < 50)) {
-      showToast('模式发现需要至少2个案例文件或多段案例文本', 'error'); return;
-    }
-  }
-
-  btn._locked = true;
-  btn.disabled = true;
-  const origBtnHtml = btn.innerHTML;
-  btn.classList.add('loading');
-  btn.innerHTML = '执行中<span class="btn-estimate">· 通常 10-60s</span>';
-  renderLoading('s2-output');
-
-  const fd = new FormData();
-  fd.append('skill_id', skillId);
-  fd.append('model', model);
-  fd.append('style', style);
-  fd.append('pipeline_id', currentPipeline.id);
-
-  // ── 按 Skill 构建请求 ──
-  if (skillId === 'knowledge-gap-analysis') {
-    // 盲区检测：只需 pipeline_id，后端自动读取 Schema 和 Excel
-  } else if (skillId === 'knowledge-pattern-mining') {
-    // 模式发现：发送多文件或粘贴文本
-    var patternFiles = document.getElementById('s2-pattern-files');
-    var patternText = document.getElementById('s2-pattern-text');
-    if (patternFiles && patternFiles.files) {
-      for (var i = 0; i < patternFiles.files.length; i++) { fd.append('files', patternFiles.files[i]); }
-    }
-    if (patternText && patternText.value.trim()) { fd.append('content', patternText.value.trim()); }
-  } else {
-    // 知识萃取：文档或案例复盘
-    if (_step2InputMode === 'case') {
-      var caseText = _buildCaseReviewText();
-      if (caseText) { fd.append('content', caseText); fd.append('content_type', 'case_review'); }
-    } else {
-      var docText = document.getElementById('s2-doc-text').value;
-      var sourceFile = document.getElementById('s2-source-file').files[0];
-      var cachedFile = currentPipeline?.step_data?.step2_cached_file || '';
-      if (docText.trim()) fd.append('content', docText);
-      if (sourceFile) fd.append('file', sourceFile);
-      if (!sourceFile && cachedFile) fd.append('cached_file', cachedFile);
-    }
-  }
-
-  try {
-    const resp = await fetch(API_BASE + '/api/skills/execute', { method: 'POST', body: fd });
-    const text = await resp.text();
-    let result;
-    try { result = JSON.parse(text); } catch { result = { raw: text }; }
-
-    if (result.status === 'ok') {
-      // ── 模式发现 / 盲区检测：渲染报告下载卡片 ──
-      if (skillId === 'knowledge-pattern-mining' || skillId === 'knowledge-gap-analysis' || skillId === 'knowledge-freshness-audit') {
-        var rptName = result.report_name || '';
-        var rptUrl = result.download_url || ('/downloads/' + rptName);
-        var summary = '';
-        if (result.case_count) summary += '<div class="s2-stat"><span class="s2-stat-num">' + result.case_count + '</span><span class="s2-stat-label">案例数</span></div>';
-        if (result.gaps_found != null) summary += '<div class="s2-stat"><span class="s2-stat-num">' + result.gaps_found + '</span><span class="s2-stat-label">盲区数</span></div>';
-        if (result.total_items) summary += '<div class="s2-stat"><span class="s2-stat-num">' + result.total_items + '</span><span class="s2-stat-label">条目数</span></div>';
-        var rptHtml = '<div class="s2-result-success"><div class="s2-result-header">' + escapeHtml(result.skill_name || '分析完成') + '</div>';
-        if (summary) rptHtml += '<div class="s1-result-stats">' + summary + '</div>';
-        rptHtml += '<div class="s2-result-actions" style="margin-top:12px;">';
-        if (rptUrl) rptHtml += '<a class="s2-result-btn s2-result-btn-primary" href="' + API_BASE + rptUrl + '" download>📥 下载分析报告</a>';
-        rptHtml += '</div></div>';
-        renderOutput('s2-output', rptHtml);
-        markStepDone(2);
-        return;
-      }
-
-      // ── 知识萃取：处理 Excel 下载 ──
-      clearDownstreamOutputs(2);
-      const { dlName, dlUrl } = resolveStep2DownloadInfo(result);
-      const hasExcel = dlUrl && isStep2PreextractFile(dlName);
-      if (!hasExcel) {
-        const hint = result.error
-          ? escapeHtml(result.error)
-          : '未返回有效的萃取 Excel（文件名须为 preextract_*.xlsx）。可能下载到了场景骨架，请 Ctrl+F5 强刷后重试，并确认容器已更新到最新前端/后端。';
-        renderOutput('s2-output', '<h4>萃取异常</h4><div class="error-list"><div class="error-item">' + hint + '</div></div>');
-        return;
-      }
-      result.download_name = dlName;
-      result.download_url = dlUrl;
-
-      _lastStep2ExtractedText = result.extracted || '';
-
-      if (currentPipeline) {
-        currentPipeline.step_data = currentPipeline.step_data || {};
-        currentPipeline.step_data.step2_output_file = dlName;
-        currentPipeline.step_data.step2_download_url = dlUrl;
-        currentPipeline.step_data.step2_md_file = result.markdown_file || '';
-        currentPipeline.step_data.step2_md_download_url = result.markdown_download_url || '';
-        currentPipeline.step_data.step2_extracted_count = result.extracted_count || 0;
-        currentPipeline.step_data.skill_extract_result = _lastStep2ExtractedText;
-        currentPipeline.step_data.skill_extract_style = result.style || style;
-        delete currentPipeline.step_data.step2_preview_name;
-        delete currentPipeline.step_data.step2_preview_url;
-        await persistPipeline({
-          step2_output_file: dlName,
-          step2_download_url: dlUrl,
-          step2_md_file: result.markdown_file || '',
-          step2_md_download_url: result.markdown_download_url || '',
-          step2_extracted_count: result.extracted_count || 0,
-          skill_extract_result: result.extracted || '',
-          skill_extract_style: result.style || style,
-        });
-        await refreshCurrentPipeline();
-      }
-
-      const tplHint = result.used_step1_template ? '已按 Step1 场景模板列回填' : '已生成标准萃取表';
-      const ruleHint = result.style_rule
-        ? ` · 规则过滤 ${result.style_rule.raw_count || 0} → ${result.style_rule.processed_count || 0}（目标 ${result.style_rule.min_items || '-'}-${result.style_rule.max_items || '-'}）`
-        : '';
-      const mdFlow = prefersMarkdownFlow();
-      const mdFile = result.markdown_file || '';
-      const mdUrl = result.markdown_download_url || '';
-      const html = `
-          <div class="s2-result-success">
-            <div class="s2-result-header">知识萃取完成</div>
-            <div class="s2-result-meta">模型：${escapeHtml(result.model || model)} · 风格：${escapeHtml(result.style || style)} · 共提取 <strong>${result.extracted_count || 0}</strong> 条 · ${escapeHtml(tplHint)}${escapeHtml(ruleHint)}</div>
-            <div class="s2-prev-card" style="margin-top:12px;">
-              <div class="s2-prev-card-top">
-                <div class="s2-prev-card-icon">&#128196;</div>
-                <div class="s2-prev-card-name">${escapeHtml(mdFlow && mdFile ? mdFile : dlName)}</div>
-                <span class="s2-prev-card-badge">${mdFlow ? 'Markdown' : 'Excel'}</span>
-              </div>
-            </div>
-            <div class="s2-result-actions" style="margin-top:12px;">
-              ${mdUrl ? `<a class="s2-result-btn s2-result-btn-primary" href="${API_BASE + mdUrl}" download="${escapeHtml(mdFile || 'preextract.md')}">&#11015; 下载萃取 Markdown</a>` : ''}
-              ${(!mdFlow) ? `<a class="s2-result-btn ${mdUrl ? '' : 's2-result-btn-primary'}" href="${API_BASE + dlUrl}" download="${escapeHtml(dlName)}">&#11015; 下载萃取 Excel</a>` : ''}
-              ${mdFile ? `<button class="s2-result-btn" onclick="previewStep5File('${escapeHtml(mdFile)}','Step2 萃取 Markdown 预览')">&#128065; 预览/编辑 Markdown</button>` : ''}
-              ${(!mdFlow) ? '<button class="s2-result-btn" onclick="editStep2Preextract()">&#9998; 在线编辑</button>' : ''}
-              <button type="button" class="s2-result-btn copy" id="s2-copy-extract-btn" onclick="copyExtractResult()">&#128203; 复制 LLM 原文</button>
-              <button type="button" class="s2-result-btn" onclick="openInterviewFromExtract()" style="background:#f0fdf4;color:#16a34a;border-color:#86efac;">&#128269; 深挖隐性知识</button>
-            </div>
-            <div class="s2-result-detail" id="s2-result-text" style="max-height:200px;overflow-y:auto;margin-top:8px;font-size:12px;color:#666;">
-              <pre>${escapeHtml(result.extracted || '').substring(0, 1000)}${(result.extracted || '').length > 1000 ? '...' : ''}</pre>
-            </div>
-          </div>
-        `;
-      renderOutput('s2-output', html);
-      markStepDone(2);
-    } else {
-      const preview = result.extracted_preview || result.extracted || result.raw_output || '';
-      if (preview) _lastStep2ExtractedText = preview;
-      let errHtml = '<h4>萃取失败</h4><div class="error-list"><div class="error-item">' + escapeHtml(result.error || '未知错误') + '</div>';
-      if (result.parse_mode) {
-        errHtml += '<div class="error-item" style="font-size:12px;color:#666;">解析模式：' + escapeHtml(result.parse_mode);
-        if (result.target_column_count != null) {
-          errHtml += ' · 模板列数：' + escapeHtml(String(result.target_column_count));
-        }
-        if (result.style_rule) {
-          errHtml += ' · 过滤：' + escapeHtml(String(result.style_rule.raw_count || 0)) + '→' + escapeHtml(String(result.style_rule.processed_count || 0));
-        }
-        errHtml += '</div>';
-      }
-      if (preview) {
-        errHtml += '<div style="margin-top:8px;font-size:12px;"><button type="button" class="s2-result-btn" onclick="copyExtractResult()">复制模型原文</button></div>';
-        errHtml += '<pre style="max-height:180px;overflow:auto;font-size:11px;margin-top:6px;background:#f5f5f5;padding:8px;">' + escapeHtml(String(preview).substring(0, 2000)) + '</pre>';
-      }
-      errHtml += '</div>';
-      renderOutput('s2-output', errHtml);
-    }
-  } catch (e) {
-    renderOutput('s2-output', '<h4>错误</h4><div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
-  } finally {
-    btn.disabled = false;
-    btn._locked = false;
-    btn.innerHTML = origBtnHtml;
-  }
-}
-
-async function copyExtractResult() {
-  const text = _lastStep2ExtractedText
-    || currentPipeline?.step_data?.skill_extract_result
-    || '';
-  if (!String(text).trim()) {
-    showToast('暂无可复制的 LLM 原文', 'error');
-    return;
-  }
-  const btn = document.getElementById('s2-copy-extract-btn');
-  const ok = await copyTextToClipboard(text);
-  if (ok) {
-    if (btn) {
-      const orig = btn.innerHTML;
-      btn.textContent = '已复制';
-      setTimeout(() => { btn.innerHTML = orig; }, 1500);
-    } else {
-      showToast('已复制 LLM 原文');
-    }
-  } else {
-    showToast('复制失败，请手动选中文本复制', 'error');
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // Step 3: Interactive Knowledge Alignment
@@ -2282,12 +2202,12 @@ let _alignChatHistory = [];
 const ALIGN_ACTION_LABELS = { modify: '修改', delete: '删除', add: '新增', supplement: '补充' };
 const ALIGN_ACTION_COLORS = { modify: '#faad14', delete: '#ff4d4f', add: '#52c41a', supplement: '#1890ff' };
 
-// ── 隐性注释 / 追问卡片 ──
+// ── 修订经验批注 / 追问卡片 ──
 const TACIT_FOLLOWUP_QUESTIONS = {
-  modify: '你改这个，是因为遇到过不适用的情况吗？能举一个具体的案例吗？',
-  delete: '这条规则在什么情况下反而会误导人？有没有踩过坑？',
-  add: '这条新知识你是从哪学到的？是自己的经验还是听说的？',
-  supplement: '补充的内容是你最近才意识到的，还是一直知道但没写下来的？'
+  modify: '请补充您对本条的经验批注，以完善最终校验',
+  delete: '请说明本条在什么情况下可能产生误导，便于后续核查',
+  add: '请补充新增内容背后的判断经验，帮助其他人理解',
+  supplement: '请补充您的经验批注，说明补充内容的依据'
 };
 
 function showTacitFollowup(noteEl, noteId, actionType) {
@@ -2301,10 +2221,10 @@ function showTacitFollowup(noteEl, noteId, actionType) {
   card.className = 'tacit-followup';
   card.innerHTML =
     '<div class="tacit-followup-label">💡 ' + escapeHtml(question) + '</div>' +
-    '<textarea id="tacit-answer-' + safeNoteId + '" placeholder="写几句话就行，哪怕只是「当时感觉不对」也比留空有信息量..."></textarea>' +
+    '<textarea id="tacit-answer-' + safeNoteId + '" placeholder="简要记录您的修订经验与判断依据..."></textarea>' +
     '<div class="tacit-followup-actions">' +
       '<button class="tacit-followup-skip" onclick="dismissTacitFollowup(this)">跳过</button>' +
-      '<button class="tacit-followup-save" data-note-id="' + safeNoteId + '" data-action-type="' + safeActionType + '" data-question="' + safeQuestion + '">保存隐性注释</button>' +
+      '<button class="tacit-followup-save" data-note-id="' + safeNoteId + '" data-action-type="' + safeActionType + '" data-question="' + safeQuestion + '">保存经验批注</button>' +
     '</div>';
   card.querySelector('.tacit-followup-save').addEventListener('click', function() {
     saveTacitAnnotation(this.dataset.noteId, this.dataset.actionType, this.dataset.question);
@@ -2325,10 +2245,10 @@ function saveTacitAnnotation(noteId, actionType, question) {
   // 视觉反馈
   var card = ta.closest('.tacit-followup');
   if (card) {
-    card.innerHTML = '<div style="color:var(--green);font-size:12px;padding:4px 0">✓ 隐性注释已记录 — 将在生成对齐稿时一并保存</div>';
+    card.innerHTML = '<div style="color:var(--green);font-size:12px;padding:4px 0">✓ 经验批注已记录 — 将在生成定稿时一并保存</div>';
     setTimeout(function () { if (card.parentNode) card.remove(); }, 2000);
   }
-  showToast('隐性注释已保存');
+  showToast('经验批注已保存');
 }
 
 function getTacitAnnotationsPayload() {
@@ -2359,6 +2279,17 @@ async function loadStep3PrevOutput() {
       empty.style.display = 'none';
       const extractedCount = data.extracted_count || (data.fields_info && data.fields_info[0] ? data.fields_info[0].rows : 0);
       info.textContent = `${data.file_name}` + (data.scenario ? ` · ${data.scenario}` : '') + (data.style ? ` · ${data.style}` : '') + (extractedCount > 0 ? ` · 萃取${extractedCount}条知识` : '');
+
+      // 深挖补充记录 badge
+      var interviewRecordsStr = currentPipeline?.step_data?.step2_interview_records;
+      if (interviewRecordsStr) {
+        try {
+          var interviewRecords = JSON.parse(interviewRecordsStr);
+          if (Array.isArray(interviewRecords) && interviewRecords.length > 0) {
+            info.innerHTML += ' · <span class="s2-prev-card-badge" style="background:#fef3c7;color:#92400e;">含深挖补充 ' + interviewRecords.length + ' 条</span>';
+          }
+        } catch (_) { /* ignore parse error */ }
+      }
       if (data.fields_info && data.fields_info.length > 0) {
         const mainSheet = data.fields_info[0];
         const tagHtml = mainSheet.headers.slice(0, 6).map(h => `<span class="s2-prev-tag">${escapeHtml(h)}</span>`).join('');
@@ -2368,12 +2299,29 @@ async function loadStep3PrevOutput() {
           tags.innerHTML += ` <button type="button" class="s2-result-btn" style="margin-top:8px;font-size:12px;" onclick="editStep3Revision()">预览/编辑萃取底稿</button>`;
         }
         if (data.markdown_file) {
-          tags.innerHTML += ` <button type="button" class="s2-result-btn" style="margin-top:8px;font-size:12px;" onclick="previewStep5File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览/编辑 Markdown</button>`;
+          tags.innerHTML += ` <button type="button" class="s2-result-btn" style="margin-top:8px;font-size:12px;" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览/编辑 Markdown</button>`;
         }
       }
     } else {
       card.style.display = 'none';
       empty.style.display = '';
+    }
+
+    // 加载信号报告数据
+    var signalReportFile = currentPipeline?.step_data?.step2_signal_report_file;
+    if (signalReportFile) {
+      try {
+        var sigResp = await fetch(API_BASE + '/downloads/' + signalReportFile);
+        if (sigResp.ok) {
+          var signalData = await sigResp.json();
+          document.getElementById('s3-signal-blur').textContent = signalData.boundary_blur != null ? signalData.boundary_blur : '-';
+          document.getElementById('s3-signal-island').textContent = signalData.island != null ? signalData.island : '-';
+          document.getElementById('s3-signal-lowconf').textContent = signalData.low_consensus != null ? signalData.low_consensus : '-';
+          document.getElementById('s3-signal-conflict').textContent = signalData.conflict != null ? signalData.conflict : '-';
+          var infoEl = document.getElementById('s3-signal-info');
+          if (infoEl && signalData.summary) infoEl.textContent = signalData.summary;
+        }
+      } catch (_) { /* 文件不存在或解析失败，保持默认值"—" */ }
     }
   } catch (e) {
     console.error('加载Step2输出失败:', e);
@@ -2477,7 +2425,7 @@ async function step3GeneratePreview() {
     fd.append('expert_cached_file', cachedExpertFile);
   }
   try {
-    const resp = await fetch(API_BASE + '/api/step4/align_chat', { method: 'POST', body: fd });
+    const resp = await fetch(API_BASE + '/api/step3/align_chat', { method: 'POST', body: fd });
     const result = await resp.json();
 
     if (result.status === 'ok') {
@@ -2611,7 +2559,7 @@ function alignSetState(id, state) {
   renderAlignNotesList();
   updateAlignStats();
 
-  // 当专家「采纳」或「编辑」修订建议时，弹出隐性注释追问卡片
+  // 当专家「采纳」或「编辑」修订建议时，弹出经验批注追问卡片
   if (state === 'accepted' || state === 'edited') {
     var note = (_alignNotes || []).find(function (n) { return n.id === id; });
     if (note) {
@@ -2711,17 +2659,17 @@ async function showStep3AlignComplete(result, options) {
 
   if (currentPipeline && dlName && isStep4FinalFile(dlName)) {
     currentPipeline.step_data = currentPipeline.step_data || {};
-    currentPipeline.step_data.step4_final_file = dlName;
-    currentPipeline.step_data.step4_download_url = result.download_url || ('/downloads/' + dlName);
-    currentPipeline.step_data.step4_md_file = mdName;
-    currentPipeline.step_data.step4_md_download_url = result.markdown_download_url || '';
-    currentPipeline.step_data.step4_final_count = result.revision_count || 0;
+    currentPipeline.step_data.step3_final_file = dlName;
+    currentPipeline.step_data.step3_final_download_url = result.download_url || ('/downloads/' + dlName);
+    currentPipeline.step_data.step3_final_md_file = mdName;
+    currentPipeline.step_data.step3_final_md_download_url = result.markdown_download_url || '';
+    currentPipeline.step_data.step3_final_count = result.revision_count || 0;
     await persistPipeline({
-      step4_final_file: dlName,
-      step4_download_url: currentPipeline.step_data.step4_download_url,
-      step4_md_file: mdName,
-      step4_md_download_url: currentPipeline.step_data.step4_md_download_url,
-      step4_final_count: result.revision_count || 0,
+      step3_final_file: dlName,
+      step3_final_download_url: currentPipeline.step_data.step3_final_download_url,
+      step3_final_md_file: mdName,
+      step3_final_md_download_url: currentPipeline.step_data.step3_final_md_download_url,
+      step3_final_count: result.revision_count || 0,
     });
     await refreshCurrentPipeline();
   }
@@ -2744,7 +2692,7 @@ async function showStep3AlignComplete(result, options) {
   html += '<div class="align-result-actions">';
   if (mdUrl) html += '<a href="' + escapeHtml(mdUrl) + '" class="s2-result-btn s2-result-btn-primary" download>下载对齐稿 Markdown</a>';
   if (dlUrl && !mdFlow) html += '<a href="' + escapeHtml(dlUrl) + '" class="s2-result-btn s2-result-btn-primary" download>下载对齐稿 Excel</a>';
-  if (mdName) html += '<button class="s2-result-btn" onclick="previewStep5File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
+  if (mdName) html += '<button class="s2-result-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
   if (!mdFlow && !opts.noRevision) html += '<button class="s2-result-btn" onclick="editStep3Revision()">&#9998; 在线编辑对齐稿</button>';
   html += '<button class="s2-result-btn" onclick="step3BackToInput()">重新对齐</button>';
   html += '</div>';
@@ -2776,7 +2724,7 @@ async function step3ApplyNotes() {
   btn.innerHTML = '<span class="action-icon">&#9203;</span> 生成中...';
 
   try {
-    const resp = await fetch(API_BASE + '/api/step4/apply_notes', {
+    const resp = await fetch(API_BASE + '/api/step3/apply_notes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pipeline_id: pid, accepted_ids: acceptedIds, edited_notes: editedNotes, tacit_annotations: getTacitAnnotationsPayload() }),
@@ -2802,7 +2750,7 @@ async function step3ConfirmAsIs() {
   const pid = currentPipeline ? currentPipeline.id : null;
   if (!pid) { alert('请先进入流水线'); return; }
   try {
-    const resp = await fetch(API_BASE + '/api/step4/confirm_as_is', {
+    const resp = await fetch(API_BASE + '/api/step3/confirm_as_is', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pipeline_id: pid }),
@@ -2821,23 +2769,23 @@ async function step3ConfirmAsIs() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Step 5: Compile & Quality & AI Refine
+// Step 4: Compile & Quality & AI Refine
 // ═══════════════════════════════════════════════════════════════════
 
-async function loadStep5PrevOutput() {
+async function loadStep4PrevOutput() {
   if (!currentPipeline) return;
-  const el = document.getElementById('s5-prev-draft');
-  const emptyEl = document.getElementById('s5-prev-empty');
+  const el = document.getElementById('s4-prev-draft');
+  const emptyEl = document.getElementById('s4-prev-empty');
   if (!el) return;
   try {
-    const resp = await fetch(API_BASE + '/api/step5/prev_output?pipeline_id=' + currentPipeline.id);
+    const resp = await fetch(API_BASE + '/api/step3/align_output?pipeline_id=' + currentPipeline.id);
     const data = await resp.json();
     if (data.has_output) {
       el.style.display = 'block';
       if (emptyEl) emptyEl.style.display = 'none';
-      const infoNameEl = document.getElementById('s5-prev-name');
-      const infoMetaEl = document.getElementById('s5-prev-meta');
-      const tagsEl = document.getElementById('s5-prev-tags');
+      const infoNameEl = document.getElementById('s4-prev-name');
+      const infoMetaEl = document.getElementById('s4-prev-meta');
+      const tagsEl = document.getElementById('s4-prev-tags');
       const mdFlow = prefersMarkdownFlow();
       if (infoNameEl) infoNameEl.textContent = (mdFlow && data.markdown_file) ? data.markdown_file : (data.file_name || '知识对齐稿');
       if (infoMetaEl) infoMetaEl.textContent = (data.scenario || '');
@@ -2849,7 +2797,7 @@ async function loadStep5PrevOutput() {
           });
         }
         if (data.markdown_file) {
-          tags += '<button type="button" class="s2-result-btn" style="margin-top:8px;font-size:12px;" onclick="previewStep5File(\'' + escapeHtml(data.markdown_file) + '\', \'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
+          tags += '<button type="button" class="s2-result-btn" style="margin-top:8px;font-size:12px;" onclick="previewStep4File(\'' + escapeHtml(data.markdown_file) + '\', \'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
         }
         if (!mdFlow && data.download_url) {
           tags += '<a class="s2-result-btn" style="margin-top:8px;font-size:12px;" href="' + API_BASE + data.download_url + '" download>下载 Excel</a>';
@@ -2860,38 +2808,38 @@ async function loadStep5PrevOutput() {
       el.style.display = 'none';
       if (emptyEl) emptyEl.style.display = 'block';
     }
-  } catch (e) { console.error('loadStep5PrevOutput error', e); }
+  } catch (e) { console.error('loadStep4PrevOutput error', e); }
 }
 
-function getSelectedStep5Formats() {
+function getSelectedStep4Formats() {
   const formats = [];
-  if (document.getElementById('s5-fmt-cot')?.checked) formats.push('cot');
-  if (document.getElementById('s5-fmt-qa')?.checked) formats.push('qa');
-  if (document.getElementById('s5-fmt-skill')?.checked) formats.push('skill');
+  if (document.getElementById('s4-fmt-cot')?.checked) formats.push('cot');
+  if (document.getElementById('s4-fmt-qa')?.checked) formats.push('qa');
+  if (document.getElementById('s4-fmt-skill')?.checked) formats.push('skill');
   return formats;
 }
 
-function renderStep5ArtifactCard(key, title, desc, countLabel, downloads, previewFn) {
-  let html = '<div class="s5-artifact-card">';
-  html += '<div class="s5-artifact-head"><div class="s5-artifact-title">' + escapeHtml(title) + '</div>';
-  if (countLabel) html += '<span class="s5-artifact-badge">' + escapeHtml(countLabel) + '</span>';
+function renderStep4ArtifactCard(key, title, desc, countLabel, downloads, previewFn) {
+  let html = '<div class="s4-artifact-card">';
+  html += '<div class="s4-artifact-head"><div class="s4-artifact-title">' + escapeHtml(title) + '</div>';
+  if (countLabel) html += '<span class="s4-artifact-badge">' + escapeHtml(countLabel) + '</span>';
   html += '</div>';
-  html += '<div class="s5-artifact-desc">' + escapeHtml(desc) + '</div>';
-  html += '<div class="s5-artifact-actions">';
+  html += '<div class="s4-artifact-desc">' + escapeHtml(desc) + '</div>';
+  html += '<div class="s4-artifact-actions">';
   (downloads || []).forEach(d => {
     if (d.url) {
-      html += '<a class="s5-btn s5-btn-outline" href="' + escapeHtml(API_BASE + d.url) + '" download>' + escapeHtml(d.label) + '</a>';
+      html += '<a class="s4-btn s4-btn-outline" href="' + escapeHtml(API_BASE + d.url) + '" download>' + escapeHtml(d.label) + '</a>';
     }
   });
   if (previewFn) {
-    html += '<button type="button" class="s5-btn s5-btn-outline" onclick="' + previewFn + '">&#128065; 预览</button>';
+    html += '<button type="button" class="s4-btn s4-btn-outline" onclick="' + previewFn + '">&#128065; 预览</button>';
   }
   html += '</div></div>';
   return html;
 }
 
-async function step5FreshnessAudit() {
-  var btn = document.getElementById('s5-freshness-btn');
+async function step4FreshnessAudit() {
+  var btn = document.getElementById('s4-freshness-btn');
   if (!btn || btn._locked || !currentPipeline) return;
   btn._locked = true;
   btn.disabled = true;
@@ -2899,11 +2847,11 @@ async function step5FreshnessAudit() {
   var fd = new FormData();
   fd.append('skill_id', 'knowledge-freshness-audit');
   fd.append('pipeline_id', currentPipeline.id);
-  fd.append('model', resolveModelName('s5-model') || (allModels.length ? allModels[0].name : ''));
+  fd.append('model', resolveModelName('s4-model') || (allModels.length ? allModels[0].name : ''));
   try {
     var resp = await fetch(API_BASE + '/api/skills/execute', { method: 'POST', body: fd });
     var result = await resp.json();
-    var s5out = document.getElementById('s5-output');
+    var s5out = document.getElementById('s4-output');
     if (result.status === 'ok') {
       var dl = result.download_url || '';
       s5out.innerHTML =
@@ -2917,7 +2865,7 @@ async function step5FreshnessAudit() {
       s5out.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '审计失败') + '</div></div>';
     }
   } catch (e) {
-    document.getElementById('s5-output').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
+    document.getElementById('s4-output').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
   } finally {
     btn._locked = false;
     btn.disabled = false;
@@ -2925,17 +2873,17 @@ async function step5FreshnessAudit() {
   }
 }
 
-async function step5Compile() {
+async function step4Compile() {
   if (!currentPipeline) { alert('请先进入流水线'); return; }
-  const formats = getSelectedStep5Formats();
+  const formats = getSelectedStep4Formats();
   if (!formats.length) { alert('请至少选择一种交付物类型'); return; }
 
-  renderLoading('s5-output');
+  renderLoading('s4-output');
   try {
     const fd = new FormData();
     fd.append('pipeline_id', currentPipeline.id);
     fd.append('formats', formats.join(','));
-    const result = await apiCall('/api/step5/compile', fd);
+    const result = await apiCall('/api/step4/compile', fd);
     let html = '';
     if (result.status === 'ok') {
       const km = result.knowledge_count || 0;
@@ -2945,63 +2893,63 @@ async function step5Compile() {
       if (currentPipeline) {
         currentPipeline.step_data = currentPipeline.step_data || {};
         if (dl.skill?.file_name) {
-          currentPipeline.step_data.step5_skill_file = dl.skill.file_name;
-          currentPipeline.step_data.step5_download_url = dl.skill.download_url;
+          currentPipeline.step_data.step4_skill_file = dl.skill.file_name;
+          currentPipeline.step_data.step4_download_url = dl.skill.download_url;
         }
         if (dl.cot?.file_name) {
-          currentPipeline.step_data.step5_cot_file = dl.cot.file_name;
-          currentPipeline.step_data.step5_cot_download_url = dl.cot.download_url;
+          currentPipeline.step_data.step4_cot_file = dl.cot.file_name;
+          currentPipeline.step_data.step4_cot_download_url = dl.cot.download_url;
         }
         if (dl.qa?.file_name) {
-          currentPipeline.step_data.step5_qa_file = dl.qa.file_name;
-          currentPipeline.step_data.step5_qa_download_url = dl.qa.download_url;
+          currentPipeline.step_data.step4_qa_file = dl.qa.file_name;
+          currentPipeline.step_data.step4_qa_download_url = dl.qa.download_url;
         }
         if (dl.qa_md?.file_name) {
-          currentPipeline.step_data.step5_qa_md_file = dl.qa_md.file_name;
-          currentPipeline.step_data.step5_qa_md_download_url = dl.qa_md.download_url;
+          currentPipeline.step_data.step4_qa_md_file = dl.qa_md.file_name;
+          currentPipeline.step_data.step4_qa_md_download_url = dl.qa_md.download_url;
         }
         if (dl.openclaw_manifest?.file_name) {
-          currentPipeline.step_data.step5_openclaw_manifest_file = dl.openclaw_manifest.file_name;
-          currentPipeline.step_data.step5_openclaw_manifest_url = dl.openclaw_manifest.download_url;
+          currentPipeline.step_data.step4_manifest_file = dl.openclaw_manifest.file_name;
+          currentPipeline.step_data.step4_manifest_url = dl.openclaw_manifest.download_url;
         }
         await persistPipeline({
-          step5_skill_file: currentPipeline.step_data.step5_skill_file,
-          step5_download_url: currentPipeline.step_data.step5_download_url,
-          step5_cot_file: currentPipeline.step_data.step5_cot_file,
-          step5_cot_download_url: currentPipeline.step_data.step5_cot_download_url,
-          step5_qa_file: currentPipeline.step_data.step5_qa_file,
-          step5_qa_download_url: currentPipeline.step_data.step5_qa_download_url,
-          step5_qa_md_file: currentPipeline.step_data.step5_qa_md_file,
-          step5_qa_md_download_url: currentPipeline.step_data.step5_qa_md_download_url,
-          step5_openclaw_manifest_file: currentPipeline.step_data.step5_openclaw_manifest_file,
-          step5_openclaw_manifest_url: currentPipeline.step_data.step5_openclaw_manifest_url,
+          step4_skill_file: currentPipeline.step_data.step4_skill_file,
+          step4_download_url: currentPipeline.step_data.step4_download_url,
+          step4_cot_file: currentPipeline.step_data.step4_cot_file,
+          step4_cot_download_url: currentPipeline.step_data.step4_cot_download_url,
+          step4_qa_file: currentPipeline.step_data.step4_qa_file,
+          step4_qa_download_url: currentPipeline.step_data.step4_qa_download_url,
+          step4_qa_md_file: currentPipeline.step_data.step4_qa_md_file,
+          step4_qa_md_download_url: currentPipeline.step_data.step4_qa_md_download_url,
+          step4_manifest_file: currentPipeline.step_data.step4_manifest_file,
+          step4_manifest_url: currentPipeline.step_data.step4_manifest_url,
         });
       }
 
-      html += '<div class="s5-compile-result">';
-      html += '<div class="s5-compile-header">';
-      html += '<div class="s5-compile-icon">&#9881;</div>';
-      html += '<div class="s5-compile-title">智能转化完成</div>';
-      html += '<div class="s5-compile-subtitle">已生成 ' + formats.length + ' 类交付物 · 共 ' + km + ' 条知识</div>';
+      html += '<div class="s4-compile-result">';
+      html += '<div class="s4-compile-header">';
+      html += '<div class="s4-compile-icon">&#9881;</div>';
+      html += '<div class="s4-compile-title">智能转化完成</div>';
+      html += '<div class="s4-compile-subtitle">已生成 ' + formats.length + ' 类交付物 · 共 ' + km + ' 条知识</div>';
       html += '</div>';
 
-      html += '<div class="s5-artifact-grid">';
+      html += '<div class="s4-artifact-grid">';
       if (formats.includes('cot') && dl.cot) {
-        html += renderStep5ArtifactCard(
+        html += renderStep4ArtifactCard(
           'cot', '思维链', '情境识别 → 推理步骤 → 结论校验，适合培训与推理复现',
           (dl.cot.count != null ? dl.cot.count + ' 条' : ''),
           [{ label: '下载 .md', url: dl.cot.download_url }],
-          'previewStep5Cot()'
+          'previewStep4Cot()'
         );
       }
       if (formats.includes('qa') && dl.qa) {
         const qaDownloads = [{ label: '下载 JSON', url: dl.qa.download_url }];
         if (dl.qa_md?.download_url) qaDownloads.push({ label: '下载 .md', url: dl.qa_md.download_url });
-        html += renderStep5ArtifactCard(
+        html += renderStep4ArtifactCard(
           'qa', 'QA 对', '问答对格式，可用于 RAG、评测集或微调样本',
           (dl.qa.count != null ? dl.qa.count + ' 组' : ''),
           qaDownloads,
-          'previewStep5Qa()'
+          'previewStep4Qa()'
         );
       }
       if (formats.includes('skill') && dl.skill) {
@@ -3009,23 +2957,23 @@ async function step5Compile() {
         if (dl.openclaw_manifest?.download_url) {
           skillDownloads.push({ label: 'OpenClaw 清单', url: dl.openclaw_manifest.download_url });
         }
-        html += renderStep5ArtifactCard(
+        html += renderStep4ArtifactCard(
           'skill', 'Skill（OpenClaw）', '含 openclaw.skill.json，可接入 OpenClaw Agent 技能目录',
           'OpenClaw 兼容',
           skillDownloads,
-          'previewStep5Skill()'
+          'previewStep4Skill()'
         );
       }
       html += '</div>';
 
       if (metrics && Object.keys(metrics).length) {
         const confDist = metrics.confidence_distribution || {};
-        html += '<div class="s5-section"><div class="s5-section-title">质量摘要</div>';
-        html += '<div class="s5-stats-grid">';
-        html += '<div class="s5-stat-card"><div class="s5-stat-value">' + km + '</div><div class="s5-stat-label">知识条目</div></div>';
-        html += '<div class="s5-stat-card"><div class="s5-stat-value">' + (metrics.category_count || 0) + '</div><div class="s5-stat-label">分类数</div></div>';
-        html += '<div class="s5-stat-card"><div class="s5-stat-value green">' + (confDist.high || 0) + '</div><div class="s5-stat-label">高置信度</div></div>';
-        html += '<div class="s5-stat-card"><div class="s5-stat-value">' + (metrics.anti_pattern_count || 0) + '</div><div class="s5-stat-label">反模式</div></div>';
+        html += '<div class="s4-section"><div class="s4-section-title">质量摘要</div>';
+        html += '<div class="s4-stats-grid">';
+        html += '<div class="s4-stat-card"><div class="s4-stat-value">' + km + '</div><div class="s4-stat-label">知识条目</div></div>';
+        html += '<div class="s4-stat-card"><div class="s4-stat-value">' + (metrics.category_count || 0) + '</div><div class="s4-stat-label">分类数</div></div>';
+        html += '<div class="s4-stat-card"><div class="s4-stat-value green">' + (confDist.high || 0) + '</div><div class="s4-stat-label">高置信度</div></div>';
+        html += '<div class="s4-stat-card"><div class="s4-stat-value">' + (metrics.anti_pattern_count || 0) + '</div><div class="s4-stat-label">反模式</div></div>';
         html += '</div></div>';
       }
 
@@ -3034,13 +2982,13 @@ async function step5Compile() {
     } else {
       html += '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || result.raw || '智能转化失败') + '</div></div>';
     }
-    renderOutput('s5-output', html);
+    renderOutput('s4-output', html);
   } catch (e) {
-    renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
+    renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
   }
 }
 
-async function previewStep5File(fileName, title) {
+async function previewStep4File(fileName, title) {
   if (!fileName) { alert('暂无可预览文件'); return; }
   try {
     const resp = await fetch(API_BASE + '/api/files/read?file_name=' + encodeURIComponent(fileName));
@@ -3056,67 +3004,67 @@ async function previewStep5File(fileName, title) {
   }
 }
 
-function previewStep5Cot() {
-  previewStep5File(currentPipeline?.step_data?.step5_cot_file, '思维链预览');
+function previewStep4Cot() {
+  previewStep4File(currentPipeline?.step_data?.step4_cot_file, '思维链预览');
 }
-function previewStep5Qa() {
+function previewStep4Qa() {
   const sd = currentPipeline?.step_data || {};
-  previewStep5File(sd.step5_qa_md_file || sd.step5_qa_file, 'QA 对预览');
+  previewStep4File(sd.step4_qa_md_file || sd.step4_qa_file, 'QA 对预览');
 }
-function previewStep5Skill() {
-  previewStep5File(currentPipeline?.step_data?.step5_skill_file, 'Skill 预览');
+function previewStep4Skill() {
+  previewStep4File(currentPipeline?.step_data?.step4_skill_file, 'Skill 预览');
 }
 
-async function step5Quality() {
+async function step4Quality() {
   if (!currentPipeline) { alert('请先进入流水线'); return; }
-  renderLoading('s5-output');
+  renderLoading('s4-output');
   try {
     const fd = new FormData();
     fd.append('pipeline_id', currentPipeline.id);
-    const result = await apiCall('/api/step5/quality', fd);
+    const result = await apiCall('/api/step4/quality', fd);
     let html = '';
     if (result.overall_score !== undefined) {
       const grade = result.grade || '-';
       const gradeCls = grade === 'A' ? 'grade-a' : grade === 'B' ? 'grade-b' : grade === 'C' ? 'grade-c' : 'grade-d';
 
-      html += '<div class="s5-compile-result">';
-      html += '<div class="s5-compile-header">';
-      html += '<div class="s5-compile-icon">&#11088;</div>';
-      html += '<div class="s5-compile-title">质量报告</div>';
-      html += '<div class="s5-compile-subtitle">五维度质量评估</div>';
+      html += '<div class="s4-compile-result">';
+      html += '<div class="s4-compile-header">';
+      html += '<div class="s4-compile-icon">&#11088;</div>';
+      html += '<div class="s4-compile-title">质量报告</div>';
+      html += '<div class="s4-compile-subtitle">五维度质量评估</div>';
       html += '</div>';
 
-      html += '<div class="s5-stats-grid">';
-      html += '<div class="s5-stat-card"><div class="s5-stat-value">' + result.overall_score + '</div><div class="s5-stat-label">综合评分</div></div>';
-      html += '<div class="s5-stat-card"><div class="s5-stat-value"><span class="grade-badge ' + gradeCls + '">' + grade + '</span></div><div class="s5-stat-label">质量等级</div></div>';
+      html += '<div class="s4-stats-grid">';
+      html += '<div class="s4-stat-card"><div class="s4-stat-value">' + result.overall_score + '</div><div class="s4-stat-label">综合评分</div></div>';
+      html += '<div class="s4-stat-card"><div class="s4-stat-value"><span class="grade-badge ' + gradeCls + '">' + grade + '</span></div><div class="s4-stat-label">质量等级</div></div>';
       html += '</div>';
 
       if (result.dimensions) {
-        html += '<div class="s5-section"><div class="s5-section-title">维度详情</div>';
-        html += '<div class="s5-coverage-grid">';
+        html += '<div class="s4-section"><div class="s4-section-title">维度详情</div>';
+        html += '<div class="s4-coverage-grid">';
         Object.entries(result.dimensions).forEach(([k, v]) => {
           const label = { completeness: '完整性', accuracy: '准确性', actionability: '可操作性', antipattern: '反模式覆盖', traceability: '来源可溯' }[k] || k;
           const pct = typeof v === 'object' ? (v.score || v.value || 0) : v;
           const cls = pct >= 80 ? 'green' : pct >= 60 ? 'orange' : 'red';
-          html += '<div class="s5-coverage-item"><div class="s5-coverage-info"><div class="s5-coverage-label">' + label + '</div>';
-          html += '<div class="s5-coverage-bar"><div class="s5-coverage-fill ' + cls + '" style="width:' + pct + '%"></div></div></div>';
-          html += '<div class="s5-coverage-value">' + pct + '%</div></div>';
+          html += '<div class="s4-coverage-item"><div class="s4-coverage-info"><div class="s4-coverage-label">' + label + '</div>';
+          html += '<div class="s4-coverage-bar"><div class="s4-coverage-fill ' + cls + '" style="width:' + pct + '%"></div></div></div>';
+          html += '<div class="s4-coverage-value">' + pct + '%</div></div>';
         });
         html += '</div></div>';
       }
 
       if (result.download_url) {
-        html += '<div class="s5-actions">';
-        html += '<a class="s5-btn s5-btn-primary" href="' + API_BASE + result.download_url + '" download>&#11015; 下载质量报告</a>';
+        html += '<div class="s4-actions">';
+        html += '<a class="s4-btn s4-btn-primary" href="' + API_BASE + result.download_url + '" download>&#11015; 下载质量报告</a>';
         html += '</div>';
       }
       html += '</div>';
     } else {
       html += '<pre style="font-size:12px;overflow:auto;max-height:300px">' + escapeHtml(JSON.stringify(result, null, 2)) + '</pre>';
     }
-    renderOutput('s5-output', html);
+    renderOutput('s4-output', html);
   } catch (e) {
-    renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
+    renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
   }
 }
 
@@ -3545,10 +3493,10 @@ async function editStep2Preextract() {
 
 function resolveStep3ExcelFile(stepData) {
   const sd = stepData || {};
-  if (isStep4FinalFile(sd.step4_final_file)) {
+  if (isStep4FinalFile(sd.step3_final_file)) {
     return {
-      fileName: sd.step4_final_file,
-      downloadUrl: sd.step4_download_url || ('/downloads/' + sd.step4_final_file),
+      fileName: sd.step3_final_file,
+      downloadUrl: sd.step3_final_download_url || ('/downloads/' + sd.step3_final_file),
       isRevision: true,
       editorStep: 4,
     };
@@ -3767,19 +3715,19 @@ async function saveExcelEditor() {
         const base = data.file_path.replace(/^.*[\\/]/, '');
         const snapUrl = data.download_url || '';
         if (isStep4FinalFile(base)) {
-          currentPipeline.step_data.step4_final_file = base;
-          currentPipeline.step_data.step4_download_url = snapUrl || ('/downloads/' + base);
+          currentPipeline.step_data.step3_final_file = base;
+          currentPipeline.step_data.step3_final_download_url = snapUrl || ('/downloads/' + base);
           persistPipeline({
-            step4_final_file: base,
-            step4_download_url: currentPipeline.step_data.step4_download_url,
-          }).catch(function (e) { console.error('Link step4 output failed:', e); });
+            step3_final_file: base,
+            step3_final_download_url: currentPipeline.step_data.step3_final_download_url,
+          }).catch(function (e) { console.error('Link step3 final output failed:', e); });
         } else if (isStep3RevisionFile(base) || _excelEditorData.isRevision) {
           currentPipeline.step_data.step3_revision_file = base;
           currentPipeline.step_data.step3_download_url = snapUrl || ('/downloads/' + base);
           persistPipeline({
             step3_revision_file: base,
             step3_download_url: currentPipeline.step_data.step3_download_url,
-          }).catch(function (e) { console.error('Link step3 revision from step4 editor failed:', e); });
+          }).catch(function (e) { console.error('Link step3 revision from step3 editor failed:', e); });
         }
       }
 
@@ -3826,141 +3774,11 @@ async function saveExcelEditor() {
 })();
 
 // ═══════════════════════════════════════════════════════════════════
-// 方案三: 结构化访谈模块
-// ═══════════════════════════════════════════════════════════════════
-
-let _interviewCtx = { knowledge: null, method: 'case_reverse', probes: [] };
-
-function openInterviewFromExtract() {
-  // 从 Step2 萃取结果中读一条知识作为深挖上下文
-  var scenarioName = document.getElementById('s1-scenario-name')?.value || currentPipeline?.scenario || '';
-  var scenarioContent = document.getElementById('s1-scenario-content')?.value || '';
-  var knowledgeItem = {
-    knowledge_id: 'KN-' + (currentPipeline?.id || 'p').substring(0, 8) + '-001',
-    '知识描述': scenarioContent || scenarioName || '当前流水线场景知识',
-    '知识分类': '判断规则',
-    '适用条件': '',
-    '判断逻辑': '',
-  };
-  openInterviewProbe(knowledgeItem);
-}
-
-async function openInterviewProbe(knowledgeItem) {
-  // knowledgeItem: { 知识描述, 知识分类, 适用条件, 判断逻辑, knowledge_id, ... }
-  _interviewCtx.knowledge = knowledgeItem;
-  _interviewCtx.method = 'case_reverse';
-  _interviewCtx.probes = [];
-  document.getElementById('interview-modal').classList.add('active');
-  document.getElementById('interview-body').innerHTML = '<div class="interview-loading">选择访谈方法后点击「生成追问」</div>';
-  renderInterviewMethodTabs();
-  await generateInterviewProbes();
-}
-
-function renderInterviewMethodTabs() {
-  var body = document.getElementById('interview-body');
-  var methods = [
-    { id: 'case_reverse', name: '案例反推', desc: '构造反例场景，追问专家会如何判断' },
-    { id: 'contrast_probe', name: '对比追问', desc: '构造相似但不同的场景，找规则真正边界' },
-    { id: 'limit_hypothesis', name: '极限假设', desc: '推到极限条件，找出规则失效边界' },
-  ];
-  var tabsHtml = '<div class="interview-method-tabs">';
-  methods.forEach(function (m) {
-    tabsHtml += '<button class="interview-method-tab' + (_interviewCtx.method === m.id ? ' active' : '') + '" onclick="switchInterviewMethod(\'' + m.id + '\')">' + m.name + '</button>';
-  });
-  tabsHtml += '</div><div id="interview-probes-container"></div>';
-  body.innerHTML = tabsHtml;
-}
-
-async function switchInterviewMethod(method) {
-  _interviewCtx.method = method;
-  renderInterviewMethodTabs();
-  await generateInterviewProbes();
-}
-
-async function generateInterviewProbes() {
-  var container = document.getElementById('interview-probes-container');
-  if (!container) return;
-  container.innerHTML = '<div class="interview-loading"><div class="spinner"></div>生成追问中...</div>';
-
-  var model = resolveModelName('s2-model') || resolveModelName('s3-model');
-  if (!model) { container.innerHTML = '<div class="interview-loading" style="color:var(--error)">请先配置模型</div>'; return; }
-
-  try {
-    var resp = await fetch(API_BASE + '/api/interview/probe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ method: _interviewCtx.method, knowledge: _interviewCtx.knowledge, model: model }),
-    });
-    var data = await resp.json();
-    if (data.status === 'ok' && data.probes) {
-      _interviewCtx.probes = data.probes;
-      renderInterviewProbes();
-    } else {
-      container.innerHTML = '<div class="interview-loading" style="color:var(--error)">' + escapeHtml(data.error || '生成失败') + '</div>';
-    }
-  } catch (e) {
-    container.innerHTML = '<div class="interview-loading" style="color:var(--error)">网络错误: ' + escapeHtml(e.message) + '</div>';
-  }
-}
-
-function renderInterviewProbes() {
-  var container = document.getElementById('interview-probes-container');
-  if (!container) return;
-  var html = '<div class="interview-probe-list">';
-  _interviewCtx.probes.forEach(function (p, i) {
-    html += '<div class="interview-probe-card">';
-    html += '<div class="interview-probe-q">' + escapeHtml(p.question) + '<span class="interview-probe-cat">' + escapeHtml(p.category || '经验判断') + '</span></div>';
-    if (p.hint) html += '<div class="interview-probe-hint">💡 ' + escapeHtml(p.hint) + '</div>';
-    html += '<textarea class="interview-probe-answer" id="interview-answer-' + i + '" placeholder="输入你的回答..."></textarea>';
-    html += '</div>';
-  });
-  html += '</div>';
-  container.innerHTML = html;
-}
-
-function saveInterviewAnswers() {
-  if (!_interviewCtx.probes.length) { showToast('请先生成追问', 'error'); return; }
-  if (!currentPipeline) { showToast('请先从总览进入一条流水线', 'error'); return; }
-
-  var annotations = [];
-  _interviewCtx.probes.forEach(function (p, i) {
-    var ans = document.getElementById('interview-answer-' + i);
-    if (ans && ans.value.trim()) {
-      annotations.push({
-        note_id: 'interview_' + Date.now() + '_' + i,
-        action: 'supplement',
-        knowledge_id: _interviewCtx.knowledge.knowledge_id || _interviewCtx.knowledge['知识编号'] || '',
-        category: p.category || '经验判断',
-        question: p.question,
-        answer: ans.value.trim(),
-      });
-    }
-  });
-
-  if (!annotations.length) { showToast('请至少回答一条追问', 'error'); return; }
-
-  // 保存到当前流水线的 step_data.tacit_annotations
-  currentPipeline.step_data = currentPipeline.step_data || {};
-  var existing = currentPipeline.step_data.step4_tacit_annotations || [];
-  currentPipeline.step_data.step4_tacit_annotations = existing.concat(annotations);
-  persistPipeline({ step4_tacit_annotations: currentPipeline.step_data.step4_tacit_annotations }).then(function () {
-    showToast('已保存 ' + annotations.length + ' 条隐性注释');
-    closeInterviewModal();
-  }).catch(function () {
-    showToast('保存失败', 'error');
-  });
-}
-
-function closeInterviewModal() {
-  document.getElementById('interview-modal').classList.remove('active');
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // 方案四: 显性化校验回放
 // ═══════════════════════════════════════════════════════════════════
 
 function openValidatePanel() {
-  var panel = document.getElementById('s5-validate-panel');
+  var panel = document.getElementById('s4-validate-panel');
   panel.classList.toggle('hidden');
   if (!panel.classList.contains('hidden')) {
     if (allModels.length) refreshModelSelects();
@@ -3968,9 +3786,9 @@ function openValidatePanel() {
 }
 
 async function runValidateReplay() {
-  var btn = document.getElementById('s5-validate-run-btn');
-  var resultEl = document.getElementById('s5-validate-result');
-  var text = document.getElementById('s5-validate-cases').value.trim();
+  var btn = document.getElementById('s4-validate-run-btn');
+  var resultEl = document.getElementById('s4-validate-result');
+  var text = document.getElementById('s4-validate-cases').value.trim();
   if (!text) { showToast('请输入历史案例', 'error'); return; }
   if (!currentPipeline) { showToast('请先进入一条流水线', 'error'); return; }
 
@@ -3989,7 +3807,7 @@ async function runValidateReplay() {
   });
   if (cases.length === 0) { showToast('案例格式错误，每行为: 案例ID,场景描述,专家结论', 'error'); return; }
 
-  var model = document.getElementById('s5-validate-model')?.value || resolveModelName('s5-model');
+  var model = document.getElementById('s4-validate-model')?.value || resolveModelName('s4-model');
   if (!model) { showToast('请选择模型', 'error'); return; }
 
   btn.disabled = true; btn.textContent = '校验中...';

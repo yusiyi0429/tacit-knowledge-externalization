@@ -1,0 +1,102 @@
+{
+  "title": "Workflow 通用配置模板",
+  "description": "将此文件复制到新项目的 .claude/workflows-config.json，编辑各字段后，workflow 脚本会自动使用。",
+
+  "project": {
+    "name": "项目名称",
+    "description": "项目一句话描述",
+    "version": "1.0.0"
+  },
+
+  "dirs": {
+    "backend": "backend",
+    "frontend": "frontend",
+    "config": "config",
+    "docs": "docs",
+    "scripts": "backend/scripts"
+  },
+
+  "tech": {
+    "backend": {
+      "language": "python",
+      "framework": "flask",
+      "entryFile": "app_server.py",
+      "sourceGlob": "backend/**/*.py",
+      "routeDecorator": "@app.route",
+      "hasRoutes": true
+    },
+    "frontend": {
+      "language": "javascript",
+      "framework": "vanilla",
+      "entryFile": "index.html",
+      "jsDir": "frontend/js",
+      "cssDir": "frontend/css",
+      "sourceGlob": "frontend/**/*.{js,html,css}",
+      "apiBase": "/api",
+      "fetchPattern": "fetch(API_BASE +",
+      "stateClass": "PipelineState"
+    }
+  },
+
+  "codeConventions": {
+    "htmlEscapeFunction": "escapeHtml()",
+    "checkInnerHTMLXSS": true,
+    "checkPathTraversal": true,
+    "pathSafetyFunction": "safe_workspace_path()",
+    "basenameFunction": "basename_only()",
+    "checkSQLInjection": false,
+    "checkCommandInjection": true
+  },
+
+  "keyFiles": {
+    "backend": [
+      "backend/app_server.py",
+      "backend/models.py"
+    ],
+    "frontend": [
+      "frontend/index.html",
+      "frontend/js/main.js",
+      "frontend/js/utils.js"
+    ],
+    "config": [
+      "config/default.yaml"
+    ]
+  },
+
+  "consistency": {
+    "keyDefinitionFiles": [],
+    "keyDefinitionPattern": "",
+    "checkCSSClasses": false,
+    "cssClassPrefix": ""
+  },
+
+  "riskRules": [
+    {
+      "name": "安全性",
+      "severity": "critical",
+      "desc": "所有用户输入必须校验和转义",
+      "fix": "使用安全函数处理外部输入"
+    }
+  ],
+
+  "fileNaming": {
+    "prefixes": ["output_", "cache_"],
+    "protectedFiles": ["config.json", ".env"],
+    "rule": "按前缀分类的文件命名系统"
+  },
+
+  "test": {
+    "dir": "backend/scripts",
+    "prefix": "test_",
+    "runner": "python",
+    "singleCommand": "python {test_file}",
+    "functionPattern": "def test_"
+  },
+
+  "llm": {
+    "enabled": false,
+    "clientFile": "",
+    "clientClass": "",
+    "jsonParseFallbackCount": 0
+  }
+}

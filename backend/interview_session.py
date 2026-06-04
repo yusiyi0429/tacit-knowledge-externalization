@@ -109,3 +109,90 @@ def _normalize_probes(probes: list) -> list[dict]:
                 "hint": str(p.get("hint", "")).strip(),
             })
     return [p for p in result if p["question"]]
+
+
+# ── 执行能力：让追问真正调用 LLM ──
+
+def execute_interview_session(
+    method: str,
+    knowledge_items: list[dict],
+    llm_call_fn,
+    *,
+    model_name: str = "",
+    max_probes_per_item: int = 3,
+) -> dict:
+    """对一批知识条目执行访谈追问，返回结构化的访谈结果。
+
+    参数:
+        method: 追问方法（case_reverse / contrast_probe / limit_hypothesis）
+        knowledge_items: 知识条目列表
+        llm_call_fn: LLM 调用函数，签名 call(system_prompt, user_prompt, model) -> str
+        model_name: LLM 模型名
+        max_probes_per_item: 每条知识最多生成几个追问
+
+    返回: {
+        "method": "...",
+        "method_name": "案例反推法",
+        "total_items": N,
+        "total_probes": N,
+        "probes": [{ "item_index": 0, "knowledge": "...", "questions": [...] }, ...],
+        "errors": [...],
+    }
+    """
+    method_cfg = INTERVIEW_METHODS.get(method, INTERVIEW_METHODS["case_reverse"])
+    results = []
+    errors = []
+
+    for idx, item in enumerate(knowledge_items):
+        try:
+            sys_prompt, user_prompt = build_interview_prompt(method, item)
+            raw = llm_call_fn(sys_prompt, user_prompt, model_name) if llm_call_fn else ""
+            questions = parse_interview_result(raw)[:max_probes_per_item]
+            results.append({
+                "item_index": idx,
+                "knowledge": item.get("知识描述", item.get("content", "")),
+                "category": item.get("知识分类", ""),
+                "questions": questions,
+            })
+        except Exception as e:
+            errors.append({"item_index": idx, "error": str(e)})
+
+    return {
+        "method": method,
+        "method_name": method_cfg["name"],
+        "total_items": len(knowledge_items),
+        "total_probes": sum(len(r["questions"]) for r in results),
+        "probes": results,
+        "errors": errors,
+    }
+
+
+def collect_interview_answers(probes: list[dict], answers: list[dict]) -> list[dict]:
+    """将人工回答的问卷合并回追问结果，供 knowledge_fusion 使用。
+
+    参数:
+        probes: execute_interview_session 返回的 probes
+        answers: [{ "item_index": N, "question_index": N, "answer": "...", "expert": "..." }]
+
+    返回: [{ "question": "...", "answer": "...", "category": "...", "expert": "..." }, ...]
+    """
+    answered = []
+    # 构建查找表
+    answer_map = {}
+    for a in answers:
+        key = (a.get("item_index"), a.get("question_index"))
+        answer_map[key] = a
+
+    for p in probes:
+        item_idx = p["item_index"]
+        for q_idx, q in enumerate(p.get("questions", [])):
+            key = (item_idx, q_idx)
+            if key in answer_map:
+                answered.append({
+                    "question": q["question"],
+                    "answer": answer_map[key].get("answer", ""),
+                    "category": q.get("category", "经验判断"),
+                    "hint": q.get("hint", ""),
+                    "expert": answer_map[key].get("expert", ""),
+                })
+    return answered

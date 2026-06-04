@@ -37,7 +37,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <span class="step-connector"></span>
         <button class="step-btn" data-step="2"><span class="btn-num">02</span>知识萃取</button>
         <span class="step-connector"></span>
-        <button class="step-btn" data-step="3"><span class="btn-num">03</span>知识对齐</button>
+        <button class="step-btn" data-step="3"><span class="btn-num">03</span>知识校验</button>
         <span class="step-connector"></span>
         <button class="step-btn" data-step="4"><span class="btn-num">04</span>智能转化</button>
       </div>
@@ -293,14 +293,21 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               <!-- 模式一：文档萃取 -->
               <div class="s2-mode-panel" id="s2-panel-doc">
                 <div class="form-group">
-                  <label>知识来源文件</label>
-                  <input type="file" id="s2-source-file" accept=".txt,.md,.docx,.pdf">
+                  <label>知识来源文件（可多选）</label>
+                  <input type="file" id="s2-source-files" accept=".txt,.md,.docx,.pdf" multiple>
                   <span id="s2-file-name" class="s2-file-name"></span>
-                  <div class="file-hint">上传待萃取的制度文件、操作手册、案例库（TXT/MD/DOCX/PDF）</div>
+                  <div class="file-hint">上传待萃取的制度文件、操作手册、案例库（TXT/MD/DOCX/PDF），支持多选</div>
                 </div>
                 <div class="form-group">
-                  <label>或粘贴文档内容</label>
-                  <textarea id="s2-doc-text" rows="4" placeholder="将制度文件/操作手册的文本粘贴至此..."></textarea>
+                  <label>或粘贴文本来源</label>
+                  <div id="s2-text-inputs">
+                    <div class="s2-text-input-row">
+                      <input class="s2-text-input-label" placeholder="来源标注（如：制度文件A）">
+                      <textarea class="s2-text-input-content" rows="2" placeholder="粘贴文档内容..."></textarea>
+                      <button type="button" class="s2-text-input-remove" onclick="this.parentElement.remove();updateStep2Readiness()" title="移除">×</button>
+                    </div>
+                  </div>
+                  <button type="button" class="s1-add-sub-btn" onclick="addStep2TextRow()" style="margin-top:4px">+ 添加更多文本来源</button>
                 </div>
               </div>
 
@@ -337,6 +344,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <div class="col col-center">
             <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn">操作</div><div class="col-label-en">Action</div></div></div>
             <div class="col-content action-area">
+              <div id="s2-single-controls">
               <!-- Skill 卡片选择器（替代下拉框） -->
               <div class="form-group" style="margin-bottom:12px">
                 <label>选择能力</label>
@@ -408,16 +416,17 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   </div>
                 </div>
               </div>
+              </div><!-- /s2-single-controls -->
 
               <div class="form-group" style="margin-bottom:12px">
                 <label>选择模型</label>
                 <select id="s2-model"></select>
               </div>
-              <button class="action-btn" id="s2-skill-extract" onclick="step2SkillExtract()">
+              <button class="action-btn" id="s2-skill-extract" onclick="step2Execute()">
                 <span class="action-icon">&#9654;</span> <span id="s2-btn-text">执行知识萃取</span>
               </button>
               <div class="step-readiness info" id="s2-readiness">请补全 Skill、模型与文档输入后执行</div>
-              <div class="action-note">选择 Skill 后点击执行，自动从文档中提取结构化知识条目</div>
+              <div class="action-note">选择能力后点击执行，自动提取结构化知识</div>
             </div>
           </div>
           <div class="col col-right">
@@ -427,23 +436,22 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
             </div>
           </div>
         </div>
-      </div>
     </div>
 
-    <!-- ========== Panel 3: Step 03 知识对齐 ========== -->
+    <!-- ========== Panel 3: Step 03 知识校验与定稿 ========== -->
     <div class="panel" id="panel-3">
 
       <div class="slide">
         <div class="slide-topbar">
           <div class="slide-num-box"><div class="step-label">STEP</div><div class="step-num">03</div></div>
           <div class="slide-title-area">
-            <div class="slide-meta-en">Knowledge Alignment · 知识对齐</div>
-            <div class="slide-title">交互式知识对齐</div>
+            <div class="slide-meta-en">Knowledge Verification · 知识校验与定稿</div>
+            <div class="slide-title">知识校验与定稿</div>
           </div>
         </div>
         <div class="slide-subtitle-bar">
           <span class="subtitle-tag">核心要点</span>
-          <div class="slide-subtitle">AI 生成对齐建议 → 逐条审核采纳/驳回/编辑 → 一键生成可发布的对齐稿</div>
+          <div class="slide-subtitle">专家逐条审核萃取稿，接受/修订/驳回，生成最终定稿</div>
         </div>
 
         <!-- Phase 1: 输入区 -->
@@ -525,6 +533,35 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           </div>
         </div>
 
+        <!-- 信号审核子面板（简化版） -->
+        <div class="signal-review-panel hidden" id="s3-signal-panel">
+          <div class="signal-review-header" onclick="toggleSignalPanel()">
+            <div class="signal-review-title">&#128226; 信号审核</div>
+            <span class="signal-review-toggle" id="s3-signal-toggle">&#9660;</span>
+          </div>
+          <div class="signal-review-body" id="s3-signal-body">
+            <div class="signal-stats-grid" id="s3-signal-stats">
+              <div class="signal-stat-card signal-stat-blur">
+                <span class="signal-stat-num" id="s3-signal-blur">-</span>
+                <span class="signal-stat-label">边界模糊</span>
+              </div>
+              <div class="signal-stat-card signal-stat-island">
+                <span class="signal-stat-num" id="s3-signal-island">-</span>
+                <span class="signal-stat-label">知识孤岛</span>
+              </div>
+              <div class="signal-stat-card signal-stat-lowconf">
+                <span class="signal-stat-num" id="s3-signal-lowconf">-</span>
+                <span class="signal-stat-label">共识度低</span>
+              </div>
+              <div class="signal-stat-card signal-stat-conflict">
+                <span class="signal-stat-num" id="s3-signal-conflict">-</span>
+                <span class="signal-stat-label">冲突</span>
+              </div>
+            </div>
+            <div class="signal-review-info" id="s3-signal-info"></div>
+          </div>
+        </div>
+
         <!-- Phase 2: 交互式审核区 -->
         <div class="align-review-section" id="s3-review-section" style="display:none;">
           <!-- 工具栏 -->
@@ -601,14 +638,14 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
             <div class="col-content form-area">
               <div class="s2-section">
                 <div class="s2-label">知识对齐稿</div>
-                <div id="s5-prev-draft" class="s2-prev-box" style="display:none">
-                  <div class="s2-prev-info">
-                    <div class="s2-prev-name" id="s5-prev-name">-</div>
-                    <div class="s2-prev-meta" id="s5-prev-meta">-</div>
+                <div id="s4-prev-draft" class="s2-prev-box" style="display:none">
+                  <div class="s2-prev-info" id="s4-prev-info">
+                    <div class="s2-prev-name" id="s4-prev-name">-</div>
+                    <div class="s2-prev-meta" id="s4-prev-meta">-</div>
                   </div>
-                  <div class="s2-prev-tags" id="s5-prev-tags"></div>
+                  <div class="s2-prev-tags" id="s4-prev-tags"></div>
                 </div>
-                <div id="s5-prev-empty" class="s2-prev-empty">暂无知识对齐稿，请先完成知识对齐节点</div>
+                <div id="s4-prev-empty" class="s2-prev-empty">暂无知识对齐稿，请先完成知识对齐节点</div>
               </div>
             </div>
           </div>
@@ -618,42 +655,42 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
             <div class="col-content action-area">
               <div class="form-group" style="margin-bottom:12px">
                 <label>选择模型</label>
-                <select id="s5-model"></select>
+                <select id="s4-model"></select>
               </div>
               <div class="form-group" style="margin-bottom:12px">
                 <label>交付物类型（默认全选）</label>
-                <div class="s5-format-options" id="s5-format-options">
-                  <label class="s5-format-chip"><input type="checkbox" id="s5-fmt-cot" checked> 思维链</label>
-                  <label class="s5-format-chip"><input type="checkbox" id="s5-fmt-qa" checked> QA 对</label>
-                  <label class="s5-format-chip"><input type="checkbox" id="s5-fmt-skill" checked> Skill（OpenClaw）</label>
+                <div class="s4-format-options" id="s4-format-options">
+                  <label class="s4-format-chip"><input type="checkbox" id="s4-fmt-cot" checked> 思维链</label>
+                  <label class="s4-format-chip"><input type="checkbox" id="s4-fmt-qa" checked> QA 对</label>
+                  <label class="s4-format-chip"><input type="checkbox" id="s4-fmt-skill" checked> Skill（OpenClaw）</label>
                 </div>
               </div>
-              <button class="action-btn" onclick="step5Compile()">
+              <button class="action-btn" onclick="step4Compile()">
                 <span class="action-icon">&#9654;</span> 生成交付物
               </button>
               <div class="action-note">基于知识对齐稿确定性转换；Skill 含 openclaw.skill.json 清单，可直接接入 OpenClaw</div>
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
                 <div class="file-hint" style="margin-bottom:6px">📋 知识库健康检查</div>
-                <button class="action-btn small-btn secondary-btn" id="s5-freshness-btn" onclick="step5FreshnessAudit()" style="width:100%;justify-content:center;">
+                <button class="action-btn small-btn secondary-btn" id="s4-freshness-btn" onclick="step4FreshnessAudit()" style="width:100%;justify-content:center;">
                   🔄 知识保鲜度审计
                 </button>
                 <div class="file-hint" style="margin-top:4px">检测知识时效性、置信度衰减和被案例突破的规则</div>
               </div>
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
                 <div class="file-hint" style="margin-bottom:6px">🔍 显性化校验</div>
-                <button class="action-btn small-btn secondary-btn" id="s5-validate-btn" onclick="openValidatePanel()" style="width:100%;justify-content:center;">
+                <button class="action-btn small-btn secondary-btn" id="s4-validate-btn" onclick="openValidatePanel()" style="width:100%;justify-content:center;">
                   ⚡ 显性化校验回放
                 </button>
                 <div class="file-hint" style="margin-top:4px">上传历史案例，用知识库判断，与专家结论比对命中率</div>
-                <div class="validate-section hidden" id="s5-validate-panel">
+                <div class="validate-section hidden" id="s4-validate-panel">
                   <div class="file-hint">输入历史案例（每行格式：案例ID，场景描述，专家结论）</div>
-                  <textarea id="s5-validate-cases" rows="4" placeholder="CASE-001，芯片设计企业成立1年申请授信500万，通过&#10;CASE-002，传统制造企业成立3年流水稳定申请续贷，通过&#10;CASE-003，贸易企业无抵押物但有关联担保申请授信，拒绝"></textarea>
+                  <textarea id="s4-validate-cases" rows="4" placeholder="CASE-001，芯片设计企业成立1年申请授信500万，通过&#10;CASE-002，传统制造企业成立3年流水稳定申请续贷，通过&#10;CASE-003，贸易企业无抵押物但有关联担保申请授信，拒绝"></textarea>
                   <div class="file-hint" style="margin-top:6px">选择模型后点击执行，系统将用知识库判断每个案例并与专家结论比对</div>
                   <div class="form-group" style="margin-top:8px;">
-                    <select id="s5-validate-model"></select>
+                    <select id="s4-validate-model"></select>
                   </div>
-                  <button class="action-btn small" id="s5-validate-run-btn" onclick="runValidateReplay()">执行校验</button>
-                  <div id="s5-validate-result"></div>
+                  <button class="action-btn small" id="s4-validate-run-btn" onclick="runValidateReplay()">执行校验</button>
+                  <div id="s4-validate-result"></div>
                 </div>
               </div>
             </div>
@@ -661,7 +698,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <!-- 输出 -->
           <div class="col col-right">
             <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
-            <div class="col-content output-area" id="s5-output">
+            <div class="col-content output-area" id="s4-output">
               <div class="output-placeholder">完成知识对齐后，点击「生成交付物」获取思维链 / QA 对 / Skill</div>
             </div>
           </div>
@@ -715,23 +752,6 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <div class="md-pane-header">&#128065; 预览区</div>
         <div class="md-preview" id="markdown-preview"></div>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- Interview Probe Modal (方案三) -->
-<div class="interview-overlay" id="interview-modal">
-  <div class="interview-dialog">
-    <div class="interview-header">
-      <div class="interview-title">&#128269; 隐性知识深挖</div>
-      <button class="interview-close" onclick="closeInterviewModal()">&times;</button>
-    </div>
-    <div class="interview-body" id="interview-body">
-      <!-- rendered by JS -->
-    </div>
-    <div class="interview-footer">
-      <button class="action-btn secondary small" onclick="closeInterviewModal()">取消</button>
-      <button class="action-btn small" id="interview-save-btn" onclick="saveInterviewAnswers()">保存为隐性注释</button>
     </div>
   </div>
 </div>

@@ -10,7 +10,7 @@
 | Step2 | `step2_output_file` | `preextract_*` 或 `edited_step2_*` |
 | Step3 | `step3_revision_file` | `revision_*` 或 `edited_step3_*` |
 | Step4 | `step4_final_file` | `final_*` 或 `edited_step4_*` |
-| Step5 | `step5_skill_file` | `SKILL_*.md` |
+| Step4 | `step4_skill_file` | `SKILL_*.md` |
 
 **禁止**：Step3/4 修订或下载使用 Step1 的 `template_*` 作为 Step2 萃取底稿。
 

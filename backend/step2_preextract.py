@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Step2 知识萃取：将 LLM 条目写入 Step1 场景模板（或标准表），仅输出 Excel。"""
 
+import uuid
 import shutil
 from pathlib import Path
 
@@ -395,3 +396,125 @@ def write_preextract_excel(
         "filled_rows": filled_rows,
         "used_step1_template": used_template,
     }
+
+
+def write_fusion_to_excel(fusion_dict: dict, output_dir, pipeline_id: str = "", step1_path: Path | str | None = None) -> str:
+    """将融合结果JSON导出为preextract Excel文件。
+
+    接收 merge_extraction_results() 返回的融合dict，遍历records：
+    - source_label → 「来源」列
+    - category → 「知识分类」列（经 normalize_item 映射）
+    - 过滤 _duplicate / _conflict / _duplicate_of / _conflict_with 内部标记字段
+    - 追加「来源标注」和「融合状态」两列
+    - 写前检查并解除 MergedCell
+
+    返回: 生成的 Excel 文件路径字符串
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    records = fusion_dict.get("records", [])
+    if not records:
+        records = []
+
+    # 构建 items：复制记录、映射 source_label→来源、过滤内部标记字段
+    items = []
+    for rec in records:
+        item = {}
+        for k, v in rec.items():
+            if k in ("_duplicate", "_duplicate_of", "_conflict", "_conflict_with"):
+                continue
+            item[k] = v
+        # 将 source_label 落位到「来源」字段
+        sl = rec.get("source_label", "")
+        if sl:
+            item["来源"] = sl
+        items.append(item)
+
+    # 生成唯一文件名（preextract_fusion_ 前缀，is_step2_preextract_filename 可识别）
+    excel_name = f"preextract_fusion_{uuid.uuid4().hex[:8]}.xlsx"
+    output_path = output_dir / excel_name
+
+    # 调用已有 write_preextract_excel 生成主表
+    write_preextract_excel(
+        step1_path=step1_path,
+        output_path=output_path,
+        items=items,
+        pipeline_id=pipeline_id,
+    )
+
+    # 重新打开，追加「来源标注」和「融合状态」列
+    wb = openpyxl.load_workbook(output_path)
+    ws = wb[wb.sheetnames[0]]
+
+    # 检查并解除可能存在的 MergedCell
+    for merged in list(ws.merged_cells.ranges):
+        ws.unmerge_cells(str(merged))
+
+    # 确定新列的位置（在现有数据最大列之后）
+    max_col = ws.max_column or len(STANDARD_HEADERS)
+    source_label_col = max_col + 1
+    fusion_status_col = max_col + 2
+
+    # 表头行
+    header_row = 1
+    header_font = Font(name="Microsoft YaHei", bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="C7000B", end_color="C7000B", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin = Border(
+        left=Side(style="thin", color="D9D9D9"),
+        right=Side(style="thin", color="D9D9D9"),
+        top=Side(style="thin", color="D9D9D9"),
+        bottom=Side(style="thin", color="D9D9D9"),
+    )
+    data_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    data_font = Font(name="Microsoft YaHei", size=10)
+
+    ws.cell(header_row, source_label_col, value="来源标注")
+    ws.cell(header_row, source_label_col).font = header_font
+    ws.cell(header_row, source_label_col).fill = header_fill
+    ws.cell(header_row, source_label_col).alignment = header_align
+    ws.cell(header_row, source_label_col).border = thin
+
+    ws.cell(header_row, fusion_status_col, value="融合状态")
+    ws.cell(header_row, fusion_status_col).font = header_font
+    ws.cell(header_row, fusion_status_col).fill = header_fill
+    ws.cell(header_row, fusion_status_col).alignment = header_align
+    ws.cell(header_row, fusion_status_col).border = thin
+
+    # 为每条记录写入来源标注与融合状态
+    # 查找实际数据起始行（detect_header_rows 可能因访问 ws.cell(2,1) 将 max_row 抬高到 2，
+    # 导致 _append_standard_rows 从 row 3 开始写数据，因此不能假设 data 从 row 2 开始）
+    data_start_row = 2
+    for row in range(2, ws.max_row + 1):
+        for col in range(1, (ws.max_column or 1) + 1):
+            if ws.cell(row, col).value is not None:
+                data_start_row = row
+                break
+        if data_start_row > 2:
+            break
+
+    for idx, rec in enumerate(records):
+        row = data_start_row + idx
+
+        source_label = rec.get("source_label", "未知")
+        c1 = ws.cell(row, source_label_col, value=source_label)
+        c1.font = data_font
+        c1.alignment = data_align
+        c1.border = thin
+
+        if rec.get("_duplicate"):
+            status = "疑似重复"
+        elif rec.get("_conflict"):
+            status = "存在冲突"
+        else:
+            status = "正常"
+        c2 = ws.cell(row, fusion_status_col, value=status)
+        c2.font = data_font
+        c2.alignment = data_align
+        c2.border = thin
+
+    wb.save(output_path)
+    wb.close()
+
+    return str(output_path)

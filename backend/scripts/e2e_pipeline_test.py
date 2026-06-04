@@ -210,74 +210,74 @@ def main():
             fail(f"step3 output must be revision_*.xlsx, got {rev}")
             errors.append("step3_name_invariant")
 
-    # 9) step4 finalize (uses step3 revision as base) - cached expert only
-    step4_text = (SAMPLES / "Step4_终审确认表.txt").read_text(encoding="utf-8")[:1500]
+    # 9) step3 finalize (uses step3 revision as base) - cached expert only
+    step3_text = (SAMPLES / "Step3_终审确认表.txt").read_text(encoding="utf-8")[:1500]
     with open(expert_path, "rb") as f:
         r = requests.post(
             f"{BASE}/api/files/cache_upload",
-            files={"file": ("step4_expert.txt", f.read(), "text/plain")},
-            data={"pipeline_id": pid, "step": "4"},
+            files={"file": ("step3_expert.txt", f.read(), "text/plain")},
+            data={"pipeline_id": pid, "step": "3"},
             timeout=60,
         )
-    c4 = r.json()
-    cached4 = c4.get("file_name", "") if c4.get("status") == "ok" else ""
+    c3 = r.json()
+    cached3 = c3.get("file_name", "") if c3.get("status") == "ok" else ""
 
     r = requests.post(
-        f"{BASE}/api/step4/finalize",
+        f"{BASE}/api/step3/finalize",
         data={
             "pipeline_id": pid,
             "style": "标准修订",
-            "expert_text": step4_text,
-            "expert_cached_file": cached4,
+            "expert_text": step3_text,
+            "expert_cached_file": cached3,
         },
         timeout=300,
     )
-    s4 = r.json()
-    if s4.get("status") != "success":
-        err = s4.get("error", "")
+    s3 = r.json()
+    if s3.get("status") != "success":
+        err = s3.get("error", "")
         if "MergedCell" in err:
-            fail(f"step4 MergedCell STILL FAILS: {err}")
-            errors.append("step4_mergedcell")
+            fail(f"step3 MergedCell STILL FAILS: {err}")
+            errors.append("step3_mergedcell")
         elif "LLM" in err or "连接" in err:
-            fail(f"step4 (LLM/network): {err[:200]}")
-            errors.append("step4_llm")
+            fail(f"step3 (LLM/network): {err[:200]}")
+            errors.append("step3_llm")
         else:
-            fail(f"step4: {err}")
-            errors.append("step4_other")
+            fail(f"step3: {err}")
+            errors.append("step3_other")
     else:
-        final = s4.get("download_name") or s4.get("output_file") or ""
-        ok(f"step4 finalize -> {final} (no MergedCell error)")
-        if final and not (final.startswith("final_") or final.startswith("edited_step4_")):
-            fail(f"step4 output must be final_*.xlsx, got {final}")
-            errors.append("step4_name_invariant")
+        final = s3.get("download_name") or s3.get("output_file") or ""
+        ok(f"step3 finalize -> {final} (no MergedCell error)")
+        if final and not (final.startswith("final_") or final.startswith("edited_step3_")):
+            fail(f"step3 output must be final_*.xlsx, got {final}")
+            errors.append("step3_name_invariant")
         p = WORKSPACE / final
         if p.exists():
-            ok("step4 xlsx on disk")
+            ok("step3 xlsx on disk")
 
-    # 11) step5 compile SKILL.md
+    # 11) step4 compile SKILL.md
     r = requests.post(
-        f"{BASE}/api/step5/compile",
+        f"{BASE}/api/step4/compile",
         data={"pipeline_id": pid},
         timeout=120,
     )
-    s5 = r.json()
-    if s5.get("status") != "success":
-        fail(f"step5 compile: {s5.get('error', s5.get('message', s5))}")
-        errors.append("step5_compile")
+    s4 = r.json()
+    if s4.get("status") != "success":
+        fail(f"step4 compile: {s4.get('error', s4.get('message', s4))}")
+        errors.append("step4_compile")
     else:
-        km = s5.get("knowledge_count", 0)
-        ok(f"step5 compile -> {km} knowledge items, download={s5.get('download_url', '')}")
+        km = s4.get("knowledge_count", 0)
+        ok(f"step4 compile -> {km} knowledge items, download={s4.get('download_url', '')}")
         if km <= 0:
-            fail("step5 compile: knowledge_count is 0")
-            errors.append("step5_empty")
+            fail("step4 compile: knowledge_count is 0")
+            errors.append("step4_empty")
 
     # refresh after step3/4
     r = requests.get(f"{BASE}/api/pipelines/{pid}", timeout=30)
     sd = r.json()["pipeline"]["step_data"]
     if sd.get("step3_revision_file"):
         ok(f"step3_revision_file persisted: {sd.get('step3_revision_file')}")
-    if sd.get("step4_final_file") or sd.get("step4_download_url"):
-        ok("step4 persisted in pipeline")
+    if sd.get("step3_final_file") or sd.get("step3_final_download_url"):
+        ok("step3 final persisted in pipeline")
 
     # 10) MergedCell unit test offline
     try:

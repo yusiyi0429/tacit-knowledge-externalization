@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Step 5: 智能转化 — 将确认版 Excel 转换为 SKILL.md
+Step 4: 智能转化 — 将确认版 Excel 转换为 SKILL.md
 
 读取 Excel 知识条目，按场景 YAML 配置分类，生成结构化 SKILL.md 文件。
 转换是确定性程序，不依赖模型再次发挥。

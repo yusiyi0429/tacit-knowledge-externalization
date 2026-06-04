@@ -16,7 +16,7 @@ from pipeline_artifacts import (  # noqa: E402
     is_step1_filename,
     is_step2_preextract_filename,
     is_step3_revision_filename,
-    is_step4_final_filename,
+    is_step3_final_filename,
     validate_step_data_patch,
 )
 
@@ -38,7 +38,7 @@ def test_offline_invariants():
     assert is_step2_preextract_filename("preextract_abc.xlsx")
     assert is_step2_preextract_filename("edited_step2_abc.xlsx")
     assert is_step3_revision_filename("revision_abc.xlsx")
-    assert is_step4_final_filename("final_abc.xlsx")
+    assert is_step3_final_filename("final_abc.xlsx")
     assert not is_download_allowed("pipelines.json")
     assert is_download_allowed("preextract_abcd.xlsx")
     err = validate_step_data_patch({"step2_output_file": "template_bad.xlsx"})

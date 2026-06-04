@@ -60,7 +60,7 @@ curl http://localhost:5000/api/version
 | `pipelines.json` | 流水线列表与各步 `step_data`（进度、下载链接） |
 | `custom_models.json` / `preset_overrides.json` | 自定义模型配置 |
 | `template_*.xlsx` / `preextract_*.xlsx` / `revision_*.xlsx` / `final_*.xlsx` | 各步产出 Excel |
-| `SKILL_*.md` / `quality_report_*` | Step5 产出 |
+| `SKILL_*.md` / `quality_report_*` | Step4 产出 |
 | `upload_*` | 上传的模板与附件 |
 
 **若不挂载 `workspace`，容器删除或重建后上述数据全部丢失，需要从头跑流水线。**

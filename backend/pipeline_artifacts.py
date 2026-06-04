@@ -20,6 +20,7 @@ DOWNLOAD_ALLOWED_PREFIXES = (
     "upload_",
     "edit_read_",
     "upload_tpl_",
+    "signal_report_",
     "SKILL_",
     "COT_",
     "QA_",
@@ -31,6 +32,11 @@ DOWNLOAD_ALLOWED_PREFIXES = (
     "pattern_mining_",
     "gap_analysis_",
     "freshness_audit_",
+    # 多源融合
+    "fusion_",
+    "interview_",
+    # 信号报告
+    "signal_report_",
 )
 
 STEP_OUTPUT_KEYS_BY_STEP = {
@@ -44,20 +50,29 @@ STEP_OUTPUT_KEYS_BY_STEP = {
         "step2_output_file", "step2_download_url",
         "step2_md_file", "step2_md_download_url",
         "step2_extracted_count", "skill_extract_result", "skill_extract_style",
+        # 多源融合
+        "step2_fusion_file", "step2_fusion_download_url",
+        "step2_fusion_count", "step2_fusion_conflicts",
+        "step2_fusion_sources",
+        # 访谈
+        "step2_interview_file", "step2_interview_count",
+        # 信号报告（新版统一端点产出）
+        "step2_signal_report_file", "step2_signal_report_url",
+        "step2_source_count", "step2_dedup_count",
     ),
-    # UI 第 3 步「知识对齐」产出 final_*.xlsx；step3_revision_* 为旧五步流兼容
+    # UI 第 3 步「知识对齐」产出 final_*.xlsx
     3: (
-        "step4_final_file", "step4_download_url", "step4_md_file", "step4_md_download_url",
-        "step4_final_notes", "step4_final_style", "step4_final_count",
+        "step3_final_file", "step3_final_download_url", "step3_final_md_file", "step3_final_md_download_url",
+        "step3_final_notes", "step3_final_style", "step3_final_count",
         "step3_revision_file", "step3_download_url", "step3_md_file", "step3_md_download_url",
         "step3_revision_notes", "step3_revision_style", "step3_revision_count", "step3_excel_path",
     ),
     4: (
-        "step5_skill_file", "step5_download_url",
-        "step5_cot_file", "step5_cot_download_url",
-        "step5_qa_file", "step5_qa_download_url", "step5_qa_md_file", "step5_qa_md_download_url",
-        "step5_openclaw_manifest_file", "step5_openclaw_manifest_url",
-        "step5_quality_file", "step5_quality_url",
+        "step4_skill_file", "step4_download_url",
+        "step4_cot_file", "step4_cot_download_url",
+        "step4_qa_file", "step4_qa_download_url", "step4_qa_md_file", "step4_qa_md_download_url",
+        "step4_manifest_file", "step4_manifest_url",
+        "step4_quality_file", "step4_quality_url",
     ),
 }
 
@@ -81,9 +96,9 @@ def is_step3_revision_filename(name: str) -> bool:
     return n.endswith(".xlsx") and (n.startswith("revision_") or n.startswith("edited_step3_"))
 
 
-def is_step4_final_filename(name: str) -> bool:
+def is_step3_final_filename(name: str) -> bool:
     n = basename_only(name).lower()
-    return n.endswith(".xlsx") and (n.startswith("final_") or n.startswith("edited_step4_"))
+    return n.endswith(".xlsx") and (n.startswith("final_") or n.startswith("edited_step3_"))
 
 
 def resolve_knowledge_workbook_path(
@@ -101,7 +116,7 @@ def resolve_knowledge_workbook_path(
         return None, ""
 
     candidates = (
-        ("step4_final_file", is_step4_final_filename),
+        ("step3_final_file", is_step3_final_filename),
         ("step3_revision_file", is_step3_revision_filename),
         ("step2_output_file", is_step2_preextract_filename),
     )
@@ -180,13 +195,13 @@ def validate_step_data_patch(patch: dict) -> str | None:
         ("step1_output_file", is_step1_filename),
         ("step2_output_file", is_step2_preextract_filename),
         ("step3_revision_file", is_step3_revision_filename),
-        ("step4_final_file", is_step4_final_filename),
+        ("step3_final_file", is_step3_final_filename),
     )
     for key, fn in checks:
         val = patch.get(key)
         if val and not fn(str(val)):
             return f"非法 {key}: {val}"
-    for key in ("step1_download_url", "step2_download_url", "step3_download_url", "step4_download_url", "step5_download_url"):
+    for key in ("step1_download_url", "step2_download_url", "step3_download_url", "step3_final_download_url", "step4_download_url"):
         url = patch.get(key)
         if not url:
             continue
@@ -207,7 +222,7 @@ def downstream_output_keys(from_step: int) -> list[str]:
 def auxiliary_step_data_keys(from_step: int) -> list[str]:
     """Non-output step_data keys to clear on rollback / upstream regenerate."""
     keys = []
-    for step in range(from_step, 6):
+    for step in range(from_step, 5):
         keys.extend((
             f"step{step}_cached_file",
             f"step{step}_excel_path",
@@ -215,7 +230,7 @@ def auxiliary_step_data_keys(from_step: int) -> list[str]:
             f"step{step}_preview_url",
         ))
     if from_step <= 4:
-        keys.extend(("step5_quality_file", "step5_quality_url"))
+        keys.extend(("step4_quality_file", "step4_quality_url"))
     return keys
 
 

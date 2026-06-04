@@ -17,7 +17,7 @@ from pipeline_artifacts import (  # noqa: E402
     is_step1_filename,
     is_step2_preextract_filename,
     is_step3_revision_filename,
-    is_step4_final_filename,
+    is_step3_final_filename,
     resolve_knowledge_workbook_path,
     validate_step_data_patch,
 )
@@ -39,7 +39,7 @@ def test_module_invariants():
     assert is_step2_preextract_filename("edited_step2_abc.xlsx")
     assert not is_step3_revision_filename("template_abc.xlsx")
     assert is_step3_revision_filename("revision_abc.xlsx")
-    assert is_step4_final_filename("final_abc.xlsx")
+    assert is_step3_final_filename("final_abc.xlsx")
     assert not is_download_allowed("pipelines.json")
     assert is_download_allowed("preextract_x.xlsx")
     err = validate_step_data_patch({"step2_output_file": "template_bad.xlsx"})
@@ -52,9 +52,9 @@ def test_module_invariants():
         fin = ws / "final_test_resolve.xlsx"
         pre.write_bytes(b"PK\x03\x04")
         fin.write_bytes(b"PK\x03\x04")
-        sd = {"step2_output_file": pre.name, "step4_final_file": fin.name}
+        sd = {"step2_output_file": pre.name, "step3_final_file": fin.name}
         p, key = resolve_knowledge_workbook_path(ws, sd, purpose="align")
-        assert p and key == "step4_final_file"
+        assert p and key == "step3_final_file"
         p2, key2 = resolve_knowledge_workbook_path(ws, {"step2_output_file": pre.name}, purpose="align")
         assert p2 and key2 == "step2_output_file"
     ok("module invariants")
