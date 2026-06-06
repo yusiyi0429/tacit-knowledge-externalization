@@ -13,6 +13,7 @@ import tempfile
 import uuid
 import shutil
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -934,9 +935,11 @@ def api_update_pipeline(pipeline_id):
             return jsonify({"status": "error", "error": "流水线不存在"})
 
         if "current_step" in data:
-            target["current_step"] = data["current_step"]
+            target["current_step"] = max(target.get("current_step", 1), data["current_step"])
         if "step_status" in data:
-            target["step_status"].update(data["step_status"])
+            for k, v in data["step_status"].items():
+                if v == "done" or target["step_status"].get(k) != "done":
+                    target["step_status"][k] = v
         if "step_data" in data:
             patch = data["step_data"]
             if not isinstance(patch, dict):
@@ -1306,6 +1309,12 @@ def api_step1_generate():
                         sd.pop("step1_md_download_url", None)
                     p["scenario"] = scenario_name
                     p["domain"] = scenario_name
+                    p.setdefault("step_status", {})
+                    p["step_status"]["1"] = "done"
+                    if "2" not in p["step_status"] or p["step_status"]["2"] == "pending":
+                        p["step_status"]["2"] = "active"
+                    p["current_step"] = max(p.get("current_step", 1), 2)
+                    p["updated_at"] = datetime.datetime.now().isoformat()
                     save_pipelines(pipelines)
                     saved_pipeline = dict(p)
                     saved_pipeline["step_data"] = dict(p.get("step_data", {}))
@@ -1589,9 +1598,300 @@ def api_step4_compile():
                     if manifest_pub:
                         sd["step4_manifest_file"] = manifest_pub[0]
                         sd["step4_manifest_url"] = manifest_pub[1]
+                    p.setdefault("step_status", {})
+                    p["step_status"]["4"] = "done"
+                    p["current_step"] = max(p.get("current_step", 1), 4)
+                    p["updated_at"] = datetime.datetime.now().isoformat()
                     save_pipelines(pipelines)
                     break
     return jsonify(result)
+
+
+@app.route("/api/step4/generate-executable-skill", methods=["POST"])
+def api_step4_generate_executable_skill():
+    pipeline_id = request.form.get("pipeline_id", "")
+    model_name = request.form.get("model", "")
+
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    # Resolve pipeline and golden DB
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
+        if not pipeline:
+            return jsonify({"status": "error", "error": "流水线不存在"})
+        pipeline = dict(pipeline)
+        pipeline["step_data"] = dict(pipeline.get("step_data", {}))
+
+    sd = pipeline.get("step_data", {})
+
+    # Collect knowledge items from step3 output
+    step3_key = sd.get("step3_final_file") or sd.get("step3_revision_file") or sd.get("step2_output_file")
+    if not step3_key:
+        return jsonify({"status": "error", "error": "未找到 step3 对齐输出或 step2 萃取输出"})
+
+    step3_path = safe_workspace_path(WORKSPACE, step3_key, must_exist=True)
+    if not step3_path:
+        return jsonify({"status": "error", "error": f"知识稿文件不存在: {step3_key}"})
+
+    knowledge_items = []
+    try:
+        with _safe_workbook(str(step3_path)) as wb:
+            for ws in wb.worksheets:
+                headers = [str(c.value or "") for c in next(ws.iter_rows(min_row=1, max_row=1))]
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if any(v for v in row):
+                        knowledge_items.append({headers[i]: str(row[i] or "") for i in range(min(len(headers), len(row)))})
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"读取知识稿失败: {str(e)}"})
+
+    if not knowledge_items:
+        return jsonify({"status": "error", "error": "知识稿中无有效数据行"})
+
+    # Get golden DB schema
+    from skill_generator import build_golden_schema_prompt, build_skill_generation_prompt, get_golden_stats
+
+    golden_schema = build_golden_schema_prompt()
+    golden_stats = get_golden_stats()
+
+    # Resolve model
+    model_cfg = get_model_by_name(model_name)
+    if not model_cfg:
+        models_list = load_llm_config()
+        if models_list:
+            model_cfg = models_list[0]
+    if not model_cfg:
+        return jsonify({"status": "error", "error": "无可用 LLM 模型"})
+
+    prompt = build_skill_generation_prompt(
+        scenario_name=pipeline.get("scenario", "") or pipeline.get("name", ""),
+        scenario_description=sd.get("step1_form_data", {}).get("scenario_content", "") or "",
+        knowledge_items=knowledge_items,
+        golden_schema=golden_schema,
+    )
+
+    try:
+        result = call_llm_with_retry(
+            model_cfg,
+            [{"role": "user", "content": prompt}],
+            max_tokens=8192,
+            temperature=0.5,
+        )
+        raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"LLM 调用失败: {str(e)}"})
+
+    from skill_generator import parse_skill_output
+
+    parsed = parse_skill_output(raw)
+
+    # Save the generated Skill file
+    slug = re.sub(r"[^a-zA-Z0-9一-鿿_-]", "_", pipeline.get("scenario", "") or pipeline.get("name", ""))[:30]
+    skill_filename = f"SKILL_{slug}_{pipeline_id[:6]}.md"
+    skill_path = WORKSPACE / skill_filename
+    skill_path.write_text(raw, encoding="utf-8")
+
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                p.setdefault("step_data", {})["step4_executable_skill_file"] = skill_filename
+                p.setdefault("step_data", {})["step4_executable_skill_url"] = f"/downloads/{skill_filename}"
+                save_pipelines(pipelines)
+                break
+
+    return jsonify({
+        "status": "ok",
+        "skill_filename": skill_filename,
+        "download_url": f"/downloads/{skill_filename}",
+        "frontmatter": parsed["frontmatter"],
+        "section_count": parsed["section_count"],
+        "has_sql": parsed["has_sql"],
+        "preview": raw[:2000],
+        "golden_stats": golden_stats,
+    })
+
+
+def _read_step3_knowledge_items(pipeline_id: str) -> tuple[list[dict], dict]:
+    """Shared helper: resolve pipeline, read step3 Excel, return (items, pipeline_dict)."""
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
+        if not pipeline:
+            raise ValueError("流水线不存在")
+        pipeline = dict(pipeline)
+        pipeline["step_data"] = dict(pipeline.get("step_data", {}))
+
+    sd = pipeline.get("step_data", {})
+    step3_key = sd.get("step3_final_file") or sd.get("step3_revision_file") or sd.get("step2_output_file")
+    if not step3_key:
+        raise ValueError("未找到 step3 对齐输出或 step2 萃取输出")
+
+    step3_path = safe_workspace_path(WORKSPACE, step3_key, must_exist=True)
+    if not step3_path:
+        raise ValueError(f"知识稿文件不存在: {step3_key}")
+
+    items = []
+    with _safe_workbook(str(step3_path)) as wb:
+        for ws in wb.worksheets:
+            headers = [str(c.value or "") for c in next(ws.iter_rows(min_row=1, max_row=1))]
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if any(v for v in row):
+                    items.append({headers[i]: str(row[i] or "") for i in range(min(len(headers), len(row)))})
+
+    if not items:
+        raise ValueError("知识稿中无有效数据行")
+    return items, pipeline
+
+
+@app.route("/api/step4/generate-cot", methods=["POST"])
+def api_step4_generate_cot():
+    pipeline_id = request.form.get("pipeline_id", "")
+    model_name = request.form.get("model", "")
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    try:
+        items, pipeline = _read_step3_knowledge_items(pipeline_id)
+    except ValueError as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+    model_cfg = get_model_by_name(model_name)
+    if not model_cfg:
+        model_cfg = load_llm_config()[0] if load_llm_config() else None
+    if not model_cfg:
+        return jsonify({"status": "error", "error": "无可用 LLM 模型"})
+
+    items_json = json.dumps(items[:12], ensure_ascii=False, indent=2)
+    prompt = f"""你是一位银行信贷专家。请根据以下知识条目，生成一份「思维链」(Chain-of-Thought) 决策指南。
+
+## 知识条目
+{items_json}
+
+## 要求
+1. 按「环节」分组组织思维链步骤
+2. 每步包含：输入条件 → 推理过程 → 输出决策
+3. 引用具体的判断逻辑和反模式
+4. 输出格式为 Markdown，以 "## 思维链：{{场景名}}" 开头
+5. 使用中文
+
+仅输出 Markdown 内容，不要任何额外说明。"""
+
+    try:
+        result = call_llm_with_retry(model_cfg, [{"role": "user", "content": prompt}], max_tokens=4096, temperature=0.5)
+        raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"LLM 调用失败: {str(e)}"})
+
+    slug = re.sub(r"[^a-zA-Z0-9一-鿿_-]", "_", pipeline.get("scenario", "") or pipeline.get("name", ""))[:20]
+    filename = f"COT_{slug}_{pipeline_id[:6]}.md"
+    (WORKSPACE / filename).write_text(raw, encoding="utf-8")
+
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                p.setdefault("step_data", {})["step4_cot_file"] = filename
+                p.setdefault("step_data", {})["step4_cot_url"] = f"/downloads/{filename}"
+                p.setdefault("step_status", {})
+                p["step_status"]["4"] = "done"
+                p["current_step"] = max(p.get("current_step", 1), 4)
+                p["updated_at"] = datetime.datetime.now().isoformat()
+                save_pipelines(pipelines)
+                break
+
+    return jsonify({
+        "status": "ok",
+        "filename": filename,
+        "download_url": f"/downloads/{filename}",
+        "preview": raw[:2000],
+    })
+
+
+@app.route("/api/step4/generate-qa", methods=["POST"])
+def api_step4_generate_qa():
+    pipeline_id = request.form.get("pipeline_id", "")
+    model_name = request.form.get("model", "")
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    try:
+        items, pipeline = _read_step3_knowledge_items(pipeline_id)
+    except ValueError as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+    model_cfg = get_model_by_name(model_name)
+    if not model_cfg:
+        model_cfg = load_llm_config()[0] if load_llm_config() else None
+    if not model_cfg:
+        return jsonify({"status": "error", "error": "无可用 LLM 模型"})
+
+    items_json = json.dumps(items[:12], ensure_ascii=False, indent=2)
+    prompt = f"""你是一位银行信贷培训专家。请根据以下知识条目，生成一组「QA 对」(Question & Answer pairs)，用于 RAG 检索和客服 Agent 的 few-shot 示例。
+
+## 知识条目
+{items_json}
+
+## 要求
+1. 每条知识生成 1~2 个问答对
+2. 问题模拟一线信贷员的真实提问场景
+3. 答案引用知识条目中的判断逻辑和具体方法，答法要具体可操作
+4. 输出格式为 JSON 数组：
+   [{{"q": "问题", "a": "答案", "category": "环节名"}}]
+5. 最少 6 条，最多 20 条
+
+仅输出 JSON 数组，不要 Markdown 代码块，不要任何额外说明。"""
+
+    try:
+        result = call_llm_with_retry(model_cfg, [{"role": "user", "content": prompt}], max_tokens=4096, temperature=0.7)
+        raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"LLM 调用失败: {str(e)}"})
+
+    raw = _extract_json_from_text(raw)
+    try:
+        qa_pairs = json.loads(raw)
+    except json.JSONDecodeError:
+        qa_pairs = [{"q": "LLM 输出解析失败", "a": raw[:500]}]
+
+    slug = re.sub(r"[^a-zA-Z0-9一-鿿_-]", "_", pipeline.get("scenario", "") or pipeline.get("name", ""))[:20]
+
+    # Save JSON
+    json_filename = f"QA_{slug}_{pipeline_id[:6]}.json"
+    (WORKSPACE / json_filename).write_text(json.dumps(qa_pairs, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # Save Markdown version
+    md_lines = [f"# QA 对 · {pipeline.get('scenario', '') or pipeline.get('name', '')}\n"]
+    for pair in qa_pairs[:30]:
+        md_lines.append(f"## Q: {pair.get('q', '')}\n\n**A:** {pair.get('a', '')}\n\n---\n")
+    md_filename = f"QA_{slug}_{pipeline_id[:6]}.md"
+    (WORKSPACE / md_filename).write_text("".join(md_lines), encoding="utf-8")
+
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                p.setdefault("step_data", {})["step4_qa_file"] = json_filename
+                p.setdefault("step_data", {})["step4_qa_url"] = f"/downloads/{json_filename}"
+                p.setdefault("step_data", {})["step4_qa_md_file"] = md_filename
+                p.setdefault("step_data", {})["step4_qa_md_url"] = f"/downloads/{md_filename}"
+                p.setdefault("step_status", {})
+                p["step_status"]["4"] = "done"
+                p["current_step"] = max(p.get("current_step", 1), 4)
+                p["updated_at"] = datetime.datetime.now().isoformat()
+                save_pipelines(pipelines)
+                break
+
+    return jsonify({
+        "status": "ok",
+        "qa_count": len(qa_pairs),
+        "json_filename": json_filename,
+        "md_filename": md_filename,
+        "download_url": f"/downloads/{json_filename}",
+        "md_download_url": f"/downloads/{md_filename}",
+        "preview": "".join(md_lines[:20])[:2000],
+    })
 
 
 @app.route("/api/step4/quality", methods=["POST"])
@@ -2081,289 +2381,7 @@ def api_excel_save():
 
 
 # ─── Skill Registry ───────────────────────────────────────────────
-
-SKILL_REGISTRY = {
-    "knowledge-extraction": {
-        "id": "knowledge-extraction",
-        "name": "知识萃取",
-        "version": "1.0.0",
-        "description": "从非结构化文档中自动提取结构化知识条目，生成知识萃取稿。支持文档模式和案例复盘模式两种输入方式。",
-        "detailed_description": (
-            "这是隐性知识显性化的核心引擎。系统会将您上传的制度文件、操作手册、案例复盘等非结构化文本，"
-            "通过大语言模型自动抽取为结构化的知识条目，逐条填入场景锚定模板的对应列中。\n\n"
-            "**两种工作模式**：\n"
-            "- 📄 文档萃取：上传制度文件/操作手册（TXT/MD/DOCX/PDF），系统自动分段、识别关键知识并填入模板\n"
-            "- 📋 案例复盘：填写结构化复盘表单（背景→判断→结果→重来→习惯），系统不仅提取可执行知识，还专门检测反模式、破例逻辑和直觉信号\n\n"
-            "**三种萃取风格**：\n"
-            "标准（8-22条，平衡覆盖）、深度（12-40条，完整覆盖所有字段）、精简（5-10条，仅保留高价值高置信条目）"
-        ),
-        "usage_guide": (
-            "1. 先在「场景锚定」完成知识结构定义（确定Excel模板的列名）\n"
-            "2. 选择输入模式：上传文档或切换到案例复盘表单\n"
-            "3. 选择萃取风格（不确定时用「标准萃取」）\n"
-            "4. 选择模型和Skill，点击「执行」\n"
-            "5. 等待10-60秒（取决于文档长度），下载萃取Excel或Markdown"
-        ),
-        "input_example": "上传一份《科技企业普惠贷款业务操作指引》.txt 或填写一个芯片设计企业流水异常的案例复盘",
-        "output_example": "生成 preextract_*.xlsx，包含按模板列填充的知识条目，每条标注了置信度。案例复盘模式额外输出「隐性信号」和「信号类型」字段",
-        "business_value": (
-            "将散落在文档和个人经验中的知识，转化为团队可共享、可检索、可执行的结构化知识资产。"
-            "案例复盘模式特别适合把老信贷员的「踩坑故事」转化为团队的「避坑指南」。"
-        ),
-        "applicable_scenarios": [
-            "新业务制度发布后的知识入库",
-            "老员工离职前的经验抢救",
-            "案例复盘会后的结构化沉淀",
-            "部门操作手册的知识化改造",
-        ],
-        "limitations": [
-            "无法自动判断知识的正确性——萃取的可信度取决于输入文档的质量",
-            "对极度专业的领域术语可能需要人工校验",
-            "案例复盘模式需要专家愿意花时间填写结构化表单",
-        ],
-        "triggers": ["上传文档", "上传制度文件", "知识萃取", "知识预萃", "提取知识条目", "案例复盘"],
-        "supported_formats": ["TXT", "MD", "DOCX", "PDF"],
-        "max_file_size_mb": 50,
-        "output_styles": ["标准萃取（8-22条）", "深度萃取（12-40条）", "精简萃取（5-10条）"],
-        "capabilities": [
-            "文档智能解析与分段",
-            "知识条目结构化提取",
-            "字段自动填充（知识分类/判断逻辑/适用条件）",
-            "反模式与踩坑提示识别",
-            "置信度自动评估",
-            "案例复盘中的隐性信号检测（反模式/破例/直觉/关系依赖）",
-        ],
-        "related_step": 2,
-        "enabled": True,
-    },
-    "knowledge-revision": {
-        "id": "knowledge-revision",
-        "name": "知识对齐",
-        "version": "1.1.0",
-        "description": "融合专家修订意见与AI分析，逐条审核修订建议，支持采纳/驳回/编辑，一键生成可发布的对齐稿。",
-        "detailed_description": (
-            "知识萃取后，专家面对的不是空白Excel，而是一份「待审稿」。本Skill将专家的修订意见解析为结构化的修订指令，"
-            "逐条标注修改/删除/新增/补充，用不同颜色高亮显示变更，并在Excel右侧自动生成修订信息列（修订状态/原始内容/修订内容/修订说明/修订时间）。\n\n"
-            "**关键设计理念**：专家不是来「审稿」的，是来「对话」的。因此系统在专家每次采纳修订建议时，自动弹出「隐性注释追问卡片」，"
-            "引导专家分享修订背后的经验判断——这些隐性注释将作为知识的「上下文层」永久保存。\n\n"
-            "**无意见直通**：如果专家对萃取稿满意、无需修订，系统会自动将萃取稿确认为对齐稿，无需额外操作。"
-        ),
-        "usage_guide": (
-            "1. 在输入区查看Step2生成的萃取稿预览\n"
-            "2. 在「专家输入」中填写修订意见（或上传专家纪要文件），也可以留空直通\n"
-            "3. 点击「发送并智能修订」，系统生成修订建议列表\n"
-            "4. 逐条审核：采纳/驳回/编辑每条建议\n"
-            "5. 采纳时弹出的追问卡片可选填——这是沉淀隐性知识的最佳时机\n"
-            "6. 点击「生成对齐稿」，生成 final_*.xlsx"
-        ),
-        "input_example": "专家意见：「第5条知识中，成立满2年的条件对芯片行业过于严格，建议改为成立满1年但创始人需来自中科院或985高校相关专业」",
-        "output_example": "生成 final_*.xlsx，修订单元格用颜色标注（黄=修改/红=删除/绿=新增/蓝=补充），右侧增加修订信息列。专家填写的隐性注释保存在 step_data 中。",
-        "business_value": (
-            "传统方式下，专家的修订意见散落在微信、邮件、会议纪要中，修订理由（为什么这么改）往往丢失。"
-            "本Skill把修订过程结构化，并将修订背后的隐性判断以「隐性注释」形式保存——这是知识库中最珍贵的一层信息。"
-        ),
-        "applicable_scenarios": [
-            "专家审核萃取稿并提出修改意见",
-            "多人会议纪要需要合并为统一修订",
-            "合规/风控部门对知识条目进行合规审查",
-            "老员工对新人萃取的知识进行校准",
-        ],
-        "limitations": [
-            "修订建议的质量依赖于专家意见的明确程度——模糊的意见会产生模糊的修订",
-            "不适用于大量增删的场景（超过80条修订建议审核体验变差）",
-            "隐性注释追问卡片依赖专家配合——如果专家跳过，这部分价值就丢失了",
-        ],
-        "triggers": ["知识对齐", "专家对齐", "最终确认", "生成对齐稿"],
-        "supported_formats": ["XLSX"],
-        "max_file_size_mb": 50,
-        "output_styles": ["标准修订", "严格修订（保守）", "宽松修订（积极）"],
-        "capabilities": [
-            "Excel结构解析与比对",
-            "修订点智能识别（修改/删除/新增/补充）",
-            "多类型标注（颜色+状态列+说明）",
-            "版本追踪与备份",
-            "无意见直通（不强制提交专家意见）",
-            "隐性注释追问卡片（自动捕获修订背后的经验判断）",
-        ],
-        "related_step": 3,
-        "enabled": True,
-    },
-    "knowledge-pattern-mining": {
-        "id": "knowledge-pattern-mining",
-        "name": "跨案例模式发现",
-        "version": "1.0.0",
-        "description": "对多个案例复盘进行交叉分析，发现反复出现的隐性信号、高频反模式和系统性风险盲区。",
-        "detailed_description": (
-            "单个案例复盘能沉淀一个故事，但看不出规律。当你积累了3个、5个、10个案例复盘后，"
-            "本Skill会像一位资深风控专家一样，横跨所有案例寻找「反复出现的信号」。\n\n"
-            "**五步分析流程**：\n"
-            "1. 识别重复出现的预警信号 → 哪些信号在多个案例中反复出现？\n"
-            "2. 发现系统性风险盲区 → 为什么按标准流程操作仍然没能提前发现风险？\n"
-            "3. 提炼跨案例隐性知识 → 从案例之间的共同模式中提炼可操作的新知识\n"
-            "4. 信号优先级排序 → 按「出现频率 × 损失严重度」给所有信号排序\n"
-            "5. 生成行动建议 → 三条具体的、可落地的改进行动\n\n"
-            "**核心价值**：一个信贷员踩过的坑是故事，三个信贷员在不同场景下踩过类似的坑就是系统性风险盲区。"
-        ),
-        "usage_guide": (
-            "1. 准备至少2个案例复盘文本（可以从之前的Step2案例复盘输出中获取）\n"
-            "2. 将所有案例文本粘贴到输入框，或用多文件上传同时选择多个案例文件\n"
-            "3. 选择模型，点击执行\n"
-            "4. 系统自动进行交叉分析，生成跨案例模式发现报告\n"
-            "5. 下载Markdown报告，在团队会议中讨论发现的模式"
-        ),
-        "input_example": "输入2-5个案例复盘文本，每个案例至少包含背景、判断、结果、反思四个部分。案例之间最好来自同一业务领域（如都是科技企业贷款案例），这样发现的模式更有针对性。",
-        "output_example": (
-            "生成 pattern_mining_*.md 报告，包含五部分：\n"
-            "一、重复出现的预警信号（含出现频次和最早信号标记）\n"
-            "二、系统性风险盲区\n"
-            "三、跨案例隐性知识（每条知识的执行来源和具体做法）\n"
-            "四、信号优先级排序\n"
-            "五、行动建议"
-        ),
-        "business_value": (
-            "这是从「经验」到「规律」的关键一步。单独一个案例容易被当作「特殊情况」忽略，"
-            "但5个案例同时指向同一个信号时，它就是必须被修正的流程缺陷。"
-        ),
-        "applicable_scenarios": [
-            "季度/年度案例复盘总结会议的前置分析",
-            "新员工培训材料的案例化改造",
-            "风控流程优化的数据支撑",
-            "跨部门/跨支行的经验共享和教训总结",
-        ],
-        "limitations": [
-            "案例数量太少（<2个）时分析价值有限，建议至少积累3个以上相关案例再使用",
-            "案例之间的相关性影响分析质量——完全无关的案例放在一起会产生噪音",
-            "分析结果需要人工验证——LLM可能发现「统计学相关」但「业务逻辑无关」的模式",
-        ],
-        "triggers": ["案例复盘", "跨案例分析", "模式发现", "信号挖掘", "交叉验证"],
-        "supported_formats": ["TXT", "MD", "JSON"],
-        "max_file_size_mb": 100,
-        "output_styles": ["标准模式发现", "深度挖掘"],
-        "capabilities": [
-            "多案例交叉对比分析",
-            "高频预警信号自动识别与排名",
-            "跨案例隐性知识的涌现模式发现",
-            "系统性风险盲区检测",
-            "生成跨案例洞察报告（含优先级排序和行动建议）",
-        ],
-        "related_step": 2,
-        "enabled": True,
-    },
-    "knowledge-gap-analysis": {
-        "id": "knowledge-gap-analysis",
-        "name": "知识盲区检测",
-        "version": "1.0.0",
-        "description": "基于场景Schema与已萃取的知识条目，检测知识覆盖的空白区域，识别「应该知道但还不知道」的内容。",
-        "detailed_description": (
-            "风控最大的敌人不是信息不足，而是「不知道自己有盲区」。本Skill对比你在场景锚定中定义的知识结构（Schema）"
-            "和实际萃取的知识条目，逐列计算填充率，自动标记那些「定义了但没填充」的盲区列。\n\n"
-            "**双重分析**：\n"
-            "- 程序化统计：逐列计算填充率、空值率、样本内容，不需要LLM参与\n"
-            "- LLM解读：基于盲区统计结果，生成3-5条定向补全建议，包括「应该补充什么」「建议找谁」「为什么高风险」\n\n"
-            "**典型发现**：Schema定义了「反模式/踩坑提示」列，但实际85%的条目此列为空——说明知识库缺乏风险防范信息，是高危盲区。"
-        ),
-        "usage_guide": (
-            "1. 确保已完成Step2知识萃取（有关联的知识Excel文件）\n"
-            "2. 在Step2的Skill下拉中选择「知识盲区检测」\n"
-            "3. 选择模型（用于生成解读建议），点击执行\n"
-            "4. 查看盲区报告，标记高优先级盲区\n"
-            "5. 根据报告中的「补全建议」，定向邀请相关领域专家补充知识"
-        ),
-        "input_example": "关联当前流水线（自动读取Step1 Schema和Step2萃取结果），或直接上传一份知识Excel文件",
-        "output_example": (
-            "生成 gap_analysis_*.md 报告，包含三部分：\n"
-            "一、各列填充率统计表\n"
-            "二、盲区清单（按严重度排序，高危=填充率<20%，中危=填充率<50%）\n"
-            "三、补全建议（LLM生成的3-5条具体可操作建议）"
-        ),
-        "business_value": (
-            "明确了「缺什么」等于完成了知识补充工作量的一半。这份报告可以作为团队知识建设的行动计划——"
-            "本季度重点补全反模式列、下季度补全判断逻辑列。"
-        ),
-        "applicable_scenarios": [
-            "知识库建设初期——快速评估哪些领域是重灾区",
-            "新业务领域扩展——确认新领域知识覆盖是否完整",
-            "季度知识质量巡检——定期检测知识库健康状况",
-            "专家访谈前的准备——明确哪些问题需要向专家定向请教",
-        ],
-        "limitations": [
-            "只能检测Schema中已定义的列——如果Schema本身就漏掉了重要维度，盲区检测也发现不了",
-            "填充率不等于质量——即使字段非空，也不代表内容是高质量的",
-            "建议在知识库达到一定规模（50+条目）后再使用，小样本统计意义有限",
-        ],
-        "triggers": ["知识盲区", "盲区检测", "覆盖分析", "知识缺口", "gap分析"],
-        "supported_formats": ["XLSX"],
-        "max_file_size_mb": 50,
-        "output_styles": ["标准检测", "深度检测"],
-        "capabilities": [
-            "Schema字段覆盖率统计",
-            "知识分类分布不均检测",
-            "空值/低质量字段自动标记",
-            "定向专家采访建议生成",
-            "知行差距识别（制度 vs. 实际做法）",
-        ],
-        "related_step": 2,
-        "enabled": True,
-    },
-    "knowledge-freshness-audit": {
-        "id": "knowledge-freshness-audit",
-        "name": "知识保鲜度审计",
-        "version": "1.0.0",
-        "description": "审计知识库中条目的时效性，检测可能过时的规则、被案例突破的知识点，生成保鲜优先级建议。",
-        "detailed_description": (
-            "知识不是永恒不变的。监管政策会更新、市场环境会变化、案例复盘会揭示旧规则的失效。"
-            "本Skill对知识库做全面的「保鲜体检」：\n\n"
-            "**四维审计**：\n"
-            "1. 置信度分布 — 高/中/低置信度条目的比例（低置信度过高=知识库缺乏验证）\n"
-            "2. 溯源完整性 — 有多少条目标注了来源文档和贡献专家（无来源=无法追溯=高风险）\n"
-            "3. 隐性注释交叉引用 — Step3中收集的专家隐性注释是否暗示某些知识已被实际突破\n"
-            "4. LLM深度审计 — 识别依赖特定时间窗口的规则（如'近三年'）、依赖特定政策的规则、可能已过时的行业惯例\n\n"
-            "**特殊能力**：如果在Step3中专家填写了隐性注释（如「这条规则在芯片行业经常被突破」），"
-            "本Skill会自动检测这些注释对应的知识条目，标记为「已被质疑」并建议重新评估。"
-        ),
-        "usage_guide": (
-            "1. 进入Step4（智能转化）后的保鲜审计，或直接访问Skill面板\n"
-            "2. 选择关联的流水线ID（自动读取知识Excel + 隐性注释），或直接上传知识Excel文件\n"
-            "3. 选择模型（用于深度审计），点击执行\n"
-            "4. 查看保鲜风险指标和深度审计建议\n"
-            "5. 根据报告的优先级列表，逐条更新过时知识"
-        ),
-        "input_example": "关联当前流水线（自动读取 final_*.xlsx + Step3中积累的隐性注释），或上传一份知识Excel文件",
-        "output_example": (
-            "生成 freshness_audit_*.md 报告，包含：\n"
-            "一、保鲜风险指标（置信度分布、来源覆盖率、专家署名率、隐性注释数量）\n"
-            "二、深度审计与保鲜建议（LLM识别出的可能过时规则及更新优先级）"
-        ),
-        "business_value": (
-            "隐性知识衰减速度极快——老张退休后他的经验就没了，但更可怕的是老张的经验已经过时了但没人知道。"
-            "这个Skill确保知识库的「保鲜期」可追踪、可审计。"
-        ),
-        "applicable_scenarios": [
-            "季度知识库健康检查",
-            "监管政策重大变化后的知识库集中更新",
-            "老员工离职/调岗前的知识交接审计",
-            "新案例大量涌现后，对旧知识的重新验证",
-        ],
-        "limitations": [
-            "保鲜度判断依赖元数据质量——如果知识条目从不标注「来源」和「贡献专家」，审计能做的事有限",
-            "LLM无法实时感知最新的监管政策变化——它只能基于训练数据中的知识来识别可能过时的模式",
-            "建议每个季度执行一次，而非高频使用——审计的价值在于周期性对比",
-        ],
-        "triggers": ["保鲜审计", "时效审计", "知识老化", "保鲜度", "知识更新"],
-        "supported_formats": ["XLSX"],
-        "max_file_size_mb": 50,
-        "output_styles": ["标准审计", "深度审计"],
-        "capabilities": [
-            "知识最后验证时间追踪",
-            "过期/被突破规则自动标记",
-            "置信度衰减模式检测",
-            "案例复盘与知识条目的矛盾检测",
-            "保鲜优先级排序与更新建议",
-        ],
-        "related_step": 4,
-        "enabled": True,
-    },
-}
+from skill_registry import SKILL_REGISTRY
 @app.route("/api/skills", methods=["GET"])
 def api_skills_list():
     """返回所有已注册 Skill 的简要信息"""
@@ -2490,6 +2508,12 @@ def _persist_step2_excel_pipeline(
                 sd["step2_extracted_count"] = count
                 for stale in ("step2_preview_name", "step2_preview_url"):
                     sd.pop(stale, None)
+                p.setdefault("step_status", {})
+                p["step_status"]["2"] = "done"
+                if p["step_status"].get("3", "pending") == "pending":
+                    p["step_status"]["3"] = "active"
+                p["current_step"] = max(p.get("current_step", 1), 3)
+                p["updated_at"] = datetime.datetime.now().isoformat()
                 save_pipelines(pipelines)
                 break
 
@@ -3083,12 +3107,23 @@ def _publish_final_from_source(
     output_name = f"final_{pipeline_id[:8]}_{datetime.now().strftime('%H%M%S')}.xlsx"
     output_path = WORKSPACE / output_name
     shutil.copy2(source_file_path, str(output_path))
+    # 始终生成 MD 预览（即使非 markdown 模式），确保对齐结果有预览可用
     md_name, md_url = _maybe_generate_markdown_artifact(
         pipeline_id,
         output_name,
         md_prefix="final",
         title=f"Step3 知识对齐 · {pipeline_id[:8]}",
     )
+    if not md_name:
+        # 非 markdown 模式也生成预览用 MD
+        md_name = f"final_{pipeline_id[:8]}_{datetime.now().strftime('%H%M%S')}.md"
+        md_path = WORKSPACE / md_name
+        try:
+            _excel_to_markdown_file(output_path, md_path, title=f"Step3 知识对齐 · {pipeline_id[:8]}")
+            md_url = "/downloads/" + md_name
+        except Exception:
+            md_name = ""
+            md_url = ""
     with _pipelines_lock:
         pipelines = load_pipelines()
         for p in pipelines:
@@ -3109,6 +3144,12 @@ def _publish_final_from_source(
                 sd.pop("_align_preview_style", None)
                 sd.pop("_align_source_file", None)
                 sd.pop("_align_chat_history", None)
+                p.setdefault("step_status", {})
+                p["step_status"]["3"] = "done"
+                if p["step_status"].get("4", "pending") == "pending":
+                    p["step_status"]["4"] = "active"
+                p["current_step"] = max(p.get("current_step", 1), 4)
+                p["updated_at"] = datetime.now().isoformat()
                 save_pipelines(pipelines)
                 break
     return output_name, md_name, md_url
@@ -3840,61 +3881,70 @@ def _execute_gap_analysis():
 # ─── 新 Skill: 知识保鲜度审计 ─────────────────────────────────
 
 def _execute_freshness_audit():
-    """知识保鲜度审计：检测知识库中可能过时的规则和被案例突破的知识点。"""
+    """知识保鲜度审计：基于 golden 知识库，检测过时规则、完整性缺口和案例突破信号。"""
+    import sqlite3
+
     skill_id = request.form.get("skill_id", "knowledge-freshness-audit")
     info = SKILL_REGISTRY.get(skill_id, {})
-    pipeline_id = request.form.get("pipeline_id", "")
     model_name = request.form.get("model", "")
-    excel_file = request.files.get("excel")
 
-    if not pipeline_id and not excel_file:
-        return jsonify({"status": "error", "error": "请提供 pipeline_id 或上传知识 Excel 文件"})
+    golden_path = Path(__file__).resolve().parent.parent / "data" / "golden" / "golden_test.db"
+    if not golden_path.exists():
+        return jsonify({"status": "error", "error": "golden 知识库不存在"})
 
-    input_path = None
-    tacit_annotations = []
-    if pipeline_id:
-        with _pipelines_lock:
-            pipelines = load_pipelines()
-            for p in pipelines:
-                if p["id"] == pipeline_id:
-                    sd = p.get("step_data", {})
-                    tacit_annotations = sd.get("step3_tacit_annotations") or []
-                    resolved, _src = resolve_knowledge_workbook_path(WORKSPACE, sd, purpose="compile")
-                    if resolved:
-                        input_path = str(resolved)
-                    break
-    if excel_file:
-        input_path = save_upload(excel_file, prefix="freshness_audit")
+    db = sqlite3.connect(str(golden_path))
+    db.row_factory = sqlite3.Row
 
-    if not input_path or not os.path.exists(input_path):
-        return jsonify({"status": "error", "error": "未找到知识 Excel 文件"})
+    rows = db.execute("""
+        SELECT gi.*, gd.filename AS doc_filename, gd.source_type AS doc_source_type
+        FROM golden_items gi
+        LEFT JOIN golden_documents gd ON gi.document_id = gd.id
+        ORDER BY gi.知识编号
+    """).fetchall()
 
-    # 读取知识条目
-    from excel_to_skill import read_excel_knowledge
-    records, version_info = read_excel_knowledge(input_path)
+    if not rows:
+        db.close()
+        return jsonify({"status": "error", "error": "golden 知识库中无有效条目"})
 
-    if not records:
-        return jsonify({"status": "error", "error": "知识文件中无有效条目"})
+    records = [dict(r) for r in rows]
+    db.close()
 
-    # 程序化统计
     total = len(records)
     high_conf = sum(1 for r in records if str(r.get("置信度", "")).strip() == "高")
+    mid_conf = sum(1 for r in records if str(r.get("置信度", "")).strip() == "中")
     low_conf = sum(1 for r in records if str(r.get("置信度", "")).strip() == "低")
-    with_source = sum(1 for r in records if str(r.get("来源文档", "")).strip())
-    with_contributor = sum(1 for r in records if str(r.get("贡献专家", "")).strip())
 
-    # 构建保鲜审计提示
+    has_evidence = sum(1 for r in records if (r.get("证据数") or 0) > 0)
+    has_breakthrough = sum(1 for r in records if (r.get("突破数") or 0) > 0)
+    has_boundary = sum(1 for r in records if str(r.get("适用边界", "")).strip())
+    has_exception = sum(1 for r in records if str(r.get("例外情形", "")).strip())
+    has_logic = sum(1 for r in records if str(r.get("判断逻辑", "")).strip())
+    has_antipattern = sum(1 for r in records if str(r.get("反模式踩坑提示", "")).strip())
+    has_experience = sum(1 for r in records if str(r.get("经验判断", "")).strip())
+
+    case_sources = sum(1 for r in records if r.get("doc_source_type") == "案例")
+    doc_sources = sum(1 for r in records if r.get("doc_source_type") == "制度")
+    meeting_sources = sum(1 for r in records if r.get("doc_source_type") == "纪要")
+
     stale_indicators = []
-    if total > 0 and high_conf / total < 0.3:
+    if has_breakthrough > 0:
+        stale_indicators.append(f"{has_breakthrough}/{total} 条目被案例突破（突破数>0）——相关规则需复核有效性")
+    if total - has_boundary > 20:
+        stale_indicators.append(f"{total - has_boundary}/{total} 条目缺少适用边界——知识适用范围不明确")
+    if total - has_exception > 20:
+        stale_indicators.append(f"{total - has_exception}/{total} 条目缺少例外情形——缺少决策盲区覆盖")
+    if total - has_logic > 10:
+        stale_indicators.append(f"{total - has_logic}/{total} 条目缺少判断逻辑——无法结构化执行")
+    if high_conf / total < 0.5:
         stale_indicators.append(f"高置信度条目仅占 {round(high_conf/total*100)}%——大量知识缺乏充分验证")
-    if total > 0 and with_source / total < 0.5:
-        stale_indicators.append(f"仅 {round(with_source/total*100)}% 条目标注了来源——知识溯源困难")
-    if total > 0 and with_contributor / total < 0.3:
-        stale_indicators.append(f"仅 {round(with_contributor/total*100)}% 条目有贡献专家署名——知识责任人不清")
-    if tacit_annotations:
-        stale_indicators.append(f"已有 {len(tacit_annotations)} 条隐性注释——这些注释可能暗示某些知识已被实际突破")
+    if has_evidence / total < 0.3:
+        stale_indicators.append(f"仅 {round(has_evidence/total*100)}% 条目有实证支撑——知识可信度存疑")
+    if case_sources > 0 and doc_sources / total > 0.5:
+        stale_indicators.append(
+            f"制度文档来源占比 {round(doc_sources/total*100)}%，案例复盘占比 {round(case_sources/total*100)}%"
+            "——理论与实战可能存在 gap，建议增加案例复盘知识覆盖"
+        )
 
-    # LLM 深度审计
     narrative = ""
     if model_name:
         model_cfg = get_model_by_name(model_name)
@@ -3903,52 +3953,74 @@ def _execute_freshness_audit():
             model_cfg = models_list[0] if models_list else None
         if model_cfg:
             item_sample = []
-            for r in records[:15]:
+            for r in records[:20]:
                 item_sample.append(
-                    f"- [{r.get('知识分类', '未分类')}] {str(r.get('知识描述', ''))[:120]}"
-                    f"（置信度：{r.get('置信度', '未标')}）"
+                    f"- [{r.get('环节', '未分类')}] [{r.get('知识类型', '')}] {r.get('知识编号', '')}: "
+                    f"{str(r.get('具体方法', ''))[:100]}"
+                    f"（置信度：{r.get('置信度', '未标')} 证据：{r.get('证据数', 0)} 突破：{r.get('突破数', 0)}"
+                    f"{' 缺边界' if not str(r.get('适用边界', '')).strip() else ''}"
+                    f"{' 缺例外' if not str(r.get('例外情形', '')).strip() else ''}"
+                    f"{' 缺逻辑' if not str(r.get('判断逻辑', '')).strip() else ''}"
+                    f"）"
                 )
-            annotations_text = ""
-            if tacit_annotations:
-                annotations_text = "## 专家隐性注释（可能暗示知识已被突破）\n"
-                for a in tacit_annotations[:10]:
-                    annotations_text += f"- [{a.get('action', '')}] {a.get('question', '')}\n  专家回答：{a.get('answer', '')}\n"
+            breakthrough_items = []
+            for r in records:
+                if (r.get("突破数") or 0) > 0:
+                    breakthrough_items.append(
+                        f"- {r.get('知识编号')}: {str(r.get('具体方法', ''))[:100]} "
+                        f"（来源：{r.get('doc_filename', r.get('来源文档', ''))}）"
+                    )
 
             try:
                 llm_result = call_llm_with_retry(model_cfg, [
                     {"role": "system", "content": (
-                        "你是一位银行知识管理专家，正在审计知识库的保鲜度。"
-                        "请识别以下知识条目中可能已过时、需要更新或被案例突破的内容。"
-                        "重点关注：（1）依赖特定时间窗口的规则（如'近三年'）是否仍在有效期内"
-                        "（2）依赖特定监管政策的规则是否仍适用（3）被专家隐性注释质疑的知识。"
+                        "你是一位银行知识管理专家，正在审计 golden 知识库的保鲜度。"
+                        "请从以下维度评估知识质量："
+                        "（1）被案例突破标记的规则是否真的过时了？"
+                        "（2）缺少适用边界/例外情形的知识会影响 Agent 决策的准确性吗？"
+                        "（3）制度文档来源 vs 案例复盘来源的知识是否存在「理论-实战」gap？"
+                        "（4）哪些环节（客户筛选/贷前尽调/审批决策/贷后监控等）的知识最不完整？"
                     )},
                     {"role": "user", "content": (
-                        f"知识条目样本（共{total}条，以下为前15条）：\n"
+                        f"golden 知识库全量扫描（共{total}条）：\n"
                         + "\n".join(item_sample) + "\n\n"
-                        f"保鲜风险指标：\n" + "\n".join(f"- {s}" for s in stale_indicators) + "\n\n"
-                        + annotations_text + "\n\n"
-                        f"请给出3-5条保鲜建议，标注哪些类型的知识最需要更新，以及建议的更新优先级。"
+                        + f"保鲜风险指标：\n" + "\n".join(f"- {s}" for s in stale_indicators) + "\n\n"
+                        + ("被案例突破的条目：\n" + "\n".join(breakthrough_items) + "\n\n" if breakthrough_items else "")
+                        + "请给出 3-5 条保鲜建议，标注最需要更新的环节和知识类型，"
+                        + "评估 Agent Skill 直接使用此知识库的可靠性（高/中/低），并给出改进优先级排序。"
                     )}
                 ], stream=False, temperature=0.3, max_tokens=1536)
                 narrative = extract_assistant_content(llm_result) if isinstance(llm_result, dict) else ""
             except Exception:
                 narrative = "（LLM 深度审计生成失败，请参考统计数据）"
 
-    # 生成报告
     report_name = f"freshness_audit_{uuid.uuid4().hex[:8]}.md"
     report_path = WORKSPACE / report_name
     lines = [
-        f"# 知识保鲜度审计报告",
-        f"",
+        "# 知识保鲜度审计报告（golden 知识库）",
+        "",
+        f"## 审计数据源",
+        f"- 数据源：**golden 知识库**（{golden_path}）",
         f"- 知识条目总数：**{total}**",
-        f"- 高置信度占比：**{round(high_conf/total*100) if total else 0}%**",
-        f"- 来源覆盖率：**{round(with_source/total*100) if total else 0}%**",
-        f"- 专家署名率：**{round(with_contributor/total*100) if total else 0}%**",
-        f"- 隐性注释数：**{len(tacit_annotations)}**",
+        f"- 来源分布：制度 {doc_sources} · 案例复盘 {case_sources} · 纪要 {meeting_sources}",
+        "",
+        "## 置信度分布",
+        f"- 高：**{high_conf}**（{round(high_conf/total*100) if total else 0}%）",
+        f"- 中：**{mid_conf}**（{round(mid_conf/total*100) if total else 0}%）",
+        f"- 低：**{low_conf}**（{round(low_conf/total*100) if total else 0}%）",
+        "",
+        "## 完整性审计",
+        f"- 有实证支撑：**{has_evidence}**/{total}（{round(has_evidence/total*100) if total else 0}%）",
+        f"- 有判断逻辑：**{has_logic}**/{total}（{round(has_logic/total*100) if total else 0}%）",
+        f"- 有反模式：**{has_antipattern}**/{total}（{round(has_antipattern/total*100) if total else 0}%）",
+        f"- 有经验判断：**{has_experience}**/{total}（{round(has_experience/total*100) if total else 0}%）",
+        f"- 有适用边界：**{has_boundary}**/{total}（{round(has_boundary/total*100) if total else 0}%）",
+        f"- 有例外情形：**{has_exception}**/{total}（{round(has_exception/total*100) if total else 0}%）",
+        f"- 被案例突破：**{has_breakthrough}**/{total}",
         f"- 生成时间：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"",
-        f"## 保鲜风险指标",
-        f"",
+        "",
+        "## 保鲜风险指标",
+        "",
     ]
     for s in stale_indicators:
         lines.append(f"- ⚠️ {s}")
@@ -3957,9 +4029,20 @@ def _execute_freshness_audit():
 
     if narrative:
         lines.append("")
-        lines.append("## 深度审计与保鲜建议")
+        lines.append("## LLM 深度审计与保鲜建议")
         lines.append("")
         lines.append(narrative)
+
+    lines.append("")
+    lines.append("## Agent Skill 可靠性提示")
+    lines.append("")
+    if has_logic / total >= 0.5 and has_boundary / total >= 0.3 and has_breakthrough == 0:
+        lines.append("- ✅ 知识库整体质量较高，Agent Skill 可直接部署使用")
+    elif has_logic / total >= 0.3 and has_breakthrough <= 3:
+        lines.append("- ⚠️ 知识库存在中等缺口，建议补充适用边界和例外情形后部署 Agent Skill")
+    else:
+        lines.append("- 🔴 知识库完整性较低，建议先按保鲜建议整改，再生成 Agent Skill")
+    lines.append(f"- 建议：部署前确认 {total - has_logic} 条缺失判断逻辑的条目已人工补全")
 
     report_path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -3969,9 +4052,10 @@ def _execute_freshness_audit():
         "skill_id": skill_id,
         "total_items": total,
         "high_confidence_pct": round(high_conf / total * 100, 1) if total else 0,
-        "source_coverage_pct": round(with_source / total * 100, 1) if total else 0,
+        "source_coverage_pct": round(has_evidence / total * 100, 1) if total else 0,
+        "breakthrough_count": has_breakthrough,
+        "completeness_score": round((has_logic + has_boundary + has_exception) / (total * 3) * 100, 1),
         "stale_indicators": stale_indicators,
-        "tacit_annotations_count": len(tacit_annotations),
         "narrative": narrative,
         "report_name": report_name,
         "download_url": f"/downloads/{report_name}",
@@ -4380,6 +4464,12 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
                     else:
                         p.setdefault("step_data", {}).pop("step3_final_md_file", None)
                         p.setdefault("step_data", {}).pop("step3_final_md_download_url", None)
+                    p.setdefault("step_status", {})
+                    p["step_status"]["3"] = "done"
+                    if p["step_status"].get("4", "pending") == "pending":
+                        p["step_status"]["4"] = "active"
+                    p["current_step"] = max(p.get("current_step", 1), 4)
+                    p["updated_at"] = datetime.now().isoformat()
                     save_pipelines(pipelines)
                     break
 
@@ -4576,28 +4666,13 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
                     sd["_align_source_file"] = os.path.basename(source_file_path)
                     save_pipelines(pipelines)
                     break
-        if _should_pass_through_preextract(expert_text, uploaded_material_text):
-            payload = _align_no_opinion_success_payload(
-                pipeline_id, source_file_path, expert_text, style, style_rule
-            )
-            payload["align_mode"] = "pass_through"
-            return payload
-        return {
-            "status": "ok",
-            "notes": [],
-            "total": 0,
-            "no_opinion": False,
-            "auto_finalized": False,
-            "align_mode": "llm_revision",
-            "message": "未从专家意见/上传材料中解析出可执行的修订条目，请补充更明确的修改说明（建议注明行号、列名与修改内容）。",
-            "style": style,
-            "style_rule": {
-                "mode": style,
-                "max_actions": note_stats["max_actions"],
-                "raw_count": note_stats["raw_count"],
-                "processed_count": note_stats["processed_count"],
-            },
-        }
+        # expert_notes 为空时，直通生成对齐稿（不再报错）
+        payload = _align_no_opinion_success_payload(
+            pipeline_id, source_file_path, expert_text, style, style_rule
+        )
+        payload["align_mode"] = "pass_through"
+        payload["message"] = "未从专家意见/上传材料中解析出可执行的修订条目，已将当前稿确认为对齐稿。如需精细修订，请补充更明确的修改说明（建议注明行号、列名与修改内容）。"
+        return payload
 
     for i, note in enumerate(expert_notes):
         note["id"] = i
@@ -4633,7 +4708,7 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
 
 @app.route("/api/step3/align_preview", methods=["POST"])
 def api_step3_align_preview():
-    """知识校验 - 校正性：返回 AI 校验建议列表，但不实际修改 Excel。"""
+    """知识对齐 - 校正性：返回 AI 对齐建议列表，但不实际修改 Excel。"""
     pipeline_id = request.form.get("pipeline_id", "")
     expert_text = request.form.get("expert_text", "")
     expert_cached_file = os.path.basename(request.form.get("expert_cached_file", "").strip())
@@ -4690,7 +4765,7 @@ def api_step3_align_preview():
 
 @app.route("/api/step3/align_chat", methods=["POST"])
 def api_step3_align_chat():
-    """知识校验 - 校正性：对话式知识校验，按聊天轮次累积专家意见，返回模型回复与可审核修订建议。"""
+    """知识对齐 - 校正性：对话式知识对齐，按聊天轮次累积专家意见，返回模型回复与可审核修订建议。"""
     pipeline_id = request.form.get("pipeline_id", "")
     message = (request.form.get("message", "") or request.form.get("expert_text", "")).strip()
     expert_cached_file = os.path.basename(request.form.get("expert_cached_file", "").strip())
@@ -4912,6 +4987,12 @@ def api_step3_apply_notes():
                     sd.pop("_align_preview_style", None)
                     sd.pop("_align_source_file", None)
                     sd.pop("_align_chat_history", None)
+                    p.setdefault("step_status", {})
+                    p["step_status"]["3"] = "done"
+                    if p["step_status"].get("4", "pending") == "pending":
+                        p["step_status"]["4"] = "active"
+                    p["current_step"] = max(p.get("current_step", 1), 4)
+                    p["updated_at"] = datetime.now().isoformat()
                     save_pipelines(pipelines)
                     break
         # region agent log
@@ -5154,6 +5235,9 @@ def step2_extract_unified():
     model_name = request.form.get("model", "")
     style = request.form.get("style", "标准萃取")
     content_type = (request.form.get("content_type", "") or "").strip()
+    output_format = (request.form.get("output_format", "") or "").strip().lower()
+    if output_format not in ("markdown", "excel"):
+        output_format = "excel"
 
     if not model_name:
         models_list = load_llm_config()
@@ -5254,58 +5338,77 @@ def step2_extract_unified():
             f"要求：输出 5~20 条。"
         )
 
-    # 对每个来源分别 LLM 提取
-    results = []
-    errors = []
-
+    # 收集所有提取源（主线程预先提取文本，Flask 文件对象非线程安全）
+    errors: list[dict] = []
+    sources: list[dict] = []
     for f in uploaded_files:
         try:
             doc_text = extract_text_from_file(f)
             if not doc_text or len(doc_text.strip()) < 20:
                 errors.append({"source": f.filename or "未知文件", "error": "文件内容过少或为空"})
                 continue
-            user_prompt = f"请从以下文档中提取知识条目：\n\n{doc_text[:8000]}"
-            result = call_llm_with_retry(
-                model_cfg,
-                [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                max_tokens=4096, temperature=0.3,
-            )
-            raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
-            records, _ = _parse_extracted_items(raw)
-            if records:
-                results.append({
-                    "records": records,
-                    "source_label": f.filename or "上传文件",
-                })
-            else:
-                errors.append({"source": f.filename or "未知文件", "error": "提取结果为空"})
+            sources.append({
+                "content": doc_text[:8000],
+                "label": f.filename or "上传文件",
+                "source_type": "file",
+            })
         except Exception as e:
             errors.append({"source": f.filename or "未知文件", "error": str(e)})
 
     for i, txt in enumerate(text_inputs):
+        content = (txt.get("content", "") or "").strip()
+        label = txt.get("label", f"文本输入 {i+1}")
+        if not content or len(content) < 20:
+            continue
+        sources.append({
+            "content": content[:8000],
+            "label": label + "（文本）",
+            "source_type": "text",
+        })
+
+    if not sources:
+        return jsonify({"status": "error", "error": "所有来源提取均失败", "errors": errors})
+
+    # 并行 LLM 提取
+    def _extract_one(src: dict) -> dict | None:
+        """提取单个来源的知识条目（线程安全，纯函数）。"""
         try:
-            content = txt.get("content", "").strip()
-            label = txt.get("label", f"文本输入 {i+1}")
-            if not content or len(content) < 20:
-                continue
-            user_prompt = f"请从以下内容中提取知识条目：\n\n{content[:8000]}"
-            result = call_llm_with_retry(
+            user_prompt = f"请从以下文档中提取知识条目：\n\n{src['content']}"
+            llm_result = call_llm_with_retry(
                 model_cfg,
                 [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=4096, temperature=0.3,
+                max_tokens=style_rule.get("max_tokens", 4096),
+                temperature=style_rule.get("temperature", 0.3),
             )
-            raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
+            raw = extract_assistant_content(llm_result) if isinstance(llm_result, dict) else str(llm_result)
             records, _ = _parse_extracted_items(raw)
             if records:
-                results.append({"records": records, "source_label": label + "（文本）"})
+                return {"records": records, "source_label": src["label"]}
+            return {"error": {"source": src["label"], "error": "提取结果为空"}}
         except Exception as e:
-            errors.append({"source": f"文本 {i+1}", "error": str(e)})
+            return {"error": {"source": src["label"], "error": str(e)}}
+
+    results = []
+    # 当只有 1 个来源时跳过线程池开销
+    if len(sources) == 1:
+        outcome = _extract_one(sources[0])
+        if outcome and "records" in outcome:
+            results.append(outcome)
+        elif outcome and "error" in outcome:
+            errors.append(outcome["error"])
+    else:
+        max_workers = min(len(sources), 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_extract_one, src): src for src in sources}
+            for future in as_completed(futures):
+                outcome = future.result()
+                if outcome and "records" in outcome:
+                    results.append(outcome)
+                elif outcome and "error" in outcome:
+                    errors.append(outcome["error"])
 
     if not results:
         return jsonify({"status": "error", "error": "所有来源提取均失败", "errors": errors})
@@ -5316,6 +5419,8 @@ def step2_extract_unified():
     if len(results) == 1:
         items = results[0]["records"]
         source_label = results[0]["source_label"]
+        # 应用萃取风格规则（过滤/排序）
+        items, extract_stats = _apply_extract_style_rules(items, style, target_columns)
         # 为单源记录生成信号报告（全量去重/冲突可能为空）
         duplicates = detect_duplicates(items)
         conflicts = detect_conflicts(items)
@@ -5340,6 +5445,19 @@ def step2_extract_unified():
             preextract_file = ""
             preextract_download_url = ""
 
+        step2_md_name, step2_md_url = "", ""
+        if output_name and output_format == "markdown":
+            try:
+                excel_path = safe_workspace_path(WORKSPACE, output_name, must_exist=True)
+                if excel_path:
+                    md_name = f"preextract_{uuid.uuid4().hex[:8]}.md"
+                    md_path = WORKSPACE / md_name
+                    _excel_to_markdown_file(excel_path, md_path, title=f"Step2 知识萃取")
+                    step2_md_name = md_name
+                    step2_md_url = f"/downloads/{md_name}"
+            except Exception:
+                step2_md_name, step2_md_url = "", ""
+
         # 持久化 pipeline step_data
         if output_name:
             _persist_step2_excel_pipeline(
@@ -5347,6 +5465,8 @@ def step2_extract_unified():
                 extracted_text=json.dumps(items, ensure_ascii=False)[:2000],
                 style=style,
                 count=extracted_count,
+                md_name=step2_md_name,
+                md_url=step2_md_url,
             )
         # 保存额外字段
         try:
@@ -5371,13 +5491,18 @@ def step2_extract_unified():
             "source_count": source_count,
             "dedup_count": 0,
             "errors": errors,
+            "markdown_file": step2_md_name,
+            "markdown_download_url": step2_md_url,
         })
 
     # N>1：融合多源结果
     fused = merge_extraction_results(results)
     dedup_count = fused["stats"]["duplicate_count"]
-    extracted_count = fused["stats"]["total_deduped"]
     signal_report = fused.get("signal_report", {})
+    # 应用萃取风格规则（过滤/排序融合后的记录）
+    if fused.get("records"):
+        fused["records"], extract_stats = _apply_extract_style_rules(fused["records"], style, target_columns)
+    extracted_count = len(fused.get("records", []))
 
     # 保存融合结果 JSON
     fusion_name = f"fusion_{uuid.uuid4().hex[:8]}.json"
@@ -5415,12 +5540,25 @@ def step2_extract_unified():
         pass
 
     # 持久化 pipeline step_data
+    multi_md_name, multi_md_url = "", ""
     if excel_file:
+        if output_format == "markdown":
+            try:
+                excel_path = safe_workspace_path(WORKSPACE, excel_file, must_exist=True)
+                if excel_path:
+                    multi_md_name = f"preextract_{uuid.uuid4().hex[:8]}.md"
+                    md_path = WORKSPACE / multi_md_name
+                    _excel_to_markdown_file(excel_path, md_path, title=f"Step2 知识萃取")
+                    multi_md_url = f"/downloads/{multi_md_name}"
+            except Exception:
+                multi_md_name, multi_md_url = "", ""
         _persist_step2_excel_pipeline(
             pipeline_id, excel_file,
             extracted_text=json.dumps(fused.get("records", [])[:10], ensure_ascii=False),
             style=style,
             count=extracted_count,
+            md_name=multi_md_name,
+            md_url=multi_md_url,
         )
     try:
         with _pipelines_lock:
@@ -5448,6 +5586,8 @@ def step2_extract_unified():
         "source_count": source_count,
         "dedup_count": dedup_count,
         "errors": errors,
+        "markdown_file": multi_md_name,
+        "markdown_download_url": multi_md_url,
     })
 
 

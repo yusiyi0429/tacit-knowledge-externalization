@@ -5,146 +5,133 @@ export const meta = {
     { title: 'Syntax', detail: '语法检查' },
     { title: 'Structure', detail: '架构冲突、重复键、文件引用' },
     { title: 'Tests', detail: '运行测试脚本' },
-    { title: 'Verdict', detail: 'Go/No-Go 决策（verification-before-completion + finishing-a-development-branch）' },
+    { title: 'Verdict', detail: 'Go/No-Go 决策' },
   ],
 }
 
-// ═══════════════════════════════════════════
-//  🔧 项目配置 — 新项目修改此区域即可
-// ═══════════════════════════════════════════
 const CFG = {
-  project: { name: '隐性知识显性化' },
+  project: { name: '隐性知识显性化', description: 'Flask + Vanilla JS 知识萃取流水线' },
   tech: {
-    backend: {
-      language: 'python', framework: 'flask', dir: 'backend', entry: 'app_server.py',
-      syntaxCheck: 'python -c "import py_compile; py_compile.compile(\'{file}\', doraise=True)"',
-      importCheck: 'python -c "import app_server; print(len(app_server.app.url_map._rules))"',
+    backend: { language: 'python', framework: 'flask', dir: 'backend', entry: 'app_server.py' },
+    frontend: { language: 'javascript', framework: 'vanilla', dir: 'frontend', jsDir: 'frontend/js' },
+  },
+  checks: {
+    syntax: { python: true, javascript: true },
+    routes: true,
+    keySync: {
+      files: ['backend/pipeline_artifacts.py', 'frontend/js/state.js', 'frontend/js/app.js'],
+      patterns: ['STEP_OUTPUT_KEYS_BY_STEP', 'DOWNSTREAM_OUTPUT_KEYS'],
     },
-    frontend: {
-      language: 'javascript', framework: 'vanilla', dir: 'frontend', entry: 'index.html',
-      jsDir: 'frontend/js',
-    },
+    css: true,
   },
-  dirs: { scripts: 'backend/scripts', vendor: 'frontend/vendor' },
-  test: {
-    files: ['test_artifact_invariants.py'],
-    runner: 'python', runDir: 'backend',
-    singleCommand: 'python {dir}/scripts/{file}',
-  },
-  routeCheck: { file: 'backend/app_server.py', routesByStep: '/api/step{1,2,3,4}/', basePattern: '/api/step' },
-  keySync: { label: 'DOWNSTREAM_OUTPUT_KEYS', files: ['frontend/js/state.js', 'frontend/js/app.js'] },
-  consistency: {
-    syncGroups: [{ label: 'step data keys', files: ['backend/pipeline_artifacts.py', 'frontend/js/state.js', 'frontend/js/app.js'] }],
-  },
-  protectedRefs: ['pipelines.json', 'custom_models.json', 'preset_overrides.json'],
-  vendorFiles: [],
-  plugins: { superpowers: true, modelAllocation: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' } },
+  plugins: { modelAllocation: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' } },
 }
-// ═══════════════════════════════════════════
 
-// superpowers: verification-before-completion + finishing-a-development-branch
-const SHIPPER_RULES = `
-== Superpowers 通关纪律 ==
+const PIPELINE_CONTEXT = `
+== 天工团队流水线 ==
+plan → dev → [cr ‖ test ‖ data-guardian?] → [vr ‖ doc] → ship-check
 
-**verification-before-completion 原则**（铁律）：
-1. NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE。每项检查必须附实际的命令输出。不是"应该没问题"，是"实际跑出来是这个结果"。
-2. Verdic 阶段：如果任何一个检查项没有验证证据，整个检查算 FAIL。
-
-**finishing-a-development-branch 原则**：
-3. Verify tests → Detect environment → Present options → Execute choice。
-4. 最终裁决只有两个：ALL CHECKS PASSED（所有验证都有证据）或 FOUND N ISSUE(S)（每个 issue 都有具体描述和位置）。
-5. 不存在"应该没问题，但不确定"这种中间状态。不确定 = NOT PASSED。`
+你是 ship-check 角色——最终静态关卡。
+- 必须等 vr + doc 完成后才触发
+- 通过即可提交；不通过交 /dev 修复后重来
+- 修复后仅复检修复项（最多 2 轮）`
 
 phase('Syntax')
+const [pySyntax, jsSyntax] = await parallel([
+  () => agent(
+    `Python 语法检查。对 backend/ 目录下所有修改过的 .py 文件执行语法编译。
 
-const pythonCheck = await agent(
-  `Verify ${CFG.tech.backend.language} syntax for all files in ${CFG.tech.backend.dir}/.
+命令：cd backend && python -c "import py_compile; py_compile.compile('文件路径', doraise=True)"
 
-运行以下命令并在输出中附实际结果：
-  cd ${CFG.tech.backend.dir}
-  python -c "
-import py_compile, os, sys
-errors = []
-for root, dirs, files in os.walk('.'):
-    dirs[:] = [d for d in dirs if d not in ('__pycache__',)]
-    for f in files:
-        if not f.endswith('.py'): continue
-        path = os.path.join(root, f)
-        try:
-            py_compile.compile(path, doraise=True)
-        except py_compile.PyCompileError as e:
-            errors.append(f'{path}: {e}')
-if errors:
-    for e in errors: print('SYNTAX ERROR:', e)
-    sys.exit(1)
-else:
-    print('All files compile OK')
-  "
-铁律：报告中必须包含命令的实际 stdout/stderr，不能只说"通过了"。`,
-  { label: 'python-syntax', phase: 'Syntax', model: CFG.plugins.modelAllocation.haiku }
-)
+1. 先用 git diff --name-only 找出修改的 .py 文件
+2. 对每个文件执行语法编译
+3. 记录通过/失败 + 错误信息`,
+    { label: 'syntax-python', phase: 'Syntax', model: CFG.plugins.modelAllocation.haiku }
+  ),
+  () => agent(
+    `JavaScript 基础检查。检查 frontend/js/ 下修改的 .js 文件。
 
-const jsCheck = await agent(
-  `Verify ${CFG.tech.frontend.language} consistency for ${CFG.tech.frontend.dir}/.
-
-1. Check ${CFG.keySync.files.join(' and ')} define the same ${CFG.keySync.label} — compare exact array contents
-2. Check ${CFG.tech.frontend.dir}/${CFG.tech.frontend.entry} script tag order
-3. Check for accidental globals, duplicate function definitions, orphaned onclick references
-
-${CFG.plugins.superpowers ? SHIPPER_RULES : ''}
-每项检查附证据。`,
-  { label: 'js-check', phase: 'Syntax', model: CFG.plugins.modelAllocation.haiku }
-)
+1. 用 git diff --name-only 找出修改的 .js 文件
+2. 检查是否有明显的语法问题（括号不匹配等）
+3. 检查 import/require 路径是否存在`,
+    { label: 'syntax-js', phase: 'Syntax', model: CFG.plugins.modelAllocation.haiku }
+  ),
+])
 
 phase('Structure')
+const [routeCheck, keySyncCheck, cssCheck] = await parallel([
+  () => agent(
+    `Flask 路由冲突检测。
 
-const routeCheck = await agent(
-  `Check for route conflicts in ${CFG.tech.backend.dir}/${CFG.tech.backend.entry}.
+${CFG.tech.backend.framework} 不报重复路由——后定义静默覆盖前者。
 
-${CFG.plugins.superpowers ? SHIPPER_RULES : ''}
+1. 从 ${CFG.tech.backend.dir}/${CFG.tech.backend.entry} 提取所有 @app.route 定义
+2. 检查是否有重复路径
+3. 检查前端 fetch 调用的 API 路径是否在后端都有对应路由
+4. 报告重复和缺失`,
+    { label: 'check-routes', phase: 'Structure', model: CFG.plugins.modelAllocation.sonnet }
+  ),
+  () => agent(
+    `step data key 三处同步检查。
 
-1. Extract all routes — check duplicate URL paths, duplicate function names
-2. Verify step numbering consistency (${CFG.routeCheck?.basePattern || '/api/'}N/)
-Report duplicates or suspicious patterns with line numbers.`,
-  { label: 'flask-routes', phase: 'Structure', model: CFG.plugins.modelAllocation.sonnet }
-)
+关键文件：
+${CFG.checks.keySync.files.map(f => `- ${f}`).join('\n')}
 
-const fileRefs = CFG.protectedRefs?.length ? await agent(
-  `Check file references.
-1. ${CFG.tech.frontend.dir}/${CFG.tech.frontend.entry} — verify each <script src> and <link href>
-2. Check ${CFG.tech.backend.dir}/${CFG.tech.backend.entry}'s frontend path
-3. Verify protected files blocked: ${CFG.protectedRefs.join(', ')}
-${CFG.plugins.superpowers ? SHIPPER_RULES : ''}`,
-  { label: 'file-refs', phase: 'Structure', model: CFG.plugins.modelAllocation.haiku }
-) : '(no protected files)'
+检查模式：${CFG.checks.keySync.patterns.join(', ')}
+
+逐文件读取 key 定义，逐字符对比是否一致。
+不一致会导致数据静默丢失 → 标 critical。`,
+    { label: 'check-key-sync', phase: 'Structure', model: CFG.plugins.modelAllocation.sonnet }
+  ),
+  () => agent(
+    `CSS 引用同步检查。
+
+1. 从 HTML 和 JS 文件中提取引用的 CSS class
+2. 检查这些 class 是否在样式表中存在
+3. 报告缺失的 CSS class`,
+    { label: 'check-css', phase: 'Structure', model: CFG.plugins.modelAllocation.haiku }
+  ),
+])
 
 phase('Tests')
-
 const testResult = await agent(
-  `Run test scripts and report with evidence.
+  `运行现有单元测试，确认无回归。
 
-${CFG.plugins.superpowers ? SHIPPER_RULES : ''}
+${PIPELINE_CONTEXT}
 
-Test files: ${CFG.test.files.map(f => `  - ${CFG.test.dir || CFG.dirs.scripts}/${f}`).join('\n')}
-
-Run each with:
-  cd ${CFG.test.runDir || '.'}
-  ${CFG.test.files.map(f => `${CFG.test.runner || 'python'} ${CFG.test.dir || CFG.dirs.scripts}/${f}`).join('\n')}
-
-Report pass/fail per test. Include actual stdout for any failures.`,
-  { label: 'unit-tests', phase: 'Tests', model: CFG.plugins.modelAllocation.haiku }
+在 backend/scripts/ 目录下找到 test_*.py 文件并执行。
+记录：通过数 / 失败数 / 失败详情。`,
+  { label: 'run-tests', phase: 'Tests', model: CFG.plugins.modelAllocation.haiku }
 )
 
 phase('Verdict')
-const allResults = [pythonCheck, jsCheck, routeCheck, fileRefs, testResult].filter(Boolean)
-const issues = allResults.filter(r =>
-  typeof r === 'string' && (r.includes('ERROR') || r.includes('FAIL') || r.includes('fail') || r.includes('error') || r.includes('duplicate') || r.includes('missing')))
+const allResults = { pySyntax, jsSyntax, routeCheck, keySyncCheck, cssCheck, testResult }
 
-const verdict = issues.length === 0
-  ? 'ALL CHECKS PASSED — safe to ship（所有验证均有实际证据）'
-  : `FOUND ${issues.length} ISSUE(S) — review before shipping（详见 details 中的验证证据）`
+const verdict = await agent(
+  `综合所有检查结果，输出 Go/No-Go 决策。
 
-return JSON.stringify({
-  verdict,
-  details: { python: pythonCheck, javascript: jsCheck, flaskRoutes: routeCheck, fileReferences: fileRefs, tests: testResult },
-}, null, 2)
+${PIPELINE_CONTEXT}
+
+检查结果：
+- Python 语法: ${pySyntax}
+- JS 语法: ${jsSyntax}
+- 路由冲突: ${routeCheck}
+- Key 同步: ${keySyncCheck}
+- CSS 引用: ${cssCheck}
+- 测试: ${testResult}
+
+决策标准：
+- 任何 critical/high 问题 → No-Go，交 /dev 修复
+- 仅有 medium/low → Go with warnings
+
+输出格式：
+## 通关检查报告
+### ✅ 通过项
+### ❌ 未通过项（阻塞合入）
+### ⚠️ 警告项
+## 通关结论
+可以合入 / 需修复 X 项后合入 → 修复交 /dev`,
+  { label: 'verdict', phase: 'Verdict', model: CFG.plugins.modelAllocation.haiku }
+)
+
+return verdict

@@ -837,7 +837,8 @@ a { color: var(--red); text-decoration: none; }
 .form-group textarea:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 2px rgba(199,0,11,0.1); }
 
 /* Small buttons */
-.action-btn.small { padding: 6px 14px; font-size: 12px; }
+.action-btn.small,
+.action-btn.small-btn { padding: 6px 14px; font-size: 12px; }
 
 /* AI result block */
 .ai-result { margin-top: 8px; }
@@ -1327,19 +1328,6 @@ a { color: var(--red); text-decoration: none; }
 .s2-result-actions {
   display: flex; gap: 8px; margin-top: 10px;
 }
-.s2-result-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 6px 14px; border-radius: var(--radius); font-size: 12px;
-  cursor: pointer; transition: all 0.2s; font-family: var(--font-cn); border: 1px solid;
-}
-.s2-result-btn.download {
-  background: var(--red); color: #fff; border-color: var(--red);
-}
-.s2-result-btn.download:hover { background: var(--red-dark); }
-.s2-result-btn.copy {
-  background: #fff; color: var(--text-secondary); border-color: var(--border);
-}
-.s2-result-btn.copy:hover { border-color: var(--red); color: var(--red); }
 
 /* Step 2/3/4 shared: previous output box */
 .s2-prev-box {
@@ -2349,4 +2337,27 @@ a { color: var(--red); text-decoration: none; }
   border-radius: var(--radius); font-size: 12px;
   color: var(--text-secondary); line-height: 1.6;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Step 4: Artifact Panels (multi-output cards)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.s4-artifact-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+.s4-artifact-panel .panel-header {
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+
 

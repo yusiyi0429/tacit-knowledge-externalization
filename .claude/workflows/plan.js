@@ -2,16 +2,13 @@ export const meta = {
   name: 'plan',
   description: '根据需求分析项目代码库，输出结构化实施计划。用法：/plan <需求描述>',
   phases: [
-    { title: 'Clarify', detail: '理解需求，确定范围（brainstorming 驱动）' },
+    { title: 'Clarify', detail: '理解需求，确定范围' },
     { title: 'Scout', detail: '并行侦察相关代码模块' },
-    { title: 'Analyze', detail: '风险识别 + 依赖分析' },
-    { title: 'Plan', detail: '输出结构化实施计划（writing-plans 驱动）' },
+    { title: 'Analyze', detail: '风险识别 + 依赖分析 + DG触发判断' },
+    { title: 'Plan', detail: '输出结构化实施计划' },
   ],
 }
 
-// ═══════════════════════════════════════════
-//  🔧 项目配置 — 新项目修改此区域即可
-// ═══════════════════════════════════════════
 const CFG = {
   project: {
     name: '隐性知识显性化',
@@ -28,45 +25,49 @@ const CFG = {
     htmlEscape: 'escapeHtml()', checkXSS: true, checkPathTraversal: true,
     pathSafety: 'safe_workspace_path()', basenameFn: 'basename_only()',
   },
+  dgTriggers: [
+    'STEP_OUTPUT_KEYS_BY_STEP', 'DOWNSTREAM_OUTPUT_KEYS', 'PIPELINE_OUTPUT_KEYS',
+    'API JSON 结构变更', 'pipelines.json 格式变更', '流水线步骤增删', 'scenario-schema.yaml', '跨步骤状态传递',
+  ],
   scoutFiles: {
-    backend: ['backend/app_server.py', 'backend/models.py'],
-    frontend: ['frontend/index.html', 'frontend/js/main.js', 'frontend/js/utils.js'],
-    config: ['config/default.yaml'],
+    backend: ['backend/app_server.py', 'backend/pipeline_artifacts.py'],
+    frontend: ['frontend/js/app.js', 'frontend/js/state.js'],
   },
   riskRules: [
     { name: '路径穿越防护', severity: 'critical', desc: '所有文件操作必须经过路径安全检查函数' },
     { name: 'XSS 防护', severity: 'high', desc: 'innerHTML 内容必须经 HTML 转义函数处理' },
     { name: 'Flask 路由去重', severity: 'high', desc: '同名函数/路由会静默覆盖，注意不冲突' },
+    { name: 'MergedCell', severity: 'high', desc: 'openpyxl 写入前必须先解除合并' },
   ],
   llm: { enabled: true, clientFile: 'backend/llm_client.py', jsonFallback: 6 },
   plugins: { superpowers: true, modelAllocation: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' } },
 }
-// ═══════════════════════════════════════════
 
-// superpowers: writing-plans + brainstorming 精华（注入 synthesize-plan agent）
 const PLANNER_RULES = `
 == Superpowers 规划师纪律 ==
 
-**writing-plans 原则**：
 1. 写下计划时假设执行者对这个项目一无所知。告诉他：改哪个文件、写什么代码、如何测试、参考哪些文档。
-2. 每个步骤是「一口吃完」的量——步骤之间自然分界，不会出现一个步骤要改5个不相关的文件。
-3. 列出每步执行后用户能验证的 observable 证据（见一个新按钮、打开一个文件、看到一个新的tab等）。
+2. 每个步骤是「一口吃完」的量——步骤之间自然分界。
+3. 列出每步执行后用户能验证的 observable 证据。
 4. DRY. YAGNI. 不引入不需要的抽象。
-
-**brainstorming 原则**：
-5. 如果有多个可行方案，列出并标注你的推荐理由。不要把一个方案当唯一解。
+5. 如果有多个可行方案，列出并标注推荐理由。
 6. 实施步骤必须按依赖排序。标注哪些步骤可以并行，哪些必须串行。
-7. 每个涉及文件改动的步骤标注风险等级（high/medium/low）和回滚方式。
+7. 每个涉及文件改动的步骤标注风险等级和回滚方式。
+8. 输出计划前自检：是否有定义不明确的需求？是否有遗漏的约束？`
 
-**verification-before-completion 原则**：
-8. 输出计划前自检：是否有定义不明确的需求？是否有遗漏的约束？是否每个步骤都有可验证的完成标准？`
+const PIPELINE_CONTEXT = `
+== 天工团队流水线 ==
+plan → dev → [cr ‖ test ‖ data-guardian?] → [vr ‖ doc] → ship-check
+
+你是 plan 角色，输出交 dev 执行。
+你需要评估：本次变更是否触发 data-guardian（数据契约守护）。`
 
 const PLAN_SCHEMA = {
   type: 'object',
   properties: {
     title: { type: 'string' },
     background: { type: 'string' },
-    scope: { type: 'string', description: '做什么 + 明确不做什么' },
+    scope: { type: 'string' },
     affectedFiles: {
       type: 'array',
       items: {
@@ -93,10 +94,12 @@ const PLAN_SCHEMA = {
       },
     },
     risks: { type: 'array', items: { type: 'object', properties: { risk: { type: 'string' }, mitigation: { type: 'string' } }, required: ['risk', 'mitigation'] } },
-    relevantPatterns: { type: 'array', items: { type: 'string' } },
+    needsDataGuardian: { type: 'boolean', description: '是否触发 data-guardian' },
+    dgReason: { type: 'string', description: '触发/不触发 DG 的原因' },
+    downstreamPipeline: { type: 'string', description: '建议的下游流水线步骤' },
     teamRecommendation: { type: 'string' },
   },
-  required: ['title', 'scope', 'affectedFiles', 'implementationSteps', 'risks', 'teamRecommendation'],
+  required: ['title', 'scope', 'affectedFiles', 'implementationSteps', 'risks', 'needsDataGuardian', 'downstreamPipeline', 'teamRecommendation'],
 }
 
 phase('Clarify')
@@ -114,7 +117,7 @@ const [routesInfo, backendStructure, frontendStructure] = await parallel([
   ) : () => '无路由架构',
   () => agent(
     `侦察 ${CFG.project.name} 项目的后端模块结构。
-读取以下文件的前 30 行（import 和关键类/函数定义），了解架构分层：
+读取以下文件的前 30 行（import 和关键类/函数定义）：
 ${CFG.scoutFiles.backend.map(f => `- ${f}`).join('\n')}
 ${CFG.dirs.config ? `- ${CFG.dirs.config}/*.yaml / *.yml` : ''}
 报告每个模块的核心类和函数签名。`,
@@ -122,7 +125,7 @@ ${CFG.dirs.config ? `- ${CFG.dirs.config}/*.yaml / *.yml` : ''}
   ),
   () => agent(
     `侦察 ${CFG.project.name} 项目的前端结构和数据流。
-读取以下文件，了解前端分层：
+读取以下文件：
 ${CFG.scoutFiles.frontend.map(f => `- ${f}`).join('\n')}
 报告前端数据流：用户操作 → 状态变更 → UI 重绘 的链路。`,
     { label: 'scout-frontend', phase: 'Scout', model: CFG.plugins.modelAllocation.haiku }
@@ -136,7 +139,9 @@ phase('Plan')
 const riskDesc = CFG.riskRules.map(r => `  - ${r.severity}: ${r.name} — ${r.desc}`).join('\n')
 
 const plan = await agent(
-  `你是软件架构规划师。基于以下信息和用户需求，输出结构化的实施计划。
+  `你是天工团队的 plan 角色——架构师/分析师。只做分析和设计，不写代码。
+
+${PIPELINE_CONTEXT}
 
 ${CFG.plugins.superpowers ? PLANNER_RULES : ''}
 
@@ -153,16 +158,18 @@ API 路由: ${routesInfo}
 
 == 项目特有风险 ==
 ${riskDesc}
-${CFG.codeConventions.checkPathTraversal ? `- 路径穿越防护: ${CFG.codeConventions.pathSafety} / ${CFG.codeConventions.basenameFn}` : ''}
-${CFG.codeConventions.checkXSS ? `- XSS: innerHTML 必须经 ${CFG.codeConventions.htmlEscape}` : ''}
+
+== data-guardian 触发条件 ==
+${CFG.dgTriggers.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 
 == 输出要求 ==
 1. title / background / scope（明确做什么 + 不做什么）
 2. affectedFiles（变更类型 + 风险等级）
 3. implementationSteps（排好顺序，标注依赖关系，每步有 verifiable 完成标准）
 4. risks（项目特有风险及规避措施）
-5. relevantPatterns（需参考的现有代码模式）
-6. teamRecommendation（建议调用的检查团队）`,
+5. **needsDataGuardian** + **dgReason**：评估本次变更是否涉及数据契约，决定下游是否需要 DG
+6. **downstreamPipeline**：建议的下游流水线步骤（如 "dev → [CR ‖ test ‖ DG] → [vr ‖ doc] → SC"）
+7. teamRecommendation（建议调用的检查团队）`,
   { label: 'synthesize-plan', phase: 'Plan', schema: PLAN_SCHEMA, model: CFG.plugins.modelAllocation.opus }
 )
 

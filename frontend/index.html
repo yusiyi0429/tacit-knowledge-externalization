@@ -37,7 +37,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <span class="step-connector"></span>
         <button class="step-btn" data-step="2"><span class="btn-num">02</span>知识萃取</button>
         <span class="step-connector"></span>
-        <button class="step-btn" data-step="3"><span class="btn-num">03</span>知识校验</button>
+        <button class="step-btn" data-step="3"><span class="btn-num">03</span>知识对齐</button>
         <span class="step-connector"></span>
         <button class="step-btn" data-step="4"><span class="btn-num">04</span>智能转化</button>
       </div>
@@ -419,6 +419,15 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               </div><!-- /s2-single-controls -->
 
               <div class="form-group" style="margin-bottom:12px">
+                <label>输出格式偏好</label>
+                <select id="s2-output-format">
+                  <option value="excel">优先 Excel 预览</option>
+                  <option value="markdown">优先 Markdown 预览</option>
+                </select>
+                <div class="file-hint">选择 Markdown 时侧重文本预览；Excel 时可在 Luckysheet 中内联编辑</div>
+              </div>
+
+              <div class="form-group" style="margin-bottom:12px">
                 <label>选择模型</label>
                 <select id="s2-model"></select>
               </div>
@@ -436,17 +445,18 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
             </div>
           </div>
         </div>
+      </div>
     </div>
 
-    <!-- ========== Panel 3: Step 03 知识校验与定稿 ========== -->
+    <!-- ========== Panel 3: Step 03 知识对齐 ========== -->
     <div class="panel" id="panel-3">
 
       <div class="slide">
         <div class="slide-topbar">
           <div class="slide-num-box"><div class="step-label">STEP</div><div class="step-num">03</div></div>
           <div class="slide-title-area">
-            <div class="slide-meta-en">Knowledge Verification · 知识校验与定稿</div>
-            <div class="slide-title">知识校验与定稿</div>
+            <div class="slide-meta-en">Knowledge Alignment · 知识对齐</div>
+            <div class="slide-title">知识对齐</div>
           </div>
         </div>
         <div class="slide-subtitle-bar">
@@ -468,6 +478,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   </div>
                   <div class="s2-prev-info" id="s3-prev-info"></div>
                   <div class="s2-prev-tags" id="s3-prev-tags"></div>
+                  <div class="s2-result-actions" id="s3-prev-actions" style="margin-top:8px;"></div>
                 </div>
                 <div class="s2-prev-empty" id="s3-prev-empty">
                   <div class="s2-prev-empty-icon">📋</div>
@@ -644,6 +655,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                     <div class="s2-prev-meta" id="s4-prev-meta">-</div>
                   </div>
                   <div class="s2-prev-tags" id="s4-prev-tags"></div>
+                  <div class="s2-result-actions" id="s4-prev-actions" style="margin-top:8px;"></div>
                 </div>
                 <div id="s4-prev-empty" class="s2-prev-empty">暂无知识对齐稿，请先完成知识对齐节点</div>
               </div>
@@ -657,29 +669,36 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>选择模型</label>
                 <select id="s4-model"></select>
               </div>
-              <div class="form-group" style="margin-bottom:12px">
-                <label>交付物类型（默认全选）</label>
-                <div class="s4-format-options" id="s4-format-options">
-                  <label class="s4-format-chip"><input type="checkbox" id="s4-fmt-cot" checked> 思维链</label>
-                  <label class="s4-format-chip"><input type="checkbox" id="s4-fmt-qa" checked> QA 对</label>
-                  <label class="s4-format-chip"><input type="checkbox" id="s4-fmt-skill" checked> Skill（OpenClaw）</label>
-                </div>
+
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <button class="action-btn" id="s4-cot-btn" onclick="step4GenerateCOT()">
+                  <span class="action-icon">&#128161;</span> 生成思维链 (COT)
+                </button>
+                <div class="action-note">LLM 根据知识条目生成分步骤推理链条，供 Agent 决策时调用</div>
+
+                <button class="action-btn" id="s4-qa-btn" onclick="step4GenerateQA()" style="margin-top:4px;">
+                  <span class="action-icon">&#128172;</span> 生成 QA 对
+                </button>
+                <div class="action-note">LLM 将知识条目转化为 QA 对，用于 RAG 检索或 few-shot 示例</div>
+
+                <button class="action-btn" id="s4-exec-skill-btn" onclick="step4GenerateExecSkill()" style="margin-top:4px;">
+                  <span class="action-icon">&#129302;</span> 生成可执行 Agent Skill
+                </button>
+                <div class="action-note">结合 golden 知识库，LLM 生成含 SQL 匹配引擎 + 决策链的可部署 Skill</div>
               </div>
-              <button class="action-btn" onclick="step4Compile()">
-                <span class="action-icon">&#9654;</span> 生成交付物
-              </button>
-              <div class="action-note">基于知识对齐稿确定性转换；Skill 含 openclaw.skill.json 清单，可直接接入 OpenClaw</div>
+
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-                <div class="file-hint" style="margin-bottom:6px">📋 知识库健康检查</div>
+                <div class="file-hint" style="margin-bottom:6px">&#128203; 知识库健康检查</div>
                 <button class="action-btn small-btn secondary-btn" id="s4-freshness-btn" onclick="step4FreshnessAudit()" style="width:100%;justify-content:center;">
-                  🔄 知识保鲜度审计
+                  &#128260; 知识保鲜度审计
                 </button>
                 <div class="file-hint" style="margin-top:4px">检测知识时效性、置信度衰减和被案例突破的规则</div>
               </div>
+
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-                <div class="file-hint" style="margin-bottom:6px">🔍 显性化校验</div>
+                <div class="file-hint" style="margin-bottom:6px">&#128270; 显性化校验</div>
                 <button class="action-btn small-btn secondary-btn" id="s4-validate-btn" onclick="openValidatePanel()" style="width:100%;justify-content:center;">
-                  ⚡ 显性化校验回放
+                  &#9889; 显性化校验回放
                 </button>
                 <div class="file-hint" style="margin-top:4px">上传历史案例，用知识库判断，与专家结论比对命中率</div>
                 <div class="validate-section hidden" id="s4-validate-panel">
@@ -693,13 +712,23 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   <div id="s4-validate-result"></div>
                 </div>
               </div>
+
             </div>
           </div>
           <!-- 输出 -->
           <div class="col col-right">
             <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
-            <div class="col-content output-area" id="s4-output">
-              <div class="output-placeholder">完成知识对齐后，点击「生成交付物」获取思维链 / QA 对 / Skill</div>
+            <div class="col-content output-area">
+              <div class="s4-artifact-panel" id="s4-output-skill" style="display:none;">
+                <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px;">点击「生成可执行 Agent Skill」按钮生成</div>
+              </div>
+              <div class="s4-artifact-panel" id="s4-output-cot" style="display:none;">
+                <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px;">点击「生成思维链」按钮生成</div>
+              </div>
+              <div class="s4-artifact-panel" id="s4-output-qa" style="display:none;">
+                <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px;">点击「生成 QA 对」按钮生成</div>
+              </div>
+              <div class="s4-artifact-panel" id="s4-output-freshness" style="display:none;"></div>
             </div>
           </div>
         </div>

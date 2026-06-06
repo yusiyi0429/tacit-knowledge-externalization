@@ -40,3 +40,6 @@ workspace/
 # Frontend build deps（vendor/ 需提交或镜像内生成）
 frontend/node_modules/
 __pycache__/
+custom_models.json
+preset_overrides.json
+settings.local.json

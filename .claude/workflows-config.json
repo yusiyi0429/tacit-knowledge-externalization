@@ -1,12 +1,52 @@
 {
-  "title": "Workflow 通用配置模板",
-  "description": "将此文件复制到新项目的 .claude/workflows-config.json，编辑各字段后，workflow 脚本会自动使用。",
+  "title": "天工团队 Workflow 配置（v3）",
+  "description": "天工团队 10 角色流水线配置。迁移到新项目时，修改 project/tech/consistency/dgTriggers 区域。",
 
   "project": {
-    "name": "项目名称",
-    "description": "项目一句话描述",
-    "version": "1.0.0"
+    "name": "隐性知识显性化",
+    "description": "银行信贷专家隐性经验 → 结构化 AI Skill，4 步流水线",
+    "version": "2.0.0"
   },
+
+  "team": {
+    "name": "天工",
+    "roles": ["orchestrator", "plan", "dev", "cr", "test", "data-guardian", "bug-hunt", "vr", "ship-check", "doc"],
+    "pipeline": {
+      "mainFlow": "plan → dev → [code-review ‖ test ‖ data-guardian?] → [verify ‖ doc] → ship-check",
+      "fixLoop": "发现者 → dev(修复) → 原发现者复检 → 通过/再修(最多2轮) → 上报用户",
+      "maxFixRounds": 2
+    },
+    "parallelGroups": [
+      {
+        "stage": "after-dev",
+        "roles": ["cr", "test"],
+        "conditional": { "role": "data-guardian", "trigger": "data-contract-change" }
+      },
+      {
+        "stage": "after-review",
+        "roles": ["vr", "doc"]
+      },
+      {
+        "stage": "independent-patrol",
+        "roles": ["bug-hunt", "data-guardian"]
+      }
+    ],
+    "modelAllocation": {
+      "opus": ["orchestrator", "plan", "dev", "cr"],
+      "sonnet": ["test", "data-guardian", "bug-hunt", "doc"],
+      "haiku": ["vr", "ship-check"]
+    }
+  },
+
+  "dgTriggers": [
+    "STEP_OUTPUT_KEYS_BY_STEP 变更",
+    "DOWNSTREAM_OUTPUT_KEYS / PIPELINE_OUTPUT_KEYS 变更",
+    "API 端点请求/响应 JSON 结构变更",
+    "pipelines.json 持久化格式变更",
+    "流水线步骤新增/删除",
+    "scenario-schema.yaml 变更",
+    "跨步骤状态传递逻辑变更"
+  ],
 
   "dirs": {
     "backend": "backend",
@@ -51,37 +91,42 @@
   "keyFiles": {
     "backend": [
       "backend/app_server.py",
-      "backend/models.py"
+      "backend/pipeline_artifacts.py",
+      "backend/knowledge_fusion.py",
+      "backend/knowledge_delivery.py"
     ],
     "frontend": [
-      "frontend/index.html",
-      "frontend/js/main.js",
-      "frontend/js/utils.js"
+      "frontend/js/app.js",
+      "frontend/js/state.js",
+      "frontend/index.html"
     ],
     "config": [
-      "config/default.yaml"
+      "config/scenario-schema.yaml"
     ]
   },
 
   "consistency": {
-    "keyDefinitionFiles": [],
-    "keyDefinitionPattern": "",
-    "checkCSSClasses": false,
+    "keyDefinitionFiles": [
+      "backend/pipeline_artifacts.py",
+      "frontend/js/state.js",
+      "frontend/js/app.js"
+    ],
+    "keyDefinitionPattern": "(STEP_OUTPUT_KEYS_BY_STEP|DOWNSTREAM_OUTPUT_KEYS|PIPELINE_OUTPUT_KEYS)",
+    "checkCSSClasses": true,
     "cssClassPrefix": ""
   },
 
   "riskRules": [
-    {
-      "name": "安全性",
-      "severity": "critical",
-      "desc": "所有用户输入必须校验和转义",
-      "fix": "使用安全函数处理外部输入"
-    }
+    { "name": "路径穿越防护", "severity": "critical", "desc": "所有文件操作必须经过 safe_workspace_path() / basename_only()" },
+    { "name": "XSS 防护", "severity": "high", "desc": "innerHTML 内容必须经 escapeHtml() 处理" },
+    { "name": "Flask 路由去重", "severity": "high", "desc": "同名函数/路由会静默覆盖，注意不冲突" },
+    { "name": "MergedCell", "severity": "high", "desc": "openpyxl 写入前必须先解除合并" },
+    { "name": "LLM JSON 降级", "severity": "medium", "desc": "LLM 输出解析需要多层 try/catch（至少 6 层降级）" }
   ],
 
   "fileNaming": {
-    "prefixes": ["output_", "cache_"],
-    "protectedFiles": ["config.json", ".env"],
+    "prefixes": ["template_", "preextract_", "revision_", "final_", "output_", "cache_"],
+    "protectedFiles": ["pipelines.json", "custom_models.json", "preset_overrides.json"],
     "rule": "按前缀分类的文件命名系统"
   },
 
@@ -94,9 +139,9 @@
   },
 
   "llm": {
-    "enabled": false,
-    "clientFile": "",
+    "enabled": true,
+    "clientFile": "backend/llm_client.py",
     "clientClass": "",
-    "jsonParseFallbackCount": 0
+    "jsonParseFallbackCount": 6
   }
 }

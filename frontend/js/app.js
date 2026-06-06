@@ -5,7 +5,7 @@ let allModels = [];
 let currentPipeline = null; // { id, name, scenario, domain, current_step, step_status, step_data }
 const MAX_STEP = 4;
 const MAX_FORM_STEP = 3;
-const STEP_NAMES = { 1: "场景锚定", 2: "知识萃取", 3: "知识校验", 4: "智能转化" };
+const STEP_NAMES = { 1: "场景锚定", 2: "知识萃取", 3: "知识对齐", 4: "智能转化" };
 let _formSaveTimer = null;
 let _lastStep2ExtractedText = '';
 let _step2InputMode = 'doc'; // 'doc' | 'case'
@@ -372,15 +372,13 @@ async function refreshCurrentPipeline() {
     const resp = await fetch(API_BASE + '/api/pipelines/' + currentPipeline.id);
     const data = await resp.json();
     if (data.status === 'ok' && data.pipeline) {
-      currentPipeline.current_step = Math.min(MAX_STEP, Math.max(1, data.pipeline.current_step || 1));
-      currentPipeline.step_status = data.pipeline.step_status;
+      currentPipeline.current_step = Math.max(currentPipeline.current_step || 1, Math.min(MAX_STEP, Math.max(1, data.pipeline.current_step || 1)));
+      currentPipeline.step_status = Object.assign({}, data.pipeline.step_status, currentPipeline.step_status);
       currentPipeline.step_data = mergeStepDataPreserveOutputs(
         data.pipeline.step_data,
         currentPipeline.step_data,
         { preferServer: true }
       );
-      if (data.pipeline.scenario) currentPipeline.scenario = data.pipeline.scenario;
-      if (data.pipeline.domain) currentPipeline.domain = data.pipeline.domain;
     }
     return currentPipeline;
   } catch (e) {
@@ -425,9 +423,12 @@ async function persistPipeline(extraStepData, extraFields) {
       currentPipeline.step_data
     );
     if (result.pipeline.current_step != null) {
-      currentPipeline.current_step = Math.min(MAX_STEP, Math.max(1, result.pipeline.current_step || 1));
+      const serverStep = Math.min(MAX_STEP, Math.max(1, result.pipeline.current_step || 1));
+      currentPipeline.current_step = Math.max(currentPipeline.current_step || 1, serverStep);
     }
-    if (result.pipeline.step_status) currentPipeline.step_status = result.pipeline.step_status;
+    if (result.pipeline.step_status) {
+      currentPipeline.step_status = Object.assign({}, result.pipeline.step_status, currentPipeline.step_status);
+    }
   }
   return result;
 }
@@ -478,11 +479,12 @@ function collectStepFormData(step) {
   } else if (step === 2) {
     data.doc_text = document.getElementById('s2-doc-text')?.value || '';
     data.extract_style = document.getElementById('s2-extract-style')?.value || '';
+    data.output_format = document.getElementById('s2-output-format')?.value || 'excel';
   } else if (step === 3) {
     data.expert_text = document.getElementById('s3-expert-text')?.value || '';
     data.revision_style = document.getElementById('s3-revision-style')?.value || '';
   } else if (step === 4) {
-    // Step 3 (智能转化) has no form data to collect
+    // Step 4 (智能转化) has no form data to collect
   }
   return data;
 }
@@ -521,15 +523,17 @@ function restoreStepFormData(step, data) {
   } else if (step === 2) {
     const docEl = document.getElementById('s2-doc-text');
     const styleEl = document.getElementById('s2-extract-style');
-    if (docEl && data.doc_text) docEl.value = data.doc_text;
-    if (styleEl && data.extract_style) styleEl.value = data.extract_style;
+    const fmtEl = document.getElementById('s2-output-format');
+    if (docEl) docEl.value = data.doc_text || '';
+    if (styleEl) styleEl.value = data.extract_style || '';
+    if (fmtEl) fmtEl.value = data.output_format || 'excel';
   } else if (step === 3) {
     const expertEl = document.getElementById('s3-expert-text');
     const styleEl = document.getElementById('s3-revision-style');
     if (expertEl && data.expert_text) expertEl.value = data.expert_text;
     if (styleEl && data.revision_style) styleEl.value = data.revision_style;
   } else if (step === 4) {
-    // Step 3 (智能转化) has no form data to restore
+    // Step 4 (智能转化) has no form data to restore
   }
 }
 
@@ -642,6 +646,7 @@ function step2Execute() {
   var origBtnHtml = btn.innerHTML;
   btn.classList.add('loading');
   btn.innerHTML = '执行中<span class="btn-estimate">· 通常 10-60s</span>';
+  clearTimeout(_formSaveTimer);
   renderLoading('s2-output');
 
   var fd = new FormData();
@@ -668,6 +673,9 @@ function step2Execute() {
     fd.append('text_inputs', JSON.stringify(textInputs));
   }
 
+  var outputFmt = document.getElementById('s2-output-format')?.value || 'excel';
+  fd.append('output_format', outputFmt);
+
   if (!hasFiles && textInputs.length === 0) {
     showToast('请至少上传一个文件或填入文本来源', 'error');
     btn.disabled = false; btn.innerHTML = origBtnHtml; btn._locked = false;
@@ -676,7 +684,7 @@ function step2Execute() {
 
   fetch(API_BASE + '/api/step2/extract', { method: 'POST', body: fd })
     .then(function (r) { return r.text(); })
-    .then(function (text) {
+    .then(async function (text) {
       var result;
       try { result = JSON.parse(text); } catch (e) { result = { raw: text }; }
 
@@ -687,8 +695,8 @@ function step2Execute() {
       }
 
       clearDownstreamOutputs(2);
-      var dlName = result.excel_file || result.file_name || '';
-      var dlUrl = result.excel_download_url || ('/downloads/' + dlName);
+      var dlName = result.preextract_file || result.excel_file || result.file_name || '';
+      var dlUrl = result.preextract_download_url || result.excel_download_url || ('/downloads/' + dlName);
       var extractedCount = result.extracted_count || 0;
       var sourceCount = result.source_count || 0;
       var dedupCount = result.dedup_count || 0;
@@ -708,17 +716,6 @@ function step2Execute() {
           currentPipeline.step_data.step2_signal_report_file = result.signal_report_file;
           currentPipeline.step_data.step2_signal_report_url = result.signal_report_url || ('/downloads/' + result.signal_report_file);
         }
-        persistPipeline({
-          step2_output_file: dlName,
-          step2_download_url: dlUrl,
-          step2_md_file: mdFile,
-          step2_md_download_url: mdUrl,
-          step2_extracted_count: extractedCount,
-          step2_source_count: sourceCount,
-          step2_dedup_count: dedupCount,
-          step2_signal_report_file: result.signal_report_file || '',
-          step2_signal_report_url: result.signal_report_url || '',
-        }).catch(function () {});
       }
 
       var html = '<div class="s2-result-success">';
@@ -741,18 +738,19 @@ function step2Execute() {
       }
 
       html += '<div class="s2-result-actions" style="margin-top:12px;">';
-      if (mdUrl) html += '<a class="s2-result-btn s2-result-btn-primary" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
-      if (dlUrl) {
-        var dlLabel = mdUrl ? '下载 Excel' : '下载萃取 Excel';
-        html += '<a class="s2-result-btn ' + (mdUrl ? '' : 's2-result-btn-primary') + '" href="' + API_BASE + dlUrl + '" download>' + dlLabel + '</a>';
-      }
-      if (mdFile) html += '<button class="s2-result-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
-      if (dlName) html += '<button class="s2-result-btn" onclick="editStep2Preextract()">在线编辑</button>';
+      var step2Fmt = document.getElementById('s2-output-format')?.value || 'excel';
+      var mdFlow = step2Fmt === 'markdown';
+      if (mdFlow && mdFile) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览 Markdown</button>';
+      if (!mdFlow && dlName) html += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+      if (mdFlow && dlName) html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">编辑 Excel</button>';
+      if (!mdFlow && mdFile) html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览 Markdown</button>';
+      if (mdUrl) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
+      if (dlUrl) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + dlUrl + '" download>下载 Excel</a>';
       html += '</div>';
       html += '</div>';
 
       renderOutput('s2-output', html);
-      markStepDone(2);
+      try { await markStepDone(2); } catch(e) { console.error('markStepDone failed:', e); }
     })
     .catch(function (e) {
       showToast('网络错误: ' + e.message, 'error');
@@ -828,10 +826,12 @@ function setupFormAutoSave() {
   if (subBox) subBox.addEventListener('input', () => scheduleFormSave(1));
   const kBox = document.getElementById('s1-knowledge-columns');
   if (kBox) kBox.addEventListener('input', () => scheduleFormSave(1));
+  ['s2-doc-text', 's2-extract-style', 's2-output-format'].forEach(id => bind(id, 2));
   ['s3-expert-text', 's3-revision-style'].forEach(id => bind(id, 3));
   const s2Model = document.getElementById('s2-model');
   const s2SourceFiles = document.getElementById('s2-source-files');
   const s2TextInputs = document.getElementById('s2-text-inputs');
+  const s2OutputFormat = document.getElementById('s2-output-format');
   const s3Expert = document.getElementById('s3-expert-text');
   const s3File = document.getElementById('s3-expert-file');
   if (s2Model) s2Model.addEventListener('change', updateStep2Readiness);
@@ -872,12 +872,13 @@ document.querySelectorAll('.step-btn').forEach(btn => {
     if (!currentPipeline) return;
     const targetStep = parseInt(btn.dataset.step);
     const farthestStep = currentPipeline.current_step || 1;
-    if (targetStep < farthestStep) {
-      if (confirm(`当前在第 ${farthestStep} 步，回退到第 ${targetStep} 步只会重置后续步骤状态，不会删除已生成数据。确定回退？`)) {
-        rollbackToStep(targetStep);
-      }
-    } else {
+    // 向前或查看已完成步骤：直接切换面板（只读查看，不回退）
+    // 如果用户在早期步骤执行操作，生成/执行处理器会自动清除下游数据
+    if (targetStep <= farthestStep) {
       switchPanel(targetStep);
+    } else {
+      // 跳过未完成的步骤：不允许
+      showToast('请先完成第 ' + farthestStep + ' 步', 'error');
     }
   });
 });
@@ -912,7 +913,7 @@ function renderPipelineProgressSummary(currentPanelStep) {
   const steps = [
     { n: 1, label: '场景锚定' },
     { n: 2, label: '知识萃取' },
-    { n: 3, label: '知识校验' },
+    { n: 3, label: '知识对齐' },
     { n: 4, label: '智能转化' },
   ];
   var html = '<div class="pipeline-progress-summary">';
@@ -977,11 +978,14 @@ function switchPanel(step) {
   if (step === 1) {
     const fd = currentPipeline?.step_data?.step1_form_data || {};
     loadStep1SchemaAndTemplates(fd.legacy_template || fd.default_template || '', fd.knowledge_columns);
+    restoreStep1Output();
   }
 
   // Auto-load previous step output（先刷新流水线再检测上一步产出）
   if (step === 2) {
     if (currentPipeline) {
+      const s2Prev = document.getElementById('s2-prev-output-area');
+      if (s2Prev) s2Prev.innerHTML = '<div class="loading" style="padding:12px;"><div class="spinner"></div>加载上一步产出...</div>';
       refreshCurrentPipeline().then(() => {
         loadStep2PrevOutput();
         updateStep2Readiness();
@@ -989,11 +993,23 @@ function switchPanel(step) {
     }
   }
   if (step === 3 && currentPipeline) {
+    var s3Draft = document.getElementById('s3-prev-draft');
+    var s3Empty = document.getElementById('s3-prev-empty');
+    if (s3Draft) { s3Draft.style.display = ''; }
+    if (s3Empty) { s3Empty.style.display = 'none'; }
     loadStep3PrevOutput();
     loadStep3RevisionContext();
     updateStep3AlignModeHint();
   }
-  if (step === 4 && currentPipeline) loadStep4PrevOutput();
+  if (step === 4 && currentPipeline) {
+    var s4Draft = document.getElementById('s4-prev-draft');
+    var s4Empty = document.getElementById('s4-prev-empty');
+    if (s4Draft) { s4Draft.style.display = 'block'; }
+    if (s4Empty) { s4Empty.style.display = 'none'; }
+    var s4Name = document.getElementById('s4-prev-name');
+    if (s4Name) s4Name.textContent = '加载中...';
+    loadStep4PrevOutput();
+  }
   refreshCachedUploadLabels(step);
 }
 
@@ -1034,7 +1050,7 @@ function renderLoading(containerId) {
 }
 function escapeHtml(str) {
   if (str == null) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 async function copyTextToClipboard(text) {
@@ -1133,6 +1149,7 @@ async function markStepDone(step) {
   const allForm = collectAllStepsFormData();
   currentPipeline.step_data = mergeStepDataPreserveOutputs(currentPipeline.step_data, allForm);
 
+  if (!currentPipeline.step_status) currentPipeline.step_status = {};
   currentPipeline.step_status[String(step)] = 'done';
   if (step < MAX_STEP) {
     currentPipeline.step_status[String(step + 1)] = currentPipeline.step_status[String(step + 1)] || 'active';
@@ -1164,21 +1181,25 @@ async function saveCurrentPipeline() {
     const resp = await fetch(API_BASE + '/api/pipelines/' + currentPipeline.id);
     const fresh = await resp.json();
     if (fresh.pipeline) {
-      currentPipeline.current_step = Math.min(MAX_STEP, Math.max(1, fresh.pipeline.current_step || 1));
-      currentPipeline.step_status = fresh.pipeline.step_status;
+      currentPipeline.current_step = Math.max(currentPipeline.current_step || 1, Math.min(MAX_STEP, Math.max(1, fresh.pipeline.current_step || 1)));
+      currentPipeline.step_status = Object.assign({}, fresh.pipeline.step_status, currentPipeline.step_status);
       currentPipeline.step_data = mergeStepDataPreserveOutputs(
         fresh.pipeline.step_data,
         currentPipeline.step_data
       );
     }
-    await persistPipeline(allForm, {
+    const persistResult = await persistPipeline(allForm, {
       current_step: currentPipeline.current_step,
       step_status: currentPipeline.step_status,
     });
-    showToast('流水线已保存（含各步骤填写内容）');
+    if (persistResult && persistResult.status === 'error') {
+      showToast(persistResult.error || '保存失败', 'error');
+    } else {
+      showToast('流水线已保存（含各步骤填写内容）');
+    }
   } catch (e) {
     console.error('Save failed:', e);
-    showToast('保存失败', 'error');
+    showToast('保存失败: ' + (e.message || e), 'error');
   }
 }
 
@@ -1228,6 +1249,7 @@ function clearCurrentPipeline() {
 
     resetSelect('s3-revision-style', '标准修订');
     resetSelect('s1-output-format', 'excel');
+    resetSelect('s2-output-format', 'excel');
     resetSelect('s1-legacy-template', '');
     step1RenderKnowledgeColumns([]);
     resetSelect('s2-model', '');
@@ -1242,9 +1264,9 @@ function clearCurrentPipeline() {
 
     // Clear output display areas
     document.querySelectorAll(
-      '#s1-output, #s2-output, #s3-output, #s4-output'
+      '#s1-output, #s2-output, #s3-output, #s4-output-skill, #s4-output-cot, #s4-output-qa, #s4-output-freshness'
     ).forEach(el => {
-      if (el) el.innerHTML = '';
+      if (el) { el.innerHTML = ''; el.style.display = 'none'; }
     });
     const s2Prev = document.getElementById('s2-prev-output-area');
     if (s2Prev) s2Prev.innerHTML = '<div class="s2-prev-empty">尚未检测到上一步输出，请先完成场景锚定</div>';
@@ -1277,8 +1299,7 @@ function clearCurrentPipeline() {
 
     loadStep1SchemaAndTemplates();
     showToast('流水线已清空');
-    // Reload current panel
-    switchPanel(currentPipeline.current_step);
+    goBackToOverview();
   }).catch(e => {
     console.error('Clear failed:', e);
     showToast('清空失败', 'error');
@@ -1938,6 +1959,7 @@ async function step1Generate() {
   }
 
   const subScenarios = step1GetSubScenarios();
+  clearTimeout(_formSaveTimer);
   renderLoading('s1-output');
 
   const fd = new FormData();
@@ -2039,6 +2061,39 @@ async function step1Generate() {
   }
 }
 
+function restoreStep1Output() {
+  if (!currentPipeline?.step_data) return;
+  const sd = currentPipeline.step_data;
+  const outputFile = sd.step1_output_file;
+  if (!outputFile) return;
+  const outputEl = document.getElementById('s1-output');
+  if (!outputEl || outputEl.querySelector('.s1-result-box')) return;
+
+  const mdFlow = (sd.step1_output_format === 'markdown') || prefersMarkdownFlow();
+  const mdFile = sd.step1_md_file || '';
+  let html = '<div class="s1-result-box">';
+  html += '<div class="s1-result-title">场景骨架已生成</div>';
+  if (sd.step1_template_name) {
+    html += '<div class="s1-result-template">来源：' + escapeHtml(sd.step1_template_name) + '</div>';
+  }
+  if (sd.step1_knowledge_columns && sd.step1_knowledge_columns.length) {
+    html += '<div class="s1-result-template">知识列：' + escapeHtml(sd.step1_knowledge_columns.join('、')) + '</div>';
+  }
+  html += '<div class="s1-result-actions">';
+  if (sd.step1_download_url) {
+    const dlLabel = mdFlow ? '下载 Markdown 骨架' : '下载 Excel 骨架';
+    html += '<a class="action-btn small-btn" href="' + API_BASE + sd.step1_download_url + '" download>' + dlLabel + '</a>';
+  }
+  if (mdFlow && mdFile) {
+    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step1 骨架 Markdown 预览\')">预览/编辑 Markdown</button>';
+  }
+  if (!mdFlow && sd.step1_download_url) {
+    html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(outputFile) + '\')">预览 Excel</button>';
+  }
+  html += '</div></div>';
+  renderOutput('s1-output', html);
+}
+
 async function step1PreviewExcel(fileName) {
   const modal = document.getElementById('excel-editor-modal');
   if (modal) modal.classList.add('active');
@@ -2111,8 +2166,10 @@ function renderStep2PrevOutputCard(data) {
       </div>
       ${fieldsHtml}
       <div class="s2-result-actions" style="margin-top:8px;">
-        ${data.markdown_download_url ? `<a class="s2-result-btn s2-result-btn-primary" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>` : ''}
-        ${data.markdown_file ? `<button class="s2-result-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>` : ''}
+        ${data.markdown_file ? `<button class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览 Markdown</button>` : ''}
+        ${data.download_url ? `<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>` : ''}
+        ${data.markdown_download_url ? `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>` : ''}
+        ${data.download_url ? `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.download_url}" download>下载 Excel</a>` : ''}
       </div>
     </div>
   `;
@@ -2295,12 +2352,22 @@ async function loadStep3PrevOutput() {
         const tagHtml = mainSheet.headers.slice(0, 6).map(h => `<span class="s2-prev-tag">${escapeHtml(h)}</span>`).join('');
         tags.innerHTML = tagHtml + `<span class="s2-prev-tag">共${mainSheet.rows}行</span>`;
         const mdFlow = prefersMarkdownFlow();
+        let actionBtns = '';
         if (data.download_url && !mdFlow) {
-          tags.innerHTML += ` <button type="button" class="s2-result-btn" style="margin-top:8px;font-size:12px;" onclick="editStep3Revision()">预览/编辑萃取底稿</button>`;
+          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>`;
+          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="editStep3Revision()">编辑 Excel</button>`;
         }
         if (data.markdown_file) {
-          tags.innerHTML += ` <button type="button" class="s2-result-btn" style="margin-top:8px;font-size:12px;" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览/编辑 Markdown</button>`;
+          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览 Markdown</button>`;
         }
+        if (data.download_url) {
+          actionBtns += `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.download_url}" download>下载 Excel</a>`;
+        }
+        if (data.markdown_download_url) {
+          actionBtns += `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>`;
+        }
+        var actionsEl = document.getElementById('s3-prev-actions');
+        if (actionsEl) actionsEl.innerHTML = actionBtns;
       }
     } else {
       card.style.display = 'none';
@@ -2412,6 +2479,7 @@ async function step3GeneratePreview() {
   btn.disabled = true;
   btn.classList.add('loading');
   btn.innerHTML = '<span class="action-icon">&#9203;</span> 处理中...';
+  clearTimeout(_formSaveTimer);
   renderLoading('s3-output');
 
   const fd = new FormData();
@@ -2657,21 +2725,42 @@ async function showStep3AlignComplete(result, options) {
     ? (result.markdown_download_url.startsWith('http') ? result.markdown_download_url : API_BASE + result.markdown_download_url)
     : '';
 
-  if (currentPipeline && dlName && isStep4FinalFile(dlName)) {
+  // 无条件保存对齐结果，不依赖 isStep4FinalFile 校验（文件名约定由后端保证）
+  if (currentPipeline && dlName) {
     currentPipeline.step_data = currentPipeline.step_data || {};
     currentPipeline.step_data.step3_final_file = dlName;
     currentPipeline.step_data.step3_final_download_url = result.download_url || ('/downloads/' + dlName);
     currentPipeline.step_data.step3_final_md_file = mdName;
     currentPipeline.step_data.step3_final_md_download_url = result.markdown_download_url || '';
     currentPipeline.step_data.step3_final_count = result.revision_count || 0;
-    await persistPipeline({
-      step3_final_file: dlName,
-      step3_final_download_url: currentPipeline.step_data.step3_final_download_url,
-      step3_final_md_file: mdName,
-      step3_final_md_download_url: currentPipeline.step_data.step3_final_md_download_url,
-      step3_final_count: result.revision_count || 0,
-    });
-    await refreshCurrentPipeline();
+    try {
+      await persistPipeline({
+        step3_final_file: dlName,
+        step3_final_download_url: currentPipeline.step_data.step3_final_download_url,
+        step3_final_md_file: mdName,
+        step3_final_md_download_url: currentPipeline.step_data.step3_final_md_download_url,
+        step3_final_count: result.revision_count || 0,
+      });
+      await refreshCurrentPipeline();
+    } catch (e) {
+      console.error('showStep3AlignComplete persist failed:', e);
+    }
+  }
+
+  // 强制推进到 Step4
+  if (currentPipeline) {
+    currentPipeline.step_status = currentPipeline.step_status || {};
+    currentPipeline.step_status['3'] = 'done';
+    currentPipeline.step_status['4'] = 'active';
+    currentPipeline.current_step = 4;
+    try {
+      await persistPipeline({}, {
+        current_step: 4,
+        step_status: currentPipeline.step_status,
+      });
+    } catch (e) {
+      console.error('showStep3AlignComplete step advance failed:', e);
+    }
   }
 
   document.getElementById('s3-input-section').style.display = 'none';
@@ -2690,14 +2779,15 @@ async function showStep3AlignComplete(result, options) {
       (result.revision_count || 0) + '</strong> 处修订</div>';
   }
   html += '<div class="align-result-actions">';
-  if (mdUrl) html += '<a href="' + escapeHtml(mdUrl) + '" class="s2-result-btn s2-result-btn-primary" download>下载对齐稿 Markdown</a>';
-  if (dlUrl && !mdFlow) html += '<a href="' + escapeHtml(dlUrl) + '" class="s2-result-btn s2-result-btn-primary" download>下载对齐稿 Excel</a>';
-  if (mdName) html += '<button class="s2-result-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-  if (!mdFlow && !opts.noRevision) html += '<button class="s2-result-btn" onclick="editStep3Revision()">&#9998; 在线编辑对齐稿</button>';
-  html += '<button class="s2-result-btn" onclick="step3BackToInput()">重新对齐</button>';
+  if (mdFlow && mdName) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览 Markdown</button>';
+  if (!mdFlow && dlName) html += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+  if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="action-btn small-btn secondary-btn" download>下载 Markdown</a>';
+  if (dlUrl) html += '<a href="' + escapeHtml(dlUrl) + '" class="action-btn small-btn secondary-btn" download>下载 Excel</a>';
+  if (dlName) html += '<button class="action-btn small-btn secondary-btn" onclick="editStep3Revision()">编辑 Excel</button>';
+  html += '<button class="action-btn small-btn secondary-btn" onclick="step3BackToInput()">重新对齐</button>';
   html += '</div>';
   document.getElementById('s3-result-card').innerHTML = html;
-  await markStepDone(3);
+  updateStepProgress();
 }
 
 // Phase 2: Apply selected notes to generate final
@@ -2796,13 +2886,23 @@ async function loadStep4PrevOutput() {
             tags += '<span class="s2-prev-tag">' + escapeHtml(s.sheet) + ' (' + s.data_rows + '行)</span>';
           });
         }
-        if (data.markdown_file) {
-          tags += '<button type="button" class="s2-result-btn" style="margin-top:8px;font-size:12px;" onclick="previewStep4File(\'' + escapeHtml(data.markdown_file) + '\', \'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-        }
-        if (!mdFlow && data.download_url) {
-          tags += '<a class="s2-result-btn" style="margin-top:8px;font-size:12px;" href="' + API_BASE + data.download_url + '" download>下载 Excel</a>';
-        }
         tagsEl.innerHTML = tags;
+      }
+      // Action buttons in a clean row below tags
+      const actionsEl = document.getElementById('s4-prev-actions');
+      if (actionsEl) {
+        let btns = '';
+        const mdName = data.markdown_file || '';
+        const excelName = data.file_name || '';
+        const mdUrl = mdName ? ('/downloads/' + mdName) : '';
+        const excelUrl = data.download_url || '';
+        if (mdFlow && mdName) btns += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览 Markdown</button>';
+        if (!mdFlow && excelName) btns += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
+        if (mdFlow && excelName) btns += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">编辑 Excel</button>';
+        if (!mdFlow && mdName) btns += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览 Markdown</button>';
+        if (mdUrl) btns += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
+        if (excelUrl) btns += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + excelUrl + '" download>下载 Excel</a>';
+        actionsEl.innerHTML = btns;
       }
     } else {
       el.style.display = 'none';
@@ -2828,11 +2928,11 @@ function renderStep4ArtifactCard(key, title, desc, countLabel, downloads, previe
   html += '<div class="s4-artifact-actions">';
   (downloads || []).forEach(d => {
     if (d.url) {
-      html += '<a class="s4-btn s4-btn-outline" href="' + escapeHtml(API_BASE + d.url) + '" download>' + escapeHtml(d.label) + '</a>';
+      html += '<a class="action-btn small-btn secondary-btn" href="' + escapeHtml(API_BASE + d.url) + '" download>' + escapeHtml(d.label) + '</a>';
     }
   });
   if (previewFn) {
-    html += '<button type="button" class="s4-btn s4-btn-outline" onclick="' + previewFn + '">&#128065; 预览</button>';
+    html += '<button type="button" class="action-btn small-btn secondary-btn" onclick="' + previewFn + '">&#128065; 预览</button>';
   }
   html += '</div></div>';
   return html;
@@ -2851,21 +2951,26 @@ async function step4FreshnessAudit() {
   try {
     var resp = await fetch(API_BASE + '/api/skills/execute', { method: 'POST', body: fd });
     var result = await resp.json();
-    var s5out = document.getElementById('s4-output');
+    var s5out = document.getElementById('s4-output-freshness');
+    s5out.style.display = 'block';
     if (result.status === 'ok') {
       var dl = result.download_url || '';
       s5out.innerHTML =
         '<div class="s2-result-success"><div class="s2-result-header">保鲜度审计完成</div>' +
-        '<div class="s2-result-meta">共 ' + (result.total_items || 0) + ' 条知识 · 高置信度占比 ' + (result.high_confidence_pct || 0) + '%</div>' +
+        '<div class="s2-result-meta">共 ' + (result.total_items || 0) + ' 条知识 · 高置信度占比 ' + (result.high_confidence_pct || 0) + '%' +
+        (result.completeness_score ? ' · 完整性得分 ' + result.completeness_score + '%' : '') + '</div>' +
         (result.stale_indicators && result.stale_indicators.length ?
           '<div style="margin-top:8px">' + result.stale_indicators.map(function(s){return '<div style="font-size:12px;color:#8b6914;margin:2px 0">⚠️ '+escapeHtml(s)+'</div>';}).join('') + '</div>' : '') +
-        (dl ? '<div class="s2-result-actions" style="margin-top:12px"><a class="s2-result-btn s2-result-btn-primary" href="'+API_BASE+dl+'" download>📥 下载审计报告</a></div>' : '') +
+        '<div class="s2-result-actions" style="margin-top:12px">' +
+        '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(result.report_name || '') + '\',\'保鲜度审计报告\')">&#128065; 预览报告</button>' +
+        (dl ? '<a class="action-btn small-btn secondary-btn" href="'+API_BASE+dl+'" download>下载报告</a>' : '') +
+        '</div>' +
         '</div>';
     } else {
       s5out.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '审计失败') + '</div></div>';
     }
   } catch (e) {
-    document.getElementById('s4-output').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
+    document.getElementById('s4-output-freshness').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
   } finally {
     btn._locked = false;
     btn.disabled = false;
@@ -2873,122 +2978,126 @@ async function step4FreshnessAudit() {
   }
 }
 
-async function step4Compile() {
-  if (!currentPipeline) { alert('请先进入流水线'); return; }
-  const formats = getSelectedStep4Formats();
-  if (!formats.length) { alert('请至少选择一种交付物类型'); return; }
 
-  renderLoading('s4-output');
+async function step4GenerateCOT() {
+  if (!currentPipeline) { showToast('请先进入流水线', 'error'); return; }
+  const btn = document.getElementById('s4-cot-btn');
+  if (!btn || btn._locked) return;
+  btn._locked = true; btn.disabled = true;
+  const origHtml = btn.innerHTML;
+  btn.classList.add('loading');
+  btn.innerHTML = 'LLM 生成中<span class="btn-estimate">· 约 15-30s</span>';
+
   try {
     const fd = new FormData();
     fd.append('pipeline_id', currentPipeline.id);
-    fd.append('formats', formats.join(','));
-    const result = await apiCall('/api/step4/compile', fd);
-    let html = '';
-    if (result.status === 'ok') {
-      const km = result.knowledge_count || 0;
-      const metrics = result.quality_metrics || {};
-      const dl = result.artifacts_download || {};
+    const model = resolveModelName('s4-model') || '';
+    if (model) fd.append('model', model);
 
-      if (currentPipeline) {
-        currentPipeline.step_data = currentPipeline.step_data || {};
-        if (dl.skill?.file_name) {
-          currentPipeline.step_data.step4_skill_file = dl.skill.file_name;
-          currentPipeline.step_data.step4_download_url = dl.skill.download_url;
-        }
-        if (dl.cot?.file_name) {
-          currentPipeline.step_data.step4_cot_file = dl.cot.file_name;
-          currentPipeline.step_data.step4_cot_download_url = dl.cot.download_url;
-        }
-        if (dl.qa?.file_name) {
-          currentPipeline.step_data.step4_qa_file = dl.qa.file_name;
-          currentPipeline.step_data.step4_qa_download_url = dl.qa.download_url;
-        }
-        if (dl.qa_md?.file_name) {
-          currentPipeline.step_data.step4_qa_md_file = dl.qa_md.file_name;
-          currentPipeline.step_data.step4_qa_md_download_url = dl.qa_md.download_url;
-        }
-        if (dl.openclaw_manifest?.file_name) {
-          currentPipeline.step_data.step4_manifest_file = dl.openclaw_manifest.file_name;
-          currentPipeline.step_data.step4_manifest_url = dl.openclaw_manifest.download_url;
-        }
-        await persistPipeline({
-          step4_skill_file: currentPipeline.step_data.step4_skill_file,
-          step4_download_url: currentPipeline.step_data.step4_download_url,
-          step4_cot_file: currentPipeline.step_data.step4_cot_file,
-          step4_cot_download_url: currentPipeline.step_data.step4_cot_download_url,
-          step4_qa_file: currentPipeline.step_data.step4_qa_file,
-          step4_qa_download_url: currentPipeline.step_data.step4_qa_download_url,
-          step4_qa_md_file: currentPipeline.step_data.step4_qa_md_file,
-          step4_qa_md_download_url: currentPipeline.step_data.step4_qa_md_download_url,
-          step4_manifest_file: currentPipeline.step_data.step4_manifest_file,
-          step4_manifest_url: currentPipeline.step_data.step4_manifest_url,
-        });
-      }
+    const resp = await fetch(API_BASE + '/api/step4/generate-cot', { method: 'POST', body: fd });
+    const result = await resp.json();
+    if (result.status !== 'ok') { showToast(result.error || '生成失败', 'error'); return; }
 
-      html += '<div class="s4-compile-result">';
-      html += '<div class="s4-compile-header">';
-      html += '<div class="s4-compile-icon">&#9881;</div>';
-      html += '<div class="s4-compile-title">智能转化完成</div>';
-      html += '<div class="s4-compile-subtitle">已生成 ' + formats.length + ' 类交付物 · 共 ' + km + ' 条知识</div>';
-      html += '</div>';
-
-      html += '<div class="s4-artifact-grid">';
-      if (formats.includes('cot') && dl.cot) {
-        html += renderStep4ArtifactCard(
-          'cot', '思维链', '情境识别 → 推理步骤 → 结论校验，适合培训与推理复现',
-          (dl.cot.count != null ? dl.cot.count + ' 条' : ''),
-          [{ label: '下载 .md', url: dl.cot.download_url }],
-          'previewStep4Cot()'
-        );
-      }
-      if (formats.includes('qa') && dl.qa) {
-        const qaDownloads = [{ label: '下载 JSON', url: dl.qa.download_url }];
-        if (dl.qa_md?.download_url) qaDownloads.push({ label: '下载 .md', url: dl.qa_md.download_url });
-        html += renderStep4ArtifactCard(
-          'qa', 'QA 对', '问答对格式，可用于 RAG、评测集或微调样本',
-          (dl.qa.count != null ? dl.qa.count + ' 组' : ''),
-          qaDownloads,
-          'previewStep4Qa()'
-        );
-      }
-      if (formats.includes('skill') && dl.skill) {
-        const skillDownloads = [{ label: '下载 SKILL.md', url: dl.skill.download_url }];
-        if (dl.openclaw_manifest?.download_url) {
-          skillDownloads.push({ label: 'OpenClaw 清单', url: dl.openclaw_manifest.download_url });
-        }
-        html += renderStep4ArtifactCard(
-          'skill', 'Skill（OpenClaw）', '含 openclaw.skill.json，可接入 OpenClaw Agent 技能目录',
-          'OpenClaw 兼容',
-          skillDownloads,
-          'previewStep4Skill()'
-        );
-      }
-      html += '</div>';
-
-      if (metrics && Object.keys(metrics).length) {
-        const confDist = metrics.confidence_distribution || {};
-        html += '<div class="s4-section"><div class="s4-section-title">质量摘要</div>';
-        html += '<div class="s4-stats-grid">';
-        html += '<div class="s4-stat-card"><div class="s4-stat-value">' + km + '</div><div class="s4-stat-label">知识条目</div></div>';
-        html += '<div class="s4-stat-card"><div class="s4-stat-value">' + (metrics.category_count || 0) + '</div><div class="s4-stat-label">分类数</div></div>';
-        html += '<div class="s4-stat-card"><div class="s4-stat-value green">' + (confDist.high || 0) + '</div><div class="s4-stat-label">高置信度</div></div>';
-        html += '<div class="s4-stat-card"><div class="s4-stat-value">' + (metrics.anti_pattern_count || 0) + '</div><div class="s4-stat-label">反模式</div></div>';
-        html += '</div></div>';
-      }
-
-      html += '</div>';
-      markStepDone(4);
-    } else {
-      html += '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || result.raw || '智能转化失败') + '</div></div>';
-    }
-    renderOutput('s4-output', html);
+    var html = '<div class="s2-result-success"><div class="s2-result-header">思维链 (COT) 已生成</div>';
+    html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
+    html += '<div class="s2-result-actions">';
+    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.filename) + '\',\'COT\')">预览/编辑</button>';
+    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载</a>';
+    html += '</div></div>';
+    document.getElementById('s4-output-cot').style.display = 'block';
+    document.getElementById('s4-output-cot').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>思维链 (COT)</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
+    await markStepDone(4);
   } catch (e) {
-    renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
+    showToast('生成失败: ' + e.message, 'error');
+  } finally {
+    btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
+    btn.classList.remove('loading');
   }
 }
 
-async function previewStep4File(fileName, title) {
+async function step4GenerateQA() {
+  if (!currentPipeline) { showToast('请先进入流水线', 'error'); return; }
+  const btn = document.getElementById('s4-qa-btn');
+  if (!btn || btn._locked) return;
+  btn._locked = true; btn.disabled = true;
+  const origHtml = btn.innerHTML;
+  btn.classList.add('loading');
+  btn.innerHTML = 'LLM 生成中<span class="btn-estimate">· 约 20-40s</span>';
+
+  try {
+    const fd = new FormData();
+    fd.append('pipeline_id', currentPipeline.id);
+    const model = resolveModelName('s4-model') || '';
+    if (model) fd.append('model', model);
+
+    const resp = await fetch(API_BASE + '/api/step4/generate-qa', { method: 'POST', body: fd });
+    const result = await resp.json();
+    if (result.status !== 'ok') { showToast(result.error || '生成失败', 'error'); return; }
+
+    var html = '<div class="s2-result-success"><div class="s2-result-header">QA 对已生成</div>';
+    html += '<div class="s2-result-meta">共 <strong>' + (result.qa_count || 0) + '</strong> 个问答对</div>';
+    html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
+    html += '<div class="s2-result-actions">';
+    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.md_filename || '') + '\',\'QA\')">预览 Markdown</button>';
+    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.md_download_url + '" download>下载 MD</a>';
+    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 JSON</a>';
+    html += '</div></div>';
+    document.getElementById('s4-output-qa').style.display = 'block';
+    document.getElementById('s4-output-qa').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>QA 对</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
+    await markStepDone(4);
+  } catch (e) {
+    showToast('生成失败: ' + e.message, 'error');
+  } finally {
+    btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
+    btn.classList.remove('loading');
+  }
+}
+
+async function step4GenerateExecSkill() {
+  if (!currentPipeline) { showToast('请先进入流水线', 'error'); return; }
+  const btn = document.getElementById('s4-exec-skill-btn');
+  if (!btn || btn._locked) return;
+  btn._locked = true; btn.disabled = true;
+  const origHtml = btn.innerHTML;
+  btn.classList.add('loading');
+  btn.innerHTML = 'LLM 生成中<span class="btn-estimate">· 约 30-60s</span>';
+
+  try {
+    const fd = new FormData();
+    fd.append('pipeline_id', currentPipeline.id);
+    const model = resolveModelName('s4-model') || '';
+    if (model) fd.append('model', model);
+
+    const resp = await fetch(API_BASE + '/api/step4/generate-executable-skill', { method: 'POST', body: fd });
+    const result = await resp.json();
+    if (result.status !== 'ok') { showToast(result.error || '生成失败', 'error'); return; }
+
+    var html = '<div class="s2-result-success"><div class="s2-result-header">可执行 Agent Skill 已生成</div>';
+    html += '<div class="s2-result-meta">章节数: <strong>' + (result.section_count || 0) + '</strong>';
+    if (result.has_sql) html += ' · 含 SQL 查询';
+    if (result.golden_stats && result.golden_stats.available) {
+      html += ' · golden 库: ' + Object.keys(result.golden_stats.tables).length + ' 表可用';
+    }
+    html += '</div>';
+    html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
+    html += '<div class="s2-result-actions">';
+    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.skill_filename) + '\',\'Agent Skill\')">预览/编辑</button>';
+    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 SKILL.md</a>';
+    html += '</div></div>';
+    document.getElementById('s4-output-skill').style.display = 'block';
+    document.getElementById('s4-output-skill').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>可执行 Agent Skill</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
+    await markStepDone(4);
+  } catch (e) {
+    showToast('生成失败: ' + e.message, 'error');
+  } finally {
+    btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
+    btn.classList.remove('loading');
+  }
+}
+
+
+
+	async function previewStep4File(fileName, title) {
   if (!fileName) { alert('暂无可预览文件'); return; }
   try {
     const resp = await fetch(API_BASE + '/api/files/read?file_name=' + encodeURIComponent(fileName));
@@ -3017,7 +3126,8 @@ function previewStep4Skill() {
 
 async function step4Quality() {
   if (!currentPipeline) { alert('请先进入流水线'); return; }
-  renderLoading('s4-output');
+  renderLoading('s4-output-freshness');
+  document.getElementById('s4-output-freshness').style.display = 'block';
   try {
     const fd = new FormData();
     fd.append('pipeline_id', currentPipeline.id);
@@ -3055,16 +3165,16 @@ async function step4Quality() {
 
       if (result.download_url) {
         html += '<div class="s4-actions">';
-        html += '<a class="s4-btn s4-btn-primary" href="' + API_BASE + result.download_url + '" download>&#11015; 下载质量报告</a>';
+        html += '<a class="action-btn small-btn" href="' + API_BASE + result.download_url + '" download>&#11015; 下载质量报告</a>';
         html += '</div>';
       }
       html += '</div>';
     } else {
       html += '<pre style="font-size:12px;overflow:auto;max-height:300px">' + escapeHtml(JSON.stringify(result, null, 2)) + '</pre>';
     }
-    renderOutput('s4-output', html);
+    document.getElementById('s4-output-freshness').innerHTML = '<div class="output-result">' + html + '</div>';
   } catch (e) {
-    renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
+    document.getElementById('s4-output-freshness').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
   }
 }
 
@@ -3072,6 +3182,7 @@ async function step4Quality() {
 function openMarkdownEditor(fileName, content) {
   const modal = document.getElementById('markdown-editor-modal');
   if (!modal) return;
+  modal.dataset.fileName = fileName;
   document.getElementById('markdown-editor-title').textContent = fileName;
   document.getElementById('markdown-editor-content').value = content;
   renderMarkdownPreview(content);
@@ -3128,7 +3239,8 @@ function copyMarkdownContent() {
 }
 
 async function saveMarkdownContent() {
-  const fileName = document.getElementById('markdown-editor-title').textContent;
+  const modal = document.getElementById('markdown-editor-modal');
+  const fileName = modal?.dataset.fileName || document.getElementById('markdown-editor-title').textContent;
   const content = document.getElementById('markdown-editor-content').value;
   const saveBtn = document.getElementById('md-editor-save-btn');
 
@@ -3283,8 +3395,35 @@ async function loadPipelineOverview() {
   }
 }
 
+function stepHasProduct(sd, step) {
+  if (!sd) return false;
+  switch (step) {
+    case 1: return !!sd.step1_output_file;
+    case 2: return !!(sd.step2_output_file || sd.step2_extracted_count > 0);
+    case 3: return !!sd.step3_final_file;
+    case 4: return !!(sd.step4_skill_file || sd.step4_cot_file || sd.step4_qa_file);
+    default: return false;
+  }
+}
+
+function resolveStepStatus(stepStatus, stepData) {
+  var result = {};
+  for (var i = 1; i <= MAX_STEP; i++) {
+    var s = String(i);
+    var fromStatus = (stepStatus || {})[s] || 'pending';
+    if (fromStatus !== 'pending') {
+      result[s] = fromStatus;
+    } else if (stepHasProduct(stepData, i)) {
+      result[s] = 'done';
+    } else {
+      result[s] = 'pending';
+    }
+  }
+  return result;
+}
+
 function renderPipelineItem(p) {
-  const ss = p.step_status || {};
+  const ss = resolveStepStatus(p.step_status, p.step_data);
   const doneCount = Object.values(ss).filter(v => v === 'done').length;
   const shownDoneCount = Math.min(doneCount, MAX_STEP);
   const isComplete = shownDoneCount >= MAX_STEP;
@@ -3522,11 +3661,7 @@ async function editStep3Revision() {
     return;
   }
 
-  if (!resolved.isRevision) {
-    const go = confirm('尚未生成知识对齐稿。将先打开 Step2 萃取 Excel 供查看/编辑；执行「知识对齐」后将生成对齐稿。是否继续？');
-    if (!go) return;
-  }
-
+  // 直接打开已有文件（优先 final，fallback 到 preextract）
   _excelEditorData.step = resolved.editorStep || (resolved.isRevision ? 3 : 2);
   _excelEditorData.isRevision = !!resolved.isRevision;
   renderExcelEditorLoading();
@@ -3684,7 +3819,7 @@ async function saveExcelEditor() {
         persistPipeline({
           step1_output_file: base,
           step1_download_url: data.download_url || ('/downloads/' + base),
-        }).catch(e => console.error('Link step1 output failed:', e));
+        }).catch(e => { console.error('Link step1 output failed:', e); showToast('Excel 已保存，但流水线同步失败', 'error'); });
         if (currentStep === 2) loadStep2PrevOutput();
       }
 

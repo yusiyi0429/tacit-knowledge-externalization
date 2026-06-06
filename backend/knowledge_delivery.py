@@ -32,10 +32,14 @@ def _slugify(name: str, config: dict | None = None, version_info: dict | None = 
 
 
 def _item_key(rec: dict, index: int) -> str:
-    for field in ("知识编号", "步骤", "知识分类"):
+    for field in ("知识编号", "步骤"):
         val = str(rec.get(field, "")).strip()
         if val:
             return val
+    # 知识分类可能重复，追加序号避免多条目共用同一 key
+    classification = str(rec.get("知识分类", "")).strip()
+    if classification:
+        return f"{classification}_{index + 1}"
     return f"条目{index + 1}"
 
 

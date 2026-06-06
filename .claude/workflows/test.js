@@ -3,14 +3,11 @@ export const meta = {
   description: '为新增/变更代码自动生成测试用例并运行验证。用法：/test <需求或范围>',
   phases: [
     { title: 'Analyze', detail: '分析代码，确定测试策略' },
-    { title: 'Generate', detail: '生成测试脚本（TDD 驱动：先写测试，再验证失败，再确认通过）' },
-    { title: 'Run', detail: '运行测试并报告（verification-before-completion）' },
+    { title: 'Generate', detail: '生成测试脚本（TDD 驱动）' },
+    { title: 'Run', detail: '运行测试并报告' },
   ],
 }
 
-// ═══════════════════════════════════════════
-//  🔧 项目配置 — 新项目修改此区域即可
-// ═══════════════════════════════════════════
 const CFG = {
   project: { name: '隐性知识显性化', description: 'Flask + Vanilla JS 知识萃取流水线' },
   tech: {
@@ -42,7 +39,25 @@ const CFG = {
   codeConventions: { pathSafety: 'safe_workspace_path', basenameFn: 'basename_only' },
   plugins: { superpowers: true, modelAllocation: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' } },
 }
-// ═══════════════════════════════════════════
+
+const PIPELINE_CONTEXT = `
+== 天工团队流水线 ==
+plan → dev → [cr ‖ test ‖ data-guardian?] → [vr ‖ doc] → ship-check
+
+你是 test 角色，与 cr / data-guardian 并行。
+- 输入：dev 完成的代码变更
+- 输出：测试脚本 + 运行结果
+- 测试失败不修业务代码——报告交 /dev 修复
+- dev 修复后你仅重跑失败的测试（最多 2 轮）`
+
+const TESTER_RULES = `
+== Superpowers 测试工程师纪律 ==
+
+1. NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST.
+2. 没亲眼看到测试失败，就不知道测试是否测了正确的东西。
+3. 没有验证证据 = 不能声称通过。Run 阶段的输出必须包含实际命令执行结果。
+4. 每个测试函数验证一个关注点。
+5. TDD 循环：RED → GREEN → REFACTOR`
 
 const TEST_PLAN_SCHEMA = {
   type: 'object',
@@ -65,34 +80,17 @@ const TEST_PLAN_SCHEMA = {
   required: ['testStrategy', 'testFiles', 'needsServer'],
 }
 
-// superpowers: test-driven-development + verification-before-completion
-const TESTER_RULES = `
-== Superpowers 测试工程师纪律 ==
-
-**test-driven-development 原则**（铁律）：
-1. NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST. 先写测试、确认测试失败、再写实现代码。
-2. 如果没亲眼看到测试失败，你就不知道这个测试是否测了正确的东西。
-3. 违反字面规定 = 违反精神。没有任何"这次就跳过 TDD"的例外。
-
-**verification-before-completion 原则**（铁律）：
-4. NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE。测试通过不是猜的，是跑出来的。Run 阶段的输出必须包含实际的命令执行结果——stdout、exit code、PASS/FAIL 计数。
-5. 每个测试函数验证一个关注点。不要一个测试函数里塞多个无关的 assert。
-
-**TDD 循环**（编写每个测试时遵循）：
-6. RED: 先写一个会失败的测试，运行确认它失败
-7. GREEN: 写最小代码让测试通过
-8. REFACTOR: 消除重复，优化结构，确认测试仍然通过`
-
 const testReq = args || '为最近变更的代码生成测试'
-const testDir = CFG.test.dir
 
 phase('Analyze')
 const testPlan = await agent(
   `分析代码变更，制定测试策略。
 
+${PIPELINE_CONTEXT}
+
 测试需求：${testReq}
 
-项目测试约定：测试脚本放在 ${testDir}/ 下，${CFG.test.prefix} 前缀。无框架 assert 模式。
+项目测试约定：测试脚本放在 ${CFG.test.dir}/ 下，${CFG.test.prefix} 前缀。无框架 assert 模式。
 
 ${CFG.plugins.superpowers ? TESTER_RULES : ''}
 
@@ -142,7 +140,9 @@ const mustTests = testPlan.testFiles.filter(tf => tf.priority === 'must')
 const results = mustTests.length > 0
   ? await parallel(mustTests.map(tf => () =>
       agent(
-        `运行测试并报告完整输出。铁律：没有验证证据 = 不能声称通过。
+        `运行测试并报告完整输出。
+
+${PIPELINE_CONTEXT}
 
 命令：cd ${CFG.test.dir}/.. && ${CFG.test.runCommand.replace('{file}', tf.path)}
 
@@ -165,5 +165,5 @@ return JSON.stringify({
     passed: results.filter(r => r && r.includes('[OK]')).length,
     failed: results.filter(r => r && (r.includes('[FAIL]') || r.includes('Error'))).length,
   } : '(no must-priority tests)',
-  verdict: allPassed ? 'ALL TESTS PASSED — 有验证证据' : 'SOME TESTS FAILED — 查看上述输出',
+  verdict: allPassed ? 'ALL TESTS PASSED — 有验证证据' : 'SOME TESTS FAILED — 查看上述输出 → 修复交 /dev',
 }, null, 2)

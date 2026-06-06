@@ -18,6 +18,8 @@ RETRYABLE_HTTP_STATUS = {429, 500, 502, 503, 504}
 RETRYABLE_EXCEPTIONS = (
     http_requests.Timeout,
     http_requests.ConnectionError,
+    http_requests.exceptions.ChunkedEncodingError,
+    ConnectionResetError,
 )
 
 

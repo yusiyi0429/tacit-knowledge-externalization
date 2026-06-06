@@ -83,7 +83,7 @@ def basename_only(name: str) -> str:
 
 def is_step1_filename(name: str) -> bool:
     n = basename_only(name).lower()
-    return n.endswith(".xlsx") and n.startswith("template_")
+    return n.endswith(".xlsx") and (n.startswith("template_") or n.startswith("edited_step1_"))
 
 
 def is_step2_preextract_filename(name: str) -> bool:

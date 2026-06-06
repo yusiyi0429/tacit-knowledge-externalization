@@ -30,7 +30,7 @@ def _normalize_text(text: str) -> str:
 
 
 def _word_overlap(a: str, b: str) -> float:
-    """基于词重叠率的相似度。"""
+    """基于词重叠率的相似度（Jaccard 系数）。"""
     if not a or not b:
         return 0.0
     set_a = set(_normalize_text(a).split())
@@ -38,8 +38,9 @@ def _word_overlap(a: str, b: str) -> float:
     if not set_a or not set_b:
         return 0.0
     intersection = set_a & set_b
-    # Jaccard-like but penalize large size mismatches
-    overlap = len(intersection) / min(len(set_a), len(set_b))
+    union = set_a | set_b
+    # Jaccard: 交集/并集，避免短文本被长文本吞没问题
+    overlap = len(intersection) / len(union) if union else 0.0
     return overlap
 
 
