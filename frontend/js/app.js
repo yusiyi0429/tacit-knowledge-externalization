@@ -2355,7 +2355,6 @@ async function loadStep3PrevOutput() {
         let actionBtns = '';
         if (data.download_url && !mdFlow) {
           actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>`;
-          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="editStep3Revision()">在线编辑底稿</button>`;
         }
         if (data.markdown_file) {
           actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览/编辑 Markdown</button>`;
@@ -2783,7 +2782,6 @@ async function showStep3AlignComplete(result, options) {
   if (!mdFlow && dlName) html += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
   if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="action-btn small-btn secondary-btn" download>下载 Markdown</a>';
   if (dlUrl) html += '<a href="' + escapeHtml(dlUrl) + '" class="action-btn small-btn secondary-btn" download>下载 Excel</a>';
-  if (dlName) html += '<button class="action-btn small-btn secondary-btn" onclick="editStep3Revision()">在线编辑底稿</button>';
   html += '<button class="action-btn small-btn secondary-btn" onclick="step3BackToInput()">重新对齐</button>';
   html += '</div>';
   document.getElementById('s3-result-card').innerHTML = html;
