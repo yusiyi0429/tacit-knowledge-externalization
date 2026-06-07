@@ -740,10 +740,10 @@ function step2Execute() {
       html += '<div class="s2-result-actions" style="margin-top:12px;">';
       var step2Fmt = document.getElementById('s2-output-format')?.value || 'excel';
       var mdFlow = step2Fmt === 'markdown';
-      if (mdFlow && mdFile) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览 Markdown</button>';
+      if (mdFlow && mdFile) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
       if (!mdFlow && dlName) html += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-      if (mdFlow && dlName) html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">编辑 Excel</button>';
-      if (!mdFlow && mdFile) html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览 Markdown</button>';
+      if (mdFlow && dlName) html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+      if (!mdFlow && mdFile) html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
       if (mdUrl) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
       if (dlUrl) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + dlUrl + '" download>下载 Excel</a>';
       html += '</div>';
@@ -2166,7 +2166,7 @@ function renderStep2PrevOutputCard(data) {
       </div>
       ${fieldsHtml}
       <div class="s2-result-actions" style="margin-top:8px;">
-        ${data.markdown_file ? `<button class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览 Markdown</button>` : ''}
+        ${data.markdown_file ? `<button class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>` : ''}
         ${data.download_url ? `<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>` : ''}
         ${data.markdown_download_url ? `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>` : ''}
         ${data.download_url ? `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.download_url}" download>下载 Excel</a>` : ''}
@@ -2355,10 +2355,10 @@ async function loadStep3PrevOutput() {
         let actionBtns = '';
         if (data.download_url && !mdFlow) {
           actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>`;
-          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="editStep3Revision()">编辑 Excel</button>`;
+          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="editStep3Revision()">在线编辑底稿</button>`;
         }
         if (data.markdown_file) {
-          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览 Markdown</button>`;
+          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览/编辑 Markdown</button>`;
         }
         if (data.download_url) {
           actionBtns += `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.download_url}" download>下载 Excel</a>`;
@@ -2779,11 +2779,11 @@ async function showStep3AlignComplete(result, options) {
       (result.revision_count || 0) + '</strong> 处修订</div>';
   }
   html += '<div class="align-result-actions">';
-  if (mdFlow && mdName) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览 Markdown</button>';
+  if (mdFlow && mdName) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
   if (!mdFlow && dlName) html += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
   if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="action-btn small-btn secondary-btn" download>下载 Markdown</a>';
   if (dlUrl) html += '<a href="' + escapeHtml(dlUrl) + '" class="action-btn small-btn secondary-btn" download>下载 Excel</a>';
-  if (dlName) html += '<button class="action-btn small-btn secondary-btn" onclick="editStep3Revision()">编辑 Excel</button>';
+  if (dlName) html += '<button class="action-btn small-btn secondary-btn" onclick="editStep3Revision()">在线编辑底稿</button>';
   html += '<button class="action-btn small-btn secondary-btn" onclick="step3BackToInput()">重新对齐</button>';
   html += '</div>';
   document.getElementById('s3-result-card').innerHTML = html;
@@ -2896,10 +2896,10 @@ async function loadStep4PrevOutput() {
         const excelName = data.file_name || '';
         const mdUrl = mdName ? ('/downloads/' + mdName) : '';
         const excelUrl = data.download_url || '';
-        if (mdFlow && mdName) btns += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览 Markdown</button>';
+        if (mdFlow && mdName) btns += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
         if (!mdFlow && excelName) btns += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
-        if (mdFlow && excelName) btns += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">编辑 Excel</button>';
-        if (!mdFlow && mdName) btns += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览 Markdown</button>';
+        if (mdFlow && excelName) btns += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
+        if (!mdFlow && mdName) btns += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
         if (mdUrl) btns += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
         if (excelUrl) btns += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + excelUrl + '" download>下载 Excel</a>';
         actionsEl.innerHTML = btns;
@@ -3001,8 +3001,8 @@ async function step4GenerateCOT() {
     var html = '<div class="s2-result-success"><div class="s2-result-header">思维链 (COT) 已生成</div>';
     html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
     html += '<div class="s2-result-actions">';
-    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.filename) + '\',\'COT\')">预览/编辑</button>';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载</a>';
+    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.filename) + '\',\'COT\')">预览/编辑 Markdown</button>';
+    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 Markdown</a>';
     html += '</div></div>';
     document.getElementById('s4-output-cot').style.display = 'block';
     document.getElementById('s4-output-cot').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>思维链 (COT)</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
@@ -3038,8 +3038,8 @@ async function step4GenerateQA() {
     html += '<div class="s2-result-meta">共 <strong>' + (result.qa_count || 0) + '</strong> 个问答对</div>';
     html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
     html += '<div class="s2-result-actions">';
-    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.md_filename || '') + '\',\'QA\')">预览 Markdown</button>';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.md_download_url + '" download>下载 MD</a>';
+    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.md_filename || '') + '\',\'QA\')">预览/编辑 Markdown</button>';
+    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.md_download_url + '" download>下载 Markdown</a>';
     html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 JSON</a>';
     html += '</div></div>';
     document.getElementById('s4-output-qa').style.display = 'block';
@@ -3081,7 +3081,7 @@ async function step4GenerateExecSkill() {
     html += '</div>';
     html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
     html += '<div class="s2-result-actions">';
-    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.skill_filename) + '\',\'Agent Skill\')">预览/编辑</button>';
+    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.skill_filename) + '\',\'Agent Skill\')">预览/编辑 Markdown</button>';
     html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 SKILL.md</a>';
     html += '</div></div>';
     document.getElementById('s4-output-skill').style.display = 'block';
