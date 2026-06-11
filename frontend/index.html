@@ -40,6 +40,8 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <button class="step-btn" data-step="3"><span class="btn-num">03</span>知识对齐</button>
         <span class="step-connector"></span>
         <button class="step-btn" data-step="4"><span class="btn-num">04</span>智能转化</button>
+        <span class="step-connector"></span>
+        <button class="step-btn" data-step="5"><span class="btn-num">05</span>验证回放</button>
       </div>
       <span class="auto-save-indicator" id="auto-save-indicator">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
@@ -687,7 +689,12 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               </div>
 
               <div style="display:flex;flex-direction:column;gap:8px;">
-                <button class="action-btn" id="s4-cot-btn" onclick="step4GenerateCOT()">
+                <button class="action-btn" id="s4-compile-btn" onclick="step4Compile()">
+                  <span class="action-icon">&#9889;</span> 一键编译交付包（确定性）
+                </button>
+                <div class="action-note">从对齐版 Skill 草稿（IR）确定性生成 SKILL.md 终版 + 思维链 + QA，不经 LLM 二次发挥</div>
+
+                <button class="action-btn" id="s4-cot-btn" onclick="step4GenerateCOT()" style="margin-top:4px;">
                   <span class="action-icon">&#128161;</span> 生成思维链 (COT)
                 </button>
                 <div class="action-note">LLM 根据知识条目生成分步骤推理链条，供 Agent 决策时调用</div>
@@ -744,7 +751,101 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               <div class="s4-artifact-panel" id="s4-output-qa" style="display:none;">
                 <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px;">点击「生成 QA 对」按钮生成</div>
               </div>
+              <div class="s4-artifact-panel" id="s4-output-compile" style="display:none;"></div>
               <div class="s4-artifact-panel" id="s4-output-freshness" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Panel 5: Step 05 验证回放 ========== -->
+    <div class="panel" id="panel-5">
+
+      <div class="slide">
+        <div class="slide-topbar">
+          <div class="slide-num-box"><div class="step-label">STEP</div><div class="step-num">05</div></div>
+          <div class="slide-title-area">
+            <div class="slide-meta-en">Validation Replay · 验证回放</div>
+            <div class="slide-title">决策回放与回流</div>
+          </div>
+        </div>
+        <div class="slide-subtitle-bar">
+          <span class="subtitle-tag">核心要点</span>
+          <div class="slide-subtitle">用 SKILL 终版判断历史案例并与专家结论比对；分歧自动生成修订建议，回流知识对齐形成闭环</div>
+        </div>
+        <div class="three-col">
+          <!-- 输入 -->
+          <div class="col col-left">
+            <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn">输入</div><div class="col-label-en">Input</div></div></div>
+            <div class="col-content form-area">
+              <div class="s2-section">
+                <div class="s2-label">验证对象</div>
+                <div id="s5-target-info" class="s2-prev-box" style="padding:10px;">
+                  <div class="s2-prev-meta">加载中...</div>
+                </div>
+              </div>
+              <div class="form-group" style="margin-top:12px;">
+                <label>案例来源</label>
+                <select id="s5-case-source" onchange="step5OnCaseSourceChange()">
+                  <option value="upload">手动输入 / 上传 JSON</option>
+                  <option value="kb">知识库案例库</option>
+                </select>
+              </div>
+              <div id="s5-upload-area">
+                <div class="form-group">
+                  <label>历史案例（JSON 数组）</label>
+                  <textarea id="s5-cases-text" rows="7" placeholder='[
+  {"case_id": "CASE-001", "description": "芯片设计企业成立1年申请授信500万", "结论": "通过"},
+  {"case_id": "CASE-002", "description": "贸易企业无抵押物申请授信", "结论": "拒绝"}
+]'></textarea>
+                </div>
+                <div class="form-group">
+                  <label>或上传案例文件（.json）</label>
+                  <input type="file" id="s5-cases-file" accept=".json">
+                </div>
+              </div>
+              <div id="s5-kb-area" style="display:none;">
+                <div class="form-group">
+                  <label>案例难度过滤（可选）</label>
+                  <select id="s5-kb-difficulty">
+                    <option value="">全部</option>
+                    <option value="hard">hard（疑难）</option>
+                    <option value="edge">edge（极端/破例）</option>
+                    <option value="easy">easy（常规）</option>
+                  </select>
+                </div>
+                <div class="file-hint" id="s5-kb-hint">将按当前流水线的领域/场景从案例库抽取（最多 10 条）</div>
+              </div>
+            </div>
+          </div>
+          <!-- 操作 -->
+          <div class="col col-center">
+            <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn">操作</div><div class="col-label-en">Action</div></div></div>
+            <div class="col-content action-area">
+              <div class="form-group" style="margin-bottom:12px">
+                <label>判官模型（建议与萃取模型分离，避免自评偏置）</label>
+                <select id="s5-model"></select>
+              </div>
+              <button class="action-btn" id="s5-replay-btn" onclick="step5RunReplay()">
+                <span class="action-icon">&#9889;</span> 执行决策回放
+              </button>
+              <div class="action-note">用 SKILL 终版逐案判断，与专家结论比对命中率；分歧自动生成 entry 级修订建议</div>
+              <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+                <div class="file-hint" style="margin-bottom:6px">&#127942; Golden 基准验证</div>
+                <button class="action-btn small-btn secondary-btn" id="s5-golden-btn" onclick="step5GoldenVerify()" style="width:100%;justify-content:center;">
+                  对比黄金条目（P/R/F1）
+                </button>
+                <div class="file-hint" style="margin-top:4px">衡量萃取结果与人工精标基准的接近程度</div>
+              </div>
+              <div class="step-readiness info" id="s5-readiness" style="margin-top:12px;">完成智能转化后即可执行验证</div>
+            </div>
+          </div>
+          <!-- 输出 -->
+          <div class="col col-right">
+            <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
+            <div class="col-content output-area" id="s5-output">
+              <div class="output-placeholder">执行决策回放后查看命中率、分歧清单与回流建议</div>
             </div>
           </div>
         </div>

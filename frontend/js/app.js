@@ -3,9 +3,9 @@ let currentStep = 0;
 const API_BASE = window.location.origin;
 let allModels = [];
 let currentPipeline = null; // { id, name, scenario, domain, current_step, step_status, step_data }
-const MAX_STEP = 4;
+const MAX_STEP = 5;
 const MAX_FORM_STEP = 3;
-const STEP_NAMES = { 1: "场景锚定", 2: "知识萃取", 3: "知识对齐", 4: "智能转化" };
+const STEP_NAMES = { 1: "场景锚定", 2: "知识萃取", 3: "知识对齐", 4: "智能转化", 5: "验证回放" };
 let _formSaveTimer = null;
 let _lastStep2ExtractedText = '';
 let _step2InputMode = 'doc'; // 'doc' | 'case'
@@ -951,6 +951,7 @@ function renderPipelineProgressSummary(currentPanelStep) {
     { n: 2, label: '知识萃取' },
     { n: 3, label: '知识对齐' },
     { n: 4, label: '智能转化' },
+    { n: 5, label: '验证回放' },
   ];
   var html = '<div class="pipeline-progress-summary">';
   steps.forEach(function (s, i) {
@@ -1004,7 +1005,7 @@ function switchPanel(step) {
   }
 
   // Refresh model selects when entering a step with AI
-  if ([2, 3, 4].includes(step)) {
+  if ([2, 3, 4, 5].includes(step)) {
     if (!allModels.length) loadModels();
     refreshModelSelects();
   }
@@ -1046,6 +1047,9 @@ function switchPanel(step) {
     var s4Name = document.getElementById('s4-prev-name');
     if (s4Name) s4Name.textContent = '加载中...';
     loadStep4PrevOutput();
+  }
+  if (step === 5 && currentPipeline) {
+    refreshCurrentPipeline().then(function () { loadStep5Context(); });
   }
   refreshCachedUploadLabels(step);
 }
@@ -1717,7 +1721,7 @@ function resolveModelName(selectId) {
 }
 
 function refreshModelSelects() {
-  const selects = ['s2-model', 's3-model', 's4-model', 's4-validate-model'];
+  const selects = ['s2-model', 's3-model', 's4-model', 's4-validate-model', 's5-model'];
   selects.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -4122,6 +4126,242 @@ async function runValidateReplay() {
     resultEl.innerHTML = '<div style="color:var(--error);font-size:12px;margin-top:8px">网络错误: ' + escapeHtml(e.message) + '</div>';
   }
   btn.disabled = false; btn.textContent = '执行校验';
+}
+
+/* ===== Step4: 一键编译交付包（确定性主路径）===== */
+async function step4Compile() {
+  if (!currentPipeline) { showToast('请先进入一条流水线', 'error'); return; }
+  var btn = document.getElementById('s4-compile-btn');
+  var panel = document.getElementById('s4-output-compile');
+  if (btn) { btn.disabled = true; btn.classList.add('loading'); }
+  if (panel) { panel.style.display = 'block'; panel.innerHTML = '<div class="loading"><div class="spinner"></div>正在确定性编译交付包...</div>'; }
+  try {
+    var fd = new FormData();
+    fd.append('pipeline_id', currentPipeline.id);
+    fd.append('formats', 'skill,cot,qa');
+    var resp = await fetch(API_BASE + '/api/step4/compile', { method: 'POST', body: fd });
+    var data = await resp.json();
+    if (data.status !== 'ok') {
+      if (panel) panel.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '编译失败') + '</div></div>';
+      showToast(data.error || '编译失败', 'error');
+      return;
+    }
+    if (currentPipeline) {
+      currentPipeline.step_data = currentPipeline.step_data || {};
+      if (data.download_name) { currentPipeline.step_data.step4_skill_file = data.download_name; currentPipeline.step_data.step4_download_url = data.download_url; }
+      if (data.cot_download_name) { currentPipeline.step_data.step4_cot_file = data.cot_download_name; currentPipeline.step_data.step4_cot_download_url = data.cot_download_url; }
+      if (data.qa_download_name) { currentPipeline.step_data.step4_qa_file = data.qa_download_name; currentPipeline.step_data.step4_qa_download_url = data.qa_download_url; }
+    }
+    var html = '<div class="s4-compile-result">';
+    html += '<div class="s4-compile-header"><div class="s4-compile-icon">&#127919;</div><div class="s4-compile-title">交付包编译完成</div>';
+    html += '<div class="s4-compile-subtitle">' + (data.input_kind === 'ir' ? ('输入：Skill 草稿 v' + (data.ir_version || '?') + '（IR）') : '输入：Excel 对齐稿（过渡兼容）') + ' · 共 ' + (data.knowledge_count || 0) + ' 条知识</div></div>';
+    if (typeof data.quality_score === 'number') {
+      var qColor = data.can_publish ? '#16a34a' : '#f59e0b';
+      html += '<div style="margin:8px 0;font-size:13px;">质量分 <strong style="color:' + qColor + '">' + data.quality_score + '</strong> / 100（' + escapeHtml(data.quality_grade || '') + '级，发布门槛 ' + (data.publish_threshold || 75) + '）';
+      html += data.can_publish ? ' · <span style="color:#16a34a">可发布到知识库</span>' : ' · <span style="color:#f59e0b">未达发布门槛</span>';
+      html += '</div>';
+    }
+    html += '<div class="s2-result-actions" style="margin-top:8px;">';
+    if (data.download_url) html += '<a class="action-btn small-btn" href="' + API_BASE + data.download_url + '" download>下载 SKILL.md 终版</a>';
+    if (data.cot_download_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + data.cot_download_url + '" download>下载思维链</a>';
+    if (data.qa_download_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + data.qa_download_url + '" download>下载 QA 对</a>';
+    if (data.openclaw_manifest_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + data.openclaw_manifest_url + '" download>下载 manifest</a>';
+    if (data.can_publish) html += '<button class="action-btn small-btn" onclick="step4PublishToKb()">发布到知识库</button>';
+    html += '</div></div>';
+    if (panel) panel.innerHTML = html;
+    showToast('交付包编译完成');
+    try { await markStepDone(4); } catch (e) { /* ignore */ }
+  } catch (e) {
+    if (panel) panel.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
+    showToast('编译失败: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
+  }
+}
+
+async function step4PublishToKb() {
+  if (!currentPipeline) return;
+  try {
+    var result = await apiCallJSON('/api/kb/publish', { pipeline_id: currentPipeline.id });
+    if (result.status !== 'ok') { showToast(result.error || '发布失败', 'error'); return; }
+    showToast('已发布到知识库：新增 ' + (result.created || 0) + ' 条 · 更新 ' + (result.superseded || 0) + ' 条');
+  } catch (e) {
+    showToast('发布失败: ' + e.message, 'error');
+  }
+}
+
+/* ===== Step5: 验证回放与回流 ===== */
+var _s5LastSuggestions = [];
+
+function step5OnCaseSourceChange() {
+  var src = document.getElementById('s5-case-source')?.value || 'upload';
+  var up = document.getElementById('s5-upload-area');
+  var kb = document.getElementById('s5-kb-area');
+  if (up) up.style.display = src === 'upload' ? '' : 'none';
+  if (kb) kb.style.display = src === 'kb' ? '' : 'none';
+}
+
+function loadStep5Context() {
+  var infoEl = document.getElementById('s5-target-info');
+  var readinessEl = document.getElementById('s5-readiness');
+  if (!infoEl) return;
+  var sd = currentPipeline?.step_data || {};
+  var html = '';
+  if (sd.step4_skill_file) {
+    html += '<div class="s2-prev-name">&#9989; SKILL 终版：' + escapeHtml(sd.step4_skill_file) + '</div>';
+    html += '<div class="s2-prev-meta">验证对象 = Step4 编译的最终交付物</div>';
+    if (readinessEl) renderStepReadiness('s5-readiness', '已就绪：可执行决策回放', 'ok');
+  } else if (sd.step3_aligned_file) {
+    html += '<div class="s2-prev-name">&#128260; 对齐稿 Skill 草稿 v' + (sd.step3_aligned_version || '?') + '</div>';
+    html += '<div class="s2-prev-meta">尚未编译 SKILL 终版，将以 IR 渲染结果作为验证对象</div>';
+    if (readinessEl) renderStepReadiness('s5-readiness', '可执行（建议先在第 4 步编译 SKILL 终版）', 'ok');
+  } else if (sd.step2_draft_file) {
+    html += '<div class="s2-prev-name">&#128221; 萃取稿 Skill 草稿 v' + (sd.step2_draft_version || 1) + '</div>';
+    html += '<div class="s2-prev-meta">尚未对齐，仅可做冒烟验证</div>';
+    if (readinessEl) renderStepReadiness('s5-readiness', '可冒烟验证（建议先完成知识对齐与转化）', 'warn');
+  } else {
+    html += '<div class="s2-prev-meta">暂无可验证的 SKILL/草稿，请先完成前序步骤</div>';
+    if (readinessEl) renderStepReadiness('s5-readiness', '请先完成知识萃取', 'warn');
+  }
+  if (sd.step5_hit_rate != null && sd.step5_run_id) {
+    html += '<div class="s2-prev-meta" style="margin-top:6px;">上次回放命中率：<strong>' + Math.round(sd.step5_hit_rate * 100) + '%</strong>';
+    if (sd.step5_replay_url) html += ' · <a href="' + API_BASE + sd.step5_replay_url + '" target="_blank">查看报告</a>';
+    html += '</div>';
+  }
+  infoEl.innerHTML = html;
+}
+
+async function step5RunReplay() {
+  if (!currentPipeline) { showToast('请先进入一条流水线', 'error'); return; }
+  var btn = document.getElementById('s5-replay-btn');
+  var outEl = document.getElementById('s5-output');
+  var model = resolveModelName('s5-model');
+  if (!model) { showToast('请先配置并选择判官模型', 'error'); return; }
+  var caseSource = document.getElementById('s5-case-source')?.value || 'upload';
+
+  var fd = new FormData();
+  fd.append('pipeline_id', currentPipeline.id);
+  fd.append('judge_model', model);
+  fd.append('case_source', caseSource);
+
+  if (caseSource === 'kb') {
+    fd.append('kb_domain', currentPipeline.domain || '');
+    fd.append('kb_scenario', currentPipeline.scenario || '');
+    fd.append('kb_difficulty', document.getElementById('s5-kb-difficulty')?.value || '');
+  } else {
+    var casesText = document.getElementById('s5-cases-text')?.value.trim() || '';
+    var casesFile = document.getElementById('s5-cases-file');
+    if (casesText) {
+      try { JSON.parse(casesText); } catch (e) { showToast('案例 JSON 格式错误: ' + e.message, 'error'); return; }
+      fd.append('cases', casesText);
+    } else if (casesFile && casesFile.files.length > 0) {
+      fd.append('cases_file', casesFile.files[0]);
+    } else {
+      showToast('请输入案例 JSON 或上传案例文件', 'error');
+      return;
+    }
+  }
+
+  if (btn) { btn.disabled = true; btn.classList.add('loading'); }
+  renderLoading('s5-output');
+  try {
+    var resp = await fetch(API_BASE + '/api/step5/replay', { method: 'POST', body: fd });
+    var data = await resp.json();
+    if (data.status !== 'ok') {
+      renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '回放失败') + '</div></div>');
+      showToast(data.error || '回放失败', 'error');
+      return;
+    }
+    _s5LastSuggestions = data.suggestions || [];
+    if (currentPipeline) {
+      currentPipeline.step_data = currentPipeline.step_data || {};
+      currentPipeline.step_data.step5_hit_rate = data.hit_rate;
+      currentPipeline.step_data.step5_run_id = data.run_id;
+      currentPipeline.step_data.step5_replay_file = data.report_name || '';
+      currentPipeline.step_data.step5_replay_url = data.download_url || '';
+      if (data.suggestions_url) currentPipeline.step_data.step5_suggestions_url = data.suggestions_url;
+    }
+    var pct = Math.round(data.hit_rate * 100);
+    var fillColor = data.passed ? '#16a34a' : (pct >= 60 ? '#f59e0b' : '#ef4444');
+    var srcNames = { skill_final: 'SKILL 终版', step3_aligned_file: '对齐稿 IR 渲染', step2_draft_file: '萃取稿 IR 渲染', excel: 'Excel 知识文本（过渡）' };
+    var html = '<div class="validate-result">';
+    html += '<h4>决策回放结果 <span style="font-weight:400;font-size:11px;color:var(--text-muted)">（验证对象：' + escapeHtml(srcNames[data.knowledge_source] || data.knowledge_source) + ' · 判官：' + escapeHtml(data.judge_model || '') + '）</span></h4>';
+    html += '<div style="font-size:24px;font-weight:700;color:' + fillColor + '">' + pct + '% 命中率 ' + (data.passed ? '✅ 达标' : '⚠️ 未达门槛 ' + Math.round((data.hit_threshold || 0.8) * 100) + '%') + '</div>';
+    html += '<div style="font-size:12px;color:var(--text-muted)">' + data.hits + '/' + data.total + ' 一致 · ' + data.mismatch_count + ' 分歧</div>';
+    html += '<div class="validate-hit-bar"><div class="validate-hit-fill" style="width:' + pct + '%;background:' + fillColor + '"></div></div>';
+    if (data.download_url) html += '<div style="margin-top:6px;"><a href="' + API_BASE + data.download_url + '" target="_blank">查看完整回放报告</a></div>';
+    if (data.mismatches && data.mismatches.length) {
+      html += '<h4 style="margin-top:12px;">分歧案例</h4>';
+      data.mismatches.slice(0, 8).forEach(function (m) {
+        html += '<div class="validate-mismatch"><strong>' + escapeHtml(m.case_id) + '</strong>: Skill判「' + escapeHtml(m.prediction) + '」→ 专家判「' + escapeHtml(m.expert_conclusion) + '」';
+        if (m.referenced_rules && m.referenced_rules.length) html += '<br><span style="color:var(--text-muted);font-size:11px">引用规则: ' + escapeHtml(m.referenced_rules.join(', ')) + '</span>';
+        html += '</div>';
+      });
+    }
+    if (_s5LastSuggestions.length) {
+      html += '<h4 style="margin-top:12px;">回流建议（' + _s5LastSuggestions.length + ' 条）</h4>';
+      _s5LastSuggestions.forEach(function (s) {
+        html += '<div class="validate-mismatch" style="border-left:3px solid #6366f1;">';
+        html += '<strong>' + escapeHtml(s.entry_id || '新增条目') + '</strong>' + (s.field ? ' / ' + escapeHtml(s.field) : '') + ' · ' + escapeHtml(s.action || '');
+        if (s.new_value) html += '<br><span style="font-size:11px;">' + escapeHtml(String(s.new_value).slice(0, 160)) + '</span>';
+        html += '</div>';
+      });
+      html += '<button class="action-btn" style="margin-top:10px;" onclick="step5PushFeedback()">&#128260; 回流到知识对齐（建议池）</button>';
+      html += '<div class="file-hint" style="margin-top:4px;">建议不会自动应用——回流后请到第 3 步建议池逐条裁决</div>';
+    } else if (data.mismatch_count === 0) {
+      html += '<div style="margin-top:10px;color:#16a34a;">所有案例判断与专家结论一致，无需回流。</div>';
+    }
+    html += '</div>';
+    renderOutput('s5-output', html);
+    loadStep5Context();
+    try { await markStepDone(5); } catch (e) { /* ignore */ }
+  } catch (e) {
+    renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
+    showToast('回放失败: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
+  }
+}
+
+async function step5PushFeedback() {
+  if (!currentPipeline) return;
+  try {
+    var result = await apiCallJSON('/api/step5/feedback', {
+      pipeline_id: currentPipeline.id,
+      suggestions: _s5LastSuggestions,
+    });
+    if (result.status !== 'ok') { showToast(result.error || '回流失败', 'error'); return; }
+    showToast(result.message || ('已回流 ' + result.pushed + ' 条建议'));
+  } catch (e) {
+    showToast('回流失败: ' + e.message, 'error');
+  }
+}
+
+async function step5GoldenVerify() {
+  if (!currentPipeline) { showToast('请先进入一条流水线', 'error'); return; }
+  var btn = document.getElementById('s5-golden-btn');
+  if (btn) btn.disabled = true;
+  renderLoading('s5-output');
+  try {
+    var result = await apiCallJSON('/api/step5/golden_verify', { pipeline_id: currentPipeline.id });
+    if (result.status === 'error') {
+      renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || result.message || 'Golden 验证失败') + '</div></div>');
+      return;
+    }
+    var html = '<div class="validate-result"><h4>Golden 基准验证</h4>';
+    var metrics = result.metrics || result;
+    ['precision', 'recall', 'f1'].forEach(function (k) {
+      if (metrics[k] != null) html += '<div style="font-size:13px;">' + k.toUpperCase() + '：<strong>' + (Math.round(metrics[k] * 1000) / 10) + '%</strong></div>';
+    });
+    if (result.matched_count != null) html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">匹配 ' + result.matched_count + ' / 黄金 ' + (result.golden_total || '?') + ' · 流水线 ' + (result.pipeline_total || '?') + ' 条</div>';
+    if (result.download_url) html += '<div style="margin-top:8px;"><a href="' + API_BASE + result.download_url + '" target="_blank">查看完整报告</a></div>';
+    html += '</div>';
+    renderOutput('s5-output', html);
+  } catch (e) {
+    renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // Load pipeline overview on startup

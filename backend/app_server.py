@@ -5688,6 +5688,383 @@ def api_validate_replay():
         return jsonify({"status": "error", "error": f"校验回放失败: {str(e)}"})
 
 
+# ─── Step5 验证环节（回放 + 回流） ────────────────────────────────
+
+def _resolve_skill_text_for_validation(pipeline_id: str) -> tuple[str, str]:
+    """验证对象解析：优先 Step4 SKILL 终版文本 → IR 渲染 → Excel 知识文本。
+
+    返回 (knowledge_text, source_kind)。
+    """
+    sd = {}
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                sd = p.get("step_data", {}) or {}
+                break
+    if not sd:
+        return "", ""
+
+    # 1) Step4 已发布的 SKILL 终版（验证最终交付物本身）
+    skill_file = sd.get("step4_skill_file", "")
+    if skill_file:
+        skill_path = safe_workspace_path(WORKSPACE, skill_file, must_exist=True)
+        if skill_path:
+            try:
+                return skill_path.read_text(encoding="utf-8"), "skill_final"
+            except Exception:
+                pass
+
+    # 2) Skill IR 渲染（对齐版 → 萃取稿）
+    ir_path, ir_key = resolve_knowledge_ir_path(WORKSPACE, sd)
+    if ir_path:
+        try:
+            from skill_ir import load_ir, render_skill_md
+            config = {}
+            if SCHEMA_PATH.exists():
+                from excel_to_skill import load_scenario_config
+                config = load_scenario_config(str(SCHEMA_PATH))
+            return render_skill_md(load_ir(ir_path), config), ir_key
+        except Exception:
+            pass
+
+    # 3) 过渡期回退：Excel 知识文本
+    resolved, _src = resolve_knowledge_workbook_path(WORKSPACE, sd, purpose="compile")
+    if resolved:
+        try:
+            from excel_to_skill import format_knowledge_item, read_excel_knowledge
+            records, _ = read_excel_knowledge(str(resolved))
+            return "\n\n".join(format_knowledge_item(r) for r in records), "excel"
+        except Exception:
+            pass
+    return "", ""
+
+
+def _load_step5_cases(case_source: str):
+    """加载 Step5 验证案例集。返回 (cases, error)。"""
+    cases = []
+    cases_json = request.form.get("cases", "")
+    cases_file = request.files.get("cases_file")
+
+    if case_source == "kb":
+        try:
+            import knowledge_base as kb
+            domain = request.form.get("kb_domain", "")
+            scenario = request.form.get("kb_scenario", "")
+            difficulty = request.form.get("kb_difficulty", "")
+            limit = int(request.form.get("kb_limit", "10") or 10)
+            kb_cases = kb.list_cases(domain=domain, scenario=scenario, difficulty=difficulty, limit=limit)
+            for c in kb_cases:
+                case = {
+                    "case_id": c.get("case_uid", ""),
+                    "description": c.get("description", ""),
+                    "结论": c.get("expert_conclusion", ""),
+                }
+                facts = c.get("facts") or {}
+                if isinstance(facts, dict):
+                    case.update({k: v for k, v in facts.items() if k not in case})
+                cases.append(case)
+            if not cases:
+                return [], "知识库案例库中无匹配案例，请先录入案例或改用上传"
+            return cases, ""
+        except Exception as e:
+            return [], f"知识库案例加载失败: {str(e)}"
+
+    if cases_json:
+        try:
+            cases = json.loads(cases_json)
+        except json.JSONDecodeError:
+            return [], "案例 JSON 格式错误"
+    elif cases_file:
+        try:
+            cases = json.load(cases_file)
+        except json.JSONDecodeError:
+            try:
+                text = cases_file.read().decode("utf-8", errors="replace")
+                cases = json.loads(text)
+            except json.JSONDecodeError:
+                return [], "案例文件 JSON 格式错误"
+    if not cases:
+        return [], "请提供至少 1 个历史案例"
+    return cases, ""
+
+
+@app.route("/api/step5/replay", methods=["POST"])
+def api_step5_replay():
+    """Step5 决策回放：用 SKILL 终版判断历史案例 → 命中率 + 分歧 → 修订建议（待回流）。
+
+    与旧 /api/validate/replay 的区别：
+    - 验证对象是 SKILL.md 终版/IR 渲染（最终交付物），不是中间 Excel 文本
+    - 判官模型可独立指定（judge_model 优先），避免同模型自评偏置
+    - 分歧自动生成 entry 级修订建议，专家可一键回流 Step3 建议池
+    """
+    pipeline_id = request.form.get("pipeline_id", "")
+    model_name = request.form.get("judge_model", "") or request.form.get("model", "")
+    case_source = (request.form.get("case_source", "") or "upload").strip()
+
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    cases, err = _load_step5_cases(case_source)
+    if err:
+        return jsonify({"status": "error", "error": err})
+
+    knowledge_text, knowledge_source = _resolve_skill_text_for_validation(pipeline_id)
+    if not knowledge_text:
+        return jsonify({"status": "error", "error": "未找到可验证的 SKILL/知识稿，请先完成智能转化（或至少完成知识萃取）"})
+
+    if not model_name:
+        models_list = load_llm_config()
+        if models_list:
+            model_name = models_list[0]["name"]
+    model_cfg = get_model_by_name(model_name)
+    if not model_cfg:
+        return jsonify({"status": "error", "error": "判官模型未配置"})
+
+    from validation_replay import (
+        build_validation_prompt,
+        compare_predictions,
+        generate_replay_report,
+        validation_to_revision_suggestions,
+    )
+
+    system_prompt, user_prompt = build_validation_prompt(knowledge_text, cases)
+    try:
+        result = call_llm_with_retry(model_cfg, [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ], stream=False, temperature=0.1, max_tokens=4096)
+        raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
+        raw_json = _extract_json_from_text(raw)
+        try:
+            predictions = json.loads(raw_json)
+            if not isinstance(predictions, list):
+                predictions = [{"case_id": "unknown", "prediction": raw[:200]}]
+        except json.JSONDecodeError:
+            predictions = [{"case_id": "unknown", "prediction": raw[:200]}]
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"回放判官调用失败: {str(e)}"})
+
+    comparison = compare_predictions(predictions, cases)
+    report = generate_replay_report(comparison, cases, predictions)
+
+    run_id = uuid.uuid4().hex[:8]
+    report_name = f"validation_replay_{run_id}.md"
+    (WORKSPACE / report_name).write_text(report, encoding="utf-8")
+
+    result_name = f"validation_result_{run_id}.json"
+    result_payload = {
+        "run_id": run_id,
+        "pipeline_id": pipeline_id,
+        "judge_model": model_name,
+        "knowledge_source": knowledge_source,
+        "case_source": case_source,
+        "comparison": comparison,
+        "predictions": predictions,
+        "ran_at": datetime.datetime.now().isoformat(timespec="seconds"),
+    }
+    (WORKSPACE / result_name).write_text(
+        json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8",
+    )
+
+    # 分歧 → entry 级修订建议（待专家回流裁决）
+    suggestions = []
+    suggestions_name = ""
+    if comparison.get("mismatches"):
+        ir = None
+        sd = {}
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    sd = p.get("step_data", {}) or {}
+                    break
+        ir_path, _k = resolve_knowledge_ir_path(WORKSPACE, sd)
+        if ir_path:
+            try:
+                from skill_ir import load_ir
+                ir = load_ir(ir_path)
+            except Exception:
+                ir = None
+        if ir:
+            suggestions = validation_to_revision_suggestions(
+                comparison["mismatches"], ir,
+                llm_call_fn=_llm_call_for_interview,
+                model_name=model_name,
+            )
+            if suggestions:
+                suggestions_name = f"revision_suggestions_{run_id}.json"
+                (WORKSPACE / suggestions_name).write_text(
+                    json.dumps(suggestions, ensure_ascii=False, indent=2), encoding="utf-8",
+                )
+
+    # 命中率门槛（schema quality.replay_hit_threshold）
+    hit_threshold = 0.8
+    try:
+        if SCHEMA_PATH.exists():
+            from excel_to_skill import load_scenario_config
+            cfg = load_scenario_config(str(SCHEMA_PATH))
+            hit_threshold = float((cfg.get("quality") or {}).get("replay_hit_threshold", 0.8))
+    except Exception:
+        pass
+    passed = comparison["hit_rate"] >= hit_threshold
+
+    # 持久化 step5 keys
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                sd = p.setdefault("step_data", {})
+                sd["step5_replay_file"] = report_name
+                sd["step5_replay_url"] = f"/downloads/{report_name}"
+                sd["step5_result_file"] = result_name
+                sd["step5_result_url"] = f"/downloads/{result_name}"
+                sd["step5_hit_rate"] = comparison["hit_rate"]
+                sd["step5_case_source"] = case_source
+                sd["step5_run_id"] = run_id
+                if suggestions_name:
+                    sd["step5_suggestions_file"] = suggestions_name
+                    sd["step5_suggestions_url"] = f"/downloads/{suggestions_name}"
+                else:
+                    sd.pop("step5_suggestions_file", None)
+                    sd.pop("step5_suggestions_url", None)
+                p.setdefault("step_status", {})
+                p["step_status"]["5"] = "done"
+                p["current_step"] = max(p.get("current_step", 1), 5)
+                p["updated_at"] = datetime.datetime.now().isoformat()
+                save_pipelines(pipelines)
+                break
+
+    # 记录到知识库验证运行表（如可用）
+    try:
+        import knowledge_base as kb
+        kb.record_validation_run(
+            pipeline_id=pipeline_id,
+            skill_slug="",
+            skill_version=0,
+            case_uids=[str(c.get("case_id", "")) for c in cases],
+            total_cases=comparison["total_cases"],
+            hits=comparison["hits"],
+            hit_rate=comparison["hit_rate"],
+            mismatches=comparison["mismatches"],
+            judge_model=model_name,
+        )
+    except Exception:
+        pass
+
+    return jsonify({
+        "status": "ok",
+        "run_id": run_id,
+        "hit_rate": comparison["hit_rate"],
+        "hits": comparison["hits"],
+        "total": comparison["total_cases"],
+        "mismatch_count": comparison["mismatch_count"],
+        "mismatches": comparison["mismatches"],
+        "hit_threshold": hit_threshold,
+        "passed": passed,
+        "knowledge_source": knowledge_source,
+        "judge_model": model_name,
+        "report_name": report_name,
+        "download_url": f"/downloads/{report_name}",
+        "result_url": f"/downloads/{result_name}",
+        "suggestions": suggestions,
+        "suggestions_count": len(suggestions),
+        "suggestions_url": f"/downloads/{suggestions_name}" if suggestions_name else "",
+    })
+
+
+@app.route("/api/step5/feedback", methods=["POST"])
+def api_step5_feedback():
+    """验证回流：将 Step5 生成的修订建议推入 Step3 建议池，由专家裁决。"""
+    data = request.get_json(force=True) or {}
+    pipeline_id = data.get("pipeline_id", "")
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    suggestions = data.get("suggestions")
+    if not isinstance(suggestions, list) or not suggestions:
+        # 默认取最近一次回放生成的建议文件
+        sd = {}
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    sd = p.get("step_data", {}) or {}
+                    break
+        sug_file = sd.get("step5_suggestions_file", "")
+        if not sug_file:
+            return jsonify({"status": "error", "error": "无可回流的建议，请先执行决策回放"})
+        sug_path = safe_workspace_path(WORKSPACE, sug_file, must_exist=True)
+        if not sug_path:
+            return jsonify({"status": "error", "error": "建议文件不存在"})
+        try:
+            suggestions = json.loads(sug_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            return jsonify({"status": "error", "error": f"建议文件解析失败: {str(e)}"})
+
+    pushed = _push_step3_suggestions(pipeline_id, suggestions, source="validation")
+    return jsonify({
+        "status": "ok",
+        "pushed": pushed,
+        "message": f"已将 {pushed} 条修订建议回流到「知识对齐」建议池，请到第 3 步裁决",
+    })
+
+
+@app.route("/api/step5/golden_verify", methods=["POST"])
+def api_step5_golden_verify():
+    """Golden 基准验证：流水线知识 vs 黄金条目（P/R/F1），写入 verification_runs。"""
+    data = request.get_json(force=True) if request.is_json else request.form
+    pipeline_id = data.get("pipeline_id", "")
+    scenario_id = data.get("scenario_id")
+    scenario_name = data.get("scenario_name", "")
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    try:
+        items, pipeline = _read_step3_knowledge_items(pipeline_id)
+    except ValueError as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+    if not scenario_id and not scenario_name:
+        scenario_name = pipeline.get("scenario", "") or pipeline.get("name", "")
+
+    try:
+        import golden_db
+        golden_db.init_db()
+        report = golden_db.verify(
+            items,
+            scenario_id=int(scenario_id) if scenario_id else None,
+            scenario_name=scenario_name or None,
+            pipeline_id=pipeline_id,
+        )
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"Golden 验证失败: {str(e)}"})
+
+    if report.get("status") == "error":
+        return jsonify(report)
+
+    report_name = ""
+    try:
+        report_md = golden_db.format_report(report)
+        report_name = f"validation_golden_{uuid.uuid4().hex[:8]}.md"
+        (WORKSPACE / report_name).write_text(report_md, encoding="utf-8")
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    sd = p.setdefault("step_data", {})
+                    sd["step5_golden_report_file"] = report_name
+                    sd["step5_golden_report_url"] = f"/downloads/{report_name}"
+                    save_pipelines(pipelines)
+                    break
+    except Exception:
+        report_name = ""
+
+    report["report_name"] = report_name
+    report["download_url"] = f"/downloads/{report_name}" if report_name else ""
+    return jsonify(report)
+
+
 # ─── 多源知识融合路由 ────────────────────────────────────────
 
 def _llm_call_for_interview(system_prompt, user_prompt, model_name):
