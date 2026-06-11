@@ -1,136 +1,216 @@
-# 隐性知识显性化 — Claude Code 项目指南
+# 隐性知识提取平台
 
-## 将此模板用于新项目
+将领域专家的隐性经验 → 结构化、可交付的 AI Skill，通过 **5 步流水线**（场景锚定→知识萃取→知识对齐→智能转化→验证回放），验证分歧回流第 3 步形成闭环。
 
-所有 workflow 脚本（`.claude/workflows/*.js`）已通用化改造。迁移到新项目只需：
+## 快速启动
 
-1. 复制本项目的 `.claude/` 目录到新项目根目录（含 commands/ + workflows/ + settings）
-2. 修改 `CLAUDE.md`：写新项目的定位、技术栈、关键文件、风险规则、同步契约
-3. 修改 `.claude/settings.json`：更新 `skills` 模型分配和 `dataGuardianTriggers`
-4. 修改 `.claude/workflows-config.json`：更新 `project`、`tech`、`consistency`、`riskRules` 等字段
-5. 各 workflow 脚本的 `CFG` 块和 commands/*.md 的方法论主体**无需改动**
-
-## Quick Start
 ```bash
-cd backend && python app_server.py --host 127.0.0.1 --port 5000 &
+# 开发环境
+cd backend && python app_server.py --host 127.0.0.1 --port 5000
+# 访问 http://127.0.0.1:5000
+
+# LLM 配置（复制模板后编辑）
+cp config/llm-config.local.yaml.example config/llm-config.local.yaml
+# 编辑 config/llm-config.local.yaml 填入 API Key
+
+# Docker 部署（内网）
+docker load -i tacit-knowledge-externalization-*.tar
+docker compose up -d  # 端口 5000
 ```
-浏览器访问 `http://127.0.0.1:5000`
 
-## 项目定位
-将银行信贷专家的隐性经验 → 结构化、可交付的 AI Skill，通过 **5 步 Skill 中心化流水线**（场景锚定→知识萃取→知识对齐→智能转化→验证回放），验证分歧回流第 3 步形成闭环。
+## 架构
 
-流水线主产物是 **Skill IR（结构化 JSON 草稿，`skill_draft_*.json`）**：Step2 产出 v1（draft）→ Step3 专家对齐产出 vN（aligned）→ Step4 确定性渲染 SKILL.md 终版 → Step5 回放验证。SKILL.md 永远是渲染产物；Excel 工作簿保留为过渡期编辑面与兼容产物。详见 `docs/重构实施方案-Skill中心化流水线.md`。
+```
+┌─────────────────┐     HTTP/API     ┌──────────────────────────┐
+│   前端 (Vanilla) │ ◄─────────────► │   后端 (Flask)           │
+│  Luckysheet     │                 │  app_server.py (路由总线) │
+│  index.html     │                 │  skill_ir.py (IR 引擎)   │
+│  app.js/state.js│                 │  knowledge_base.py (KB)  │
+└─────────────────┘                 │  validation_replay.py    │
+                                    │  knowledge_delivery.py   │
+                                    └──────────┬───────────────┘
+                                               │
+                         ┌─────────────────────┼─────────────────────┐
+                         ▼                     ▼                     ▼
+                    ┌─────────┐         ┌──────────┐          ┌──────────┐
+                    │ data/kb │         │ data/golden         │ config/  │
+                    │ SQLite  │         │ 黄金数据库          │ llm-config.yaml
+                    └─────────┘         └──────────┘          └──────────┘
+```
 
-## 技术栈
-- **后端**: Python Flask (6000+ lines in app_server.py), openpyxl, PyPDF2
-- **前端**: Vanilla JS (无框架), Luckysheet (在线 Excel 编辑)
-- **存储**: 文件工作空间 + 外部知识库 SQLite (`data/kb/knowledge_base.db`), 流水线 JSON 持久化
-- **LLM**: OpenAI 兼容 / 建行 CCB 网关双模式
+## 目录结构
 
-## 关键文件
+```
+backend/
+  app_server.py           # Flask 主服务：路由总线、Skill 执行器、KB API
+  skill_ir.py             # Skill IR 引擎：draft/apply_revisions/render_skill_md/版本校验
+  pipeline_artifacts.py   # 流水线产物：文件命名、step data key、IR 解析
+  knowledge_base.py       # 外部知识库：entries/案例库/发布登记/验证记录
+  validation_replay.py    # Step5：决策回放 + 分歧→修订建议
+  knowledge_fusion.py     # 多源知识融合：去重/冲突检测/跨源合并/访谈转换
+  knowledge_delivery.py   # 智能转化：SKILL.md / QA / COT 生成
+  interview_session.py    # 专家访谈追问生成（案例反推/对比追问/极限假设）
+  revision_processor.py   # 知识修订处理器（Excel 编辑面）
+  step2_preextract.py     # Step2：知识萃取 Excel 生成（过渡期兼容产物）
+  quality_report.py       # 五维质量评分
+  llm_client.py           # LLM 客户端：OpenAI 兼容 / 建行 CCB 网关双模式
+  golden_db.py            # 黄金数据库管理
+  scripts/                # 测试脚本、初始化脚本
+frontend/
+  index.html              # 单页应用入口
+  js/app.js               # 主逻辑：流水线 CRUD、步骤切换、Skill 执行、Step5 回放 UI
+  js/state.js             # 全局状态管理器 (PipelineState, MAX_STEP=5)
+  css/                    # 样式文件
+config/
+  llm-config.yaml         # LLM 配置（模型列表、参数）
+  llm-config.local.yaml   # 本地覆盖（含 API Key，gitignored）
+  scenario-schema.yaml    # 场景知识结构定义（含 replay_hit_threshold）
+data/
+  kb/knowledge_base.db    # SQLite 知识库
+  golden/                 # 黄金数据库文件
+  result/                 # 流水线产出物
+  samples/                # 样本数据
+docs/
+  重构实施方案-Skill中心化流水线.md
+  PRODUCTION_AUDIT.md     # 生产审计报告
+  VERSIONING.md           # 版本管理
+  业务说明文档.md
+docker/
+  Dockerfile              # 构建镜像
+  Dockerfile.incremental  # 增量构建
+  deploy-run-example.sh   # 部署示例
+docker-compose.yml        # 内网部署编排
+scripts/
+  build.sh                # 构建脚本
+  start.sh                # 启动脚本
+  build-docker-*.sh       # Docker 构建（multiarch/arm64）
+```
+
+## 关键文件索引
+
+### 核心引擎（修改前必须理解）
+
+| 文件 | 职责 | 修改风险 |
+|------|------|----------|
+| `backend/skill_ir.py` | Skill IR 单一事实源：draft/apply_revisions/render_skill_md/版本校验 | **critical** |
+| `backend/pipeline_artifacts.py` | 文件命名约束、step data key 定义、IR 解析 | **critical** |
+| `frontend/js/state.js` | 全局状态：PipelineState、MAX_STEP=5、DOWNSTREAM_OUTPUT_KEYS | **critical** |
+
+### 流水线步骤模块
+
+| 步骤 | 文件 | 产出 |
+|------|------|------|
+| Step 1 场景锚定 | `backend/step1_*.py` (builder/schema/template) | 场景骨架 Excel |
+| Step 2 知识萃取 | `backend/step2_preextract.py` + `knowledge_fusion.py` | 萃取条目 Excel / IR v1 |
+| Step 3 知识对齐 | `backend/revision_processor.py` | 修订稿 IR vN |
+| Step 4 智能转化 | `backend/knowledge_delivery.py` | SKILL.md / QA / COT |
+| Step 5 验证回放 | `backend/validation_replay.py` | 回放报告 + 修订建议 |
+
+### 支持模块
+
 | 文件 | 职责 |
 |------|------|
-| `backend/app_server.py` | Flask 主服务 (路由, Skill 执行器, LLM 解析, 多源萃取路由, Step5 验证, KB API) |
-| `backend/skill_ir.py` | Skill IR 单一事实源（new_draft/apply_revisions/render_skill_md/版本校验） |
-| `backend/knowledge_base.py` | 外部知识库（kb_entries 资产/kb_cases 案例库/发布登记/验证记录） |
-| `backend/validation_replay.py` | Step5 决策回放 + 分歧→entry 级修订建议（validation_to_revision_suggestions） |
-| `backend/pipeline_artifacts.py` | 文件命名约束, step data key 定义, IR 解析（resolve_knowledge_ir_path） |
-| `backend/knowledge_fusion.py` | 多源知识融合（去重/冲突检测/跨源合并/访谈转换） |
-| `backend/interview_session.py` | 专家访谈追问生成（案例反推/对比追问/极限假设） |
-| `backend/step2_preextract.py` | 知识萃取 Excel 生成（过渡期兼容产物） |
-| `backend/revision_processor.py` | 知识修订处理器（Excel 编辑面） |
-| `backend/knowledge_delivery.py` | 智能转化 (SKILL.md/QA/COT 生成, records_to_delivery_bundle) |
-| `backend/quality_report.py` | 五维质量评分 (quality_report_from_records 供 IR 路径) |
-| `frontend/js/app.js` | 主逻辑 (流水线 CRUD, 步骤切换, Skill 执行, 建议池, Step5 回放 UI) |
-| `frontend/js/state.js` | 全局状态管理器 (PipelineState 类, MAX_STEP=5) |
-| `config/scenario-schema.yaml` | 场景知识结构定义（含 replay_hit_threshold 回放门槛） |
+| `backend/app_server.py` | Flask 路由总线（所有 API 入口） |
+| `backend/knowledge_base.py` | 知识库管理（entries/案例/发布/验证） |
+| `backend/interview_session.py` | 专家访谈追问生成 |
+| `backend/quality_report.py` | 五维质量评分 |
+| `backend/llm_client.py` | LLM 调用（OpenAI / CCB 双模式） |
+| `backend/golden_db.py` | 黄金数据库 |
+| `frontend/js/app.js` | 前端主逻辑（所有 UI 交互） |
 
-## 天工 Agent 团队（10 人）—— 完整开发流程
+## API 路由速查
 
-```
-                  orchestrator（总调度 · 指挥层）
-                        ↓ 委派 / 跟踪 / 裁决
-规划      实现      审查          测试     验证       通关          文档
-plan  →  dev  →  cr →  test  →  vr  →  ship-check  →  doc
+后端路由定义在 `app_server.py` 中，Flask 不检查重复路由——**同名路由会静默覆盖**。
 
-bug-hunt ───── 定期全量缺陷巡检（独立触发，不在主线）
-data-guardian ─ 数据契约 / 状态完整性专项守护（涉及数据变更时介入）
+主要路由组：
+- `/api/pipeline/*` — 流水线 CRUD
+- `/api/step/*` — 各步骤执行
+- `/api/skill/*` — Skill 执行与 IR 操作
+- `/api/kb/*` — 知识库管理
+- `/api/interview/*` — 专家访谈
+- `/api/validate/*` — Step5 验证回放
+- `/api/health` — 健康检查
 
-※ 修复回路：test / cr / bug-hunt / ship-check / vr 发现的所有问题，
-  统一交 /dev 落地修复 —— dev 是团队唯一编码者。
-```
+## 天工 Agent 团队（10 人）
 
-> 团队代号「天工」，取自「天工开物」—— 各司其职，把隐性经验开出来。
-> 两套实现：`~/.claude/commands/*.md`（角色 prompt，当前生效）与 `项目/.claude/workflows/*.js`（编排引擎，带真并行 / 交叉验证 / 模型分配；当前 harness 不加载，作可迁移参考）。
+完整 prompt 见 `.claude/commands/*.md`，工作流编排见 `.claude/workflows/*.js`。
 
-### `/orchestrator` — 总调度（指挥层）
-理解高层需求 → 决定调哪些角色、按什么顺序 → 逐个委派并传递精确上下文 → 收产出、驱动修复回路 → 跟踪到完成并汇总。不亲自写码/审查/测试。与 plan 分工：plan 是技术参谋（怎么做），orchestrator 是总指挥（谁做、按什么顺序、驱动跑完）。
-用法：`/orchestrator <高层需求>`
+| 角色 | 职责 | 用法 |
+|------|------|------|
+| `/orchestrator` | 总调度：理解需求 → 委派角色 → 驱动修复回路 | `/orchestrator <高层需求>` |
+| `/plan` | 规划师：需求分析 + 结构化实施计划 | `/plan <需求描述>` |
+| `/dev` | **唯一编码者**：所有代码变更收口于此 | `/dev <需求>` |
+| `/cr` | 审查员：diff 审查 + 安全审查 + 简化建议 | `/cr [--fix \|--comment]` |
+| `/bug-hunt` | 缺陷猎人：全量代码扫描 | `/bug-hunt [scope]` |
+| `/data-guardian` | 数据守护：数据契约 / 状态完整性 | `/data-guardian <变更范围>` |
+| `/test` | 测试工程师：生成并运行测试 | `/test <需求或范围>` |
+| `/vr` | 运行验证官：端到端动态验证 | `/vr <受影响的路径>` |
+| `/ship-check` | 通关检查官：提交前静态通关 | `/ship-check` |
+| `/doc` | 文档维护：文档同步检查 | `/doc [自动检查\|同步]` |
 
-### `/plan` — 规划师（需求分析 + 工作计划）
-侦察代码库 + 识别风险 + 输出结构化实施计划（影响文件、实施步骤、依赖关系、规避措施）。只分析不写码。
-用法：`/plan <需求描述>`
+**修复回路**: test / cr / bug-hunt / ship-check / vr 发现的所有问题，统一交 `/dev` 落地修复。
 
-### `/dev` — 开发者（唯一编码者）
-接收需求或计划，并行实现后端/前端变更，自动处理 step data key 同步等跨层协调，执行自检。**所有代码变更收口于此**，也承接其他角色报告的问题修复。
-用法：`/dev <需求>`
+## 项目级 Skill
 
-### `/cr` — 审查员（diff 审查 + 安全审查 + 简化建议）
-正确性 bug + 安全漏洞 + 简化/可复用性，三大维度排查 + 对抗式交叉验证降假阳性。默认只输出修复方案交 `/dev` 落地；`--fix` 时作为 `/dev` 代理直接应用（唯一编码者原则下的唯一代写例外），`--comment` 发布为 PR 行级评论。
-> 已合并原 `/review-changes` 的安全审查维度，不再有独立 review-changes。真多模型并行仍由 `.js` 引擎提供。
+`.claude/skills/tacit-to-skill/SKILL.md` — 引导领域专家通过 4 步流水线将隐性经验转化为 SKILL.md。触发词：知识萃取、经验沉淀、专家访谈、隐性知识显性化。
 
-### `/bug-hunt` — 缺陷猎人（全量代码扫描）
-多维度扫描全库（逻辑/安全/资源/类型）+ 交叉验证后输出优先级排序的缺陷清单。
-与 cr 互补：cr 只查 diff，bug-hunt 查全库。问题交 `/dev` 修复。
-用法：`/bug-hunt [scope=all|backend|frontend]`
+## 不变量与风险规则
 
-### `/data-guardian` — 数据守护（数据契约 / 状态完整性）
-专职守护数据契约一致性（前后端字段/类型对齐）、状态持久化对称性（存取/切换不丢）、关键标识符跨层同步、schema 迁移兼容。代码缺陷归 cr/bug-hunt，数据契约归它。问题交 `/dev` 修复。
-用法：`/data-guardian <变更范围或数据层>`
+### Skill IR 不变量
 
-### `/test` — 测试工程师（测试生成）
-分析变更代码，自动生成/追加测试脚本（单元/集成/不变量），运行验证结果。失败交 `/dev` 修复。
-用法：`/test <需求或范围>`
-
-### `/vr` — 运行验证官（端到端动态验证）
-真正启动应用、走一遍受影响的核心用户路径、观察实际运行行为。补 ship-check（静态）与 test（单元）都抓不到的运行时问题（如某步实际报错、LLM 调用降级）。
-用法：`/vr <受影响的路径或变更>`
-
-### `/ship-check` — 通关检查官（提交前静态通关）
-Python 语法检查 + Flask 路由冲突检测 + JS 一致性 + 前/后端 API 路由同步 + step data key 同步 + CSS 引用同步 + 运行现有单元测试。提交前的最后一道**静态**关卡，必须通过。
-> 已合并原 `/consistency-check` 的跨层一致性校验，不再有独立 consistency-check。动态运行验证交 `/vr`。
-
-### `/doc` — 文档维护（文档同步）
-对比文档声明与代码事实，标记过时/遗漏内容，支持自动修复。
-用法：`/doc [自动检查|同步]`
-
-## 严重度分级（全团队统一）
-critical（阻塞合入）/ high（应尽快修）/ medium（建议）/ low（可选）
-
-## step data key 一致性规则
-以下三处必须保持同步，否则会出现数据静默丢失：
-- `backend/pipeline_artifacts.py` → `STEP_OUTPUT_KEYS_BY_STEP`（现含 1–5 步，注意 `auxiliary_step_data_keys` 的 `MAX_PIPELINE_STEP=5`）
-- `frontend/js/state.js` → `DOWNSTREAM_OUTPUT_KEYS`
-- `frontend/js/app.js` → `DOWNSTREAM_OUTPUT_KEYS`
-
-新增产物文件前缀必须同步进 `DOWNLOAD_ALLOWED_PREFIXES`（已含 `skill_draft_`、`validation_`、`revision_suggestions_`、`kb_`），否则下载 403。
-
-## Skill IR 不变量
 - LLM 永远不直接产 IR 整体；IR 由程序从 records 组装（`_parse_extracted_items` 六层降级之后）
 - SKILL.md 永远由 `skill_ir.render_skill_md()` 确定性渲染，不允许反向手改 md 回填
 - 修订寻址协议 `{entry_id, field, action, old_value, new_value, note, by}`；删除条目的 entry_id 不得被 add 复用
 - 版本链：`parent_version < draft_version` 单调递增；`save_ir` 落盘前强制 `validate_ir`
 - 验证回流建议只进 Step3 建议池（`step3_pending_suggestions`），绝不自动应用——裁决权在专家
 
-## 已知风险点
-- **路径穿越**: 所有文件访问必须经过 `safe_workspace_path()` / `basename_only()`
-- **MergedCell**: openpyxl 写入合并单元格会抛异常，必须在写前解除合并
-- **JSON 解析**: LLM 输出不可信，`_parse_extracted_items()` 有 6 层降级
-- **innerHTML**: 前端多处使用，需确保内容经过 `escapeHtml()`
-- **路由重复**: Flask 不检查重复路由，第二个定义会覆盖第一个
-- **多源融合**: `knowledge_fusion.py` 的去重基于词重叠率，可能漏掉语义重复但用词不同的条目；冲突检测仅基于分类内关键词对比，不覆盖跨分类冲突
-- **访谈执行**: `execute_interview_session` 需要 LLM 调用，如果 LLM 不可用则整个追问失败；生成的追问质量依赖 prompt 设计
-- **融合性能**: multi_source_extract 对每个文件依次调用 LLM，N 个文件会产生 N 次 LLM 调用，注意 token 消耗
-- **列解析子串匹配**: `resolve_field_columns` 必须精确匹配优先且不复用已占用列（曾因「描述」子串命中「知识描述」导致反模式覆盖知识描述）
-- **判官偏置**: Step5 回放的 `judge_model` 与萃取模型相同会导致命中率虚高，应配置不同模型
-- **KB supersede 误判**: `knowledge_base.publish_entries` 的 supersede 基于 bigram 重叠（阈值 0.7），语义相近但表述差异大的条目可能被误判为新条目导致重复膨胀，发布前注意人工核对
+### step data key 一致性（critical）
+
+以下三处必须保持同步，否则数据静默丢失：
+1. `backend/pipeline_artifacts.py` → `STEP_OUTPUT_KEYS_BY_STEP`
+2. `frontend/js/state.js` → `DOWNSTREAM_OUTPUT_KEYS`
+3. `frontend/js/app.js` → `DOWNSTREAM_OUTPUT_KEYS`
+
+新增产物文件前缀必须同步进 `DOWNLOAD_ALLOWED_PREFIXES`（已含 `skill_draft_`、`validation_`、`revision_suggestions_`、`kb_`），否则下载 403。
+
+### 已知风险点
+
+| 风险 | 严重度 | 说明 |
+|------|--------|------|
+| 路径穿越 | critical | 所有文件访问必须经过 `safe_workspace_path()` / `basename_only()` |
+| XSS | high | 前端 `innerHTML` 内容必须经 `escapeHtml()` 处理 |
+| Flask 路由重复 | high | 同名函数/路由会静默覆盖 |
+| MergedCell | high | openpyxl 写入合并单元格前必须先解除合并 |
+| JSON 解析 | medium | LLM 输出不可信，`_parse_extracted_items()` 有 6 层降级 |
+| 多源融合漏重 | medium | 去重基于词重叠率，语义重复但用词不同可能漏掉 |
+| 判官偏置 | medium | Step5 回放的 `judge_model` 与萃取模型相同会导致命中率虚高 |
+| KB supersede 误判 | low | 基于 bigram 重叠（阈值 0.7），语义相近但表述差异大的条目可能误判 |
+
+## LLM 配置
+
+`config/llm-config.yaml` 定义模型列表和参数，`config/llm-config.local.yaml`（gitignored）覆盖 API Key 和端点。
+
+双模式：
+- **OpenAI 兼容**: 标准 OpenAI API 格式
+- **建行 CCB 网关**: 内网专有网关，需特殊鉴权
+
+## 部署
+
+### 开发环境
+直接 `python app_server.py` 启动 Flask 开发服务器。
+
+### Docker（内网）
+```bash
+# 构建
+docker build -t tacit-knowledge-externalization:2.0.0-arm64 -f docker/Dockerfile .
+# 或 ./scripts/build-docker-arm64.sh
+
+# 运行
+docker compose up -d
+# 健康检查：http://127.0.0.1:5000/api/health
+```
+
+### 数据迁移
+- `workspace/` 挂载为卷，持久化用户数据
+- `logs/` 挂载为卷，持久化日志
+- `config/llm-config.yaml` 以只读方式挂载
