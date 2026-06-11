@@ -573,6 +573,22 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           </div>
         </div>
 
+        <!-- 建议池：验证回流 / 访谈转化 的 entry 级修订建议 -->
+        <div class="signal-review-panel hidden" id="s3-suggestion-panel" style="display:block;">
+          <div class="signal-review-header">
+            <div class="signal-review-title">&#128260; 建议池（验证回流 / 访谈转化）</div>
+            <span class="align-toolbar-count" id="s3-suggestion-count"></span>
+          </div>
+          <div class="signal-review-body">
+            <div id="s3-suggestion-list"></div>
+            <div class="s2-result-actions" style="margin-top:10px;">
+              <button class="action-btn small-btn" id="s3-suggestion-apply" onclick="step3ApplySuggestions()">采纳勾选建议 → 生成新对齐稿</button>
+              <button class="action-btn small-btn secondary-btn" onclick="step3RejectSuggestions()">驳回勾选建议</button>
+              <button class="action-btn small-btn secondary-btn" onclick="loadStep3SuggestionPool()">刷新</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Phase 2: 交互式审核区 -->
         <div class="align-review-section" id="s3-review-section" style="display:none;">
           <!-- 工具栏 -->

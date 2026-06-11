@@ -45,6 +45,8 @@ from pipeline_artifacts import (
     safe_workspace_path,
     validate_step_data_patch,
     resolve_knowledge_workbook_path,
+    resolve_knowledge_ir_path,
+    is_skill_draft_filename,
     PROTECTED_WORKSPACE_FILES,
 )
 from release_info import STEP2_EXCEL_BUILD, get_release_info
@@ -3240,7 +3242,296 @@ def _publish_final_from_source(
                 p["updated_at"] = datetime.now().isoformat()
                 save_pipelines(pipelines)
                 break
+    # 对齐版 Skill IR（vN, status=aligned）— Step4/Step5 首选输入
+    _persist_step3_aligned_ir(pipeline_id, output_name, notes=[], style=style)
     return output_name, md_name, md_url
+
+
+def _persist_step3_aligned_ir(
+    pipeline_id: str,
+    final_output_name: str,
+    *,
+    notes: list | None = None,
+    style: str = "",
+) -> dict:
+    """Step3 收口：从 final_*.xlsx 重建对齐版 Skill IR（vN, status=aligned）并落盘。
+
+    过渡期 Excel ⇄ IR 投影：专家对齐仍在 Excel 机制上执行（修订色标/审计列），
+    收口时以对齐稿为准重建 IR；IR 是 Step4/Step5 的首选输入。
+    返回 {aligned_file, aligned_url, aligned_md_file, aligned_md_url, aligned_version}；失败 {}。
+    """
+    if not pipeline_id or not final_output_name:
+        return {}
+    try:
+        from skill_ir import STATUS_ALIGNED, new_draft_from_workbook, render_skill_md, save_ir
+
+        final_path = safe_workspace_path(WORKSPACE, final_output_name, must_exist=True)
+        if not final_path:
+            return {}
+
+        prev_version = 1
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    sd = p.get("step_data", {}) or {}
+                    prev_version = int(
+                        sd.get("step3_aligned_version")
+                        or sd.get("step2_draft_version")
+                        or 1
+                    )
+                    break
+
+        meta_ctx = _pipeline_scenario_meta(pipeline_id)
+        ir = new_draft_from_workbook(
+            str(final_path), meta_ctx,
+            origin="alignment", pipeline_id=pipeline_id,
+        )
+        ir["skill_meta"]["draft_version"] = prev_version + 1
+        ir["skill_meta"]["parent_version"] = prev_version
+        ir["skill_meta"]["status"] = STATUS_ALIGNED
+        ir.setdefault("revision_log", []).append({
+            "version": prev_version + 1,
+            "by": "expert",
+            "applied": len(notes or []),
+            "source": "excel_alignment",
+            "style": style,
+            "at": datetime.datetime.now().isoformat(timespec="seconds"),
+        })
+        draft_name = save_ir(WORKSPACE, ir, pipeline_id=pipeline_id)
+
+        md_name, md_url = "", ""
+        try:
+            config = {}
+            if SCHEMA_PATH.exists():
+                from excel_to_skill import load_scenario_config
+                config = load_scenario_config(str(SCHEMA_PATH))
+            md_content = render_skill_md(ir, config)
+            md_name = f"SKILL_aligned_{uuid.uuid4().hex[:8]}.md"
+            (WORKSPACE / md_name).write_text(md_content, encoding="utf-8")
+            md_url = f"/downloads/{md_name}"
+        except Exception as e:
+            _debug_log("E", "_persist_step3_aligned_ir", "render_error", str(e)[-200:])
+            md_name, md_url = "", ""
+
+        info = {
+            "aligned_file": draft_name,
+            "aligned_url": f"/downloads/{draft_name}",
+            "aligned_md_file": md_name,
+            "aligned_md_url": md_url,
+            "aligned_version": prev_version + 1,
+        }
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    sd = p.setdefault("step_data", {})
+                    sd["step3_aligned_file"] = draft_name
+                    sd["step3_aligned_url"] = info["aligned_url"]
+                    sd["step3_aligned_version"] = info["aligned_version"]
+                    if md_name:
+                        sd["step3_aligned_md_file"] = md_name
+                        sd["step3_aligned_md_url"] = md_url
+                    else:
+                        sd.pop("step3_aligned_md_file", None)
+                        sd.pop("step3_aligned_md_url", None)
+                    save_pipelines(pipelines)
+                    break
+        return info
+    except Exception as e:
+        _debug_log("E", "_persist_step3_aligned_ir", "aligned_error", str(e)[-200:])
+        return {}
+
+
+def _push_step3_suggestions(pipeline_id: str, suggestions: list, source: str) -> int:
+    """将 entry 级修订建议推入 Step3 建议池（专家裁决后才会应用到 IR）。"""
+    if not pipeline_id or not suggestions:
+        return 0
+    cleaned = []
+    for s in suggestions:
+        if not isinstance(s, dict):
+            continue
+        item = dict(s)
+        item["id"] = uuid.uuid4().hex[:10]
+        item["source"] = source
+        item["created_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+        cleaned.append(item)
+    if not cleaned:
+        return 0
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                sd = p.setdefault("step_data", {})
+                pool = sd.get("step3_pending_suggestions")
+                if not isinstance(pool, list):
+                    pool = []
+                pool.extend(cleaned)
+                # 防建议轰炸：池上限 60 条，超出丢弃最旧的
+                sd["step3_pending_suggestions"] = pool[-60:]
+                save_pipelines(pipelines)
+                break
+    return len(cleaned)
+
+
+@app.route("/api/step3/suggestions", methods=["GET"])
+def api_step3_suggestions():
+    """统一建议池：聚合验证回流 / 访谈转化等来源的 entry 级修订建议 + IR 冲突信号。"""
+    pipeline_id = request.args.get("pipeline_id", "")
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    pool = []
+    sd = {}
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                sd = p.get("step_data", {}) or {}
+                raw = sd.get("step3_pending_suggestions")
+                if isinstance(raw, list):
+                    pool = raw
+                break
+
+    # IR 冲突/重复信号（展示用，不直接可应用）
+    flags_summary = {"conflicts": 0, "duplicates": 0}
+    ir_path, ir_key = resolve_knowledge_ir_path(WORKSPACE, sd)
+    aligned_version = sd.get("step3_aligned_version") or 0
+    if ir_path:
+        try:
+            from skill_ir import load_ir
+            ir = load_ir(ir_path)
+            for e in ir.get("entries", []):
+                fl = e.get("flags") or {}
+                if fl.get("conflict_with"):
+                    flags_summary["conflicts"] += 1
+                if fl.get("duplicate_of"):
+                    flags_summary["duplicates"] += 1
+        except Exception:
+            pass
+
+    by_source = {}
+    for s in pool:
+        src = s.get("source", "unknown")
+        by_source[src] = by_source.get(src, 0) + 1
+
+    return jsonify({
+        "status": "ok",
+        "suggestions": pool,
+        "total": len(pool),
+        "by_source": by_source,
+        "flags_summary": flags_summary,
+        "has_ir": bool(ir_path),
+        "ir_source": ir_key,
+        "aligned_version": aligned_version,
+        "aligned_md_url": sd.get("step3_aligned_md_url", ""),
+    })
+
+
+@app.route("/api/step3/apply_suggestions", methods=["POST"])
+def api_step3_apply_suggestions():
+    """专家采纳建议池中的修订 → 直接应用到当前 Skill IR，产出 v+1 对齐稿。
+
+    这是验证回流闭环的落地路径：Step5 分歧建议 → 专家裁决 → IR v+1 → 可重新转化/验证。
+    """
+    data = request.get_json(force=True) or {}
+    pipeline_id = data.get("pipeline_id", "")
+    accepted_ids = set(str(i) for i in data.get("accepted_ids", []))
+    rejected_ids = set(str(i) for i in data.get("rejected_ids", []))
+    raw_edited = data.get("edited_suggestions", [])
+    edited = {str(e.get("id")): e for e in raw_edited if isinstance(e, dict) and e.get("id")}
+
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+    if not accepted_ids and not rejected_ids:
+        return jsonify({"status": "error", "error": "请至少采纳或驳回一条建议"})
+
+    sd = {}
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                sd = p.get("step_data", {}) or {}
+                break
+    pool = sd.get("step3_pending_suggestions")
+    if not isinstance(pool, list) or not pool:
+        return jsonify({"status": "error", "error": "建议池为空"})
+
+    accepted = []
+    for s in pool:
+        sid = str(s.get("id"))
+        if sid in accepted_ids:
+            accepted.append({**s, **edited.get(sid, {})})
+
+    new_info = {}
+    applied = 0
+    if accepted:
+        ir_path, _key = resolve_knowledge_ir_path(WORKSPACE, sd)
+        if not ir_path:
+            return jsonify({"status": "error", "error": "未找到 Skill 草稿（IR），请先完成知识萃取"})
+        try:
+            from skill_ir import STATUS_ALIGNED, apply_revisions, load_ir, render_skill_md, save_ir
+
+            ir = load_ir(ir_path)
+            new_ir, applied = apply_revisions(ir, accepted, by="expert", new_status=STATUS_ALIGNED)
+            draft_name = save_ir(WORKSPACE, new_ir, pipeline_id=pipeline_id)
+            md_name, md_url = "", ""
+            try:
+                config = {}
+                if SCHEMA_PATH.exists():
+                    from excel_to_skill import load_scenario_config
+                    config = load_scenario_config(str(SCHEMA_PATH))
+                md_content = render_skill_md(new_ir, config)
+                md_name = f"SKILL_aligned_{uuid.uuid4().hex[:8]}.md"
+                (WORKSPACE / md_name).write_text(md_content, encoding="utf-8")
+                md_url = f"/downloads/{md_name}"
+            except Exception:
+                md_name, md_url = "", ""
+            new_info = {
+                "aligned_file": draft_name,
+                "aligned_url": f"/downloads/{draft_name}",
+                "aligned_md_file": md_name,
+                "aligned_md_url": md_url,
+                "aligned_version": new_ir["skill_meta"]["draft_version"],
+            }
+        except Exception as e:
+            return jsonify({"status": "error", "error": f"应用建议失败: {str(e)}"})
+
+    # 更新建议池 + 持久化新对齐稿
+    handled = accepted_ids | rejected_ids
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                sd = p.setdefault("step_data", {})
+                old_pool = sd.get("step3_pending_suggestions")
+                if isinstance(old_pool, list):
+                    sd["step3_pending_suggestions"] = [
+                        s for s in old_pool if str(s.get("id")) not in handled
+                    ]
+                if new_info:
+                    sd["step3_aligned_file"] = new_info["aligned_file"]
+                    sd["step3_aligned_url"] = new_info["aligned_url"]
+                    sd["step3_aligned_version"] = new_info["aligned_version"]
+                    if new_info.get("aligned_md_file"):
+                        sd["step3_aligned_md_file"] = new_info["aligned_md_file"]
+                        sd["step3_aligned_md_url"] = new_info["aligned_md_url"]
+                    p.setdefault("step_status", {})
+                    p["step_status"]["3"] = "done"
+                    if p["step_status"].get("4", "pending") == "pending":
+                        p["step_status"]["4"] = "active"
+                p["updated_at"] = datetime.datetime.now().isoformat()
+                save_pipelines(pipelines)
+                break
+
+    return jsonify({
+        "status": "ok",
+        "applied_count": applied,
+        "accepted_count": len(accepted),
+        "rejected_count": len(rejected_ids),
+        "remaining": max(0, len(pool) - len(handled)),
+        **new_info,
+    })
 
 
 def _align_no_opinion_success_payload(
@@ -4561,6 +4852,10 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
                     save_pipelines(pipelines)
                     break
 
+        aligned_info = _persist_step3_aligned_ir(
+            pipeline_id, output_name, notes=expert_notes, style=style,
+        )
+
         skill_info = SKILL_REGISTRY.get("knowledge-revision", {})
         return jsonify({
             "status": "ok",
@@ -4570,6 +4865,9 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
             "download_url": "/downloads/" + output_name,
             "markdown_file": md_name,
             "markdown_download_url": md_url,
+            "aligned_file": aligned_info.get("aligned_file", ""),
+            "aligned_md_url": aligned_info.get("aligned_md_url", ""),
+            "aligned_version": aligned_info.get("aligned_version", 0),
             "expert_notes_json": expert_notes,
             "skill_name": skill_info.get("name", "知识对齐"),
             "skill_id": "knowledge-revision",
@@ -5097,6 +5395,10 @@ def api_step3_apply_notes():
         )
         # endregion
 
+        aligned_info = _persist_step3_aligned_ir(
+            pipeline_id, output_name, notes=final_notes, style=cached_style,
+        )
+
         return jsonify({
             "status": "ok",
             "revision_count": revision_count,
@@ -5107,6 +5409,9 @@ def api_step3_apply_notes():
             "download_url": "/downloads/" + output_name,
             "markdown_file": md_name,
             "markdown_download_url": md_url,
+            "aligned_file": aligned_info.get("aligned_file", ""),
+            "aligned_md_url": aligned_info.get("aligned_md_url", ""),
+            "aligned_version": aligned_info.get("aligned_version", 0),
         })
     except Exception as e:
         return jsonify({"status": "error", "error": f"生成对齐稿失败: {str(e)}"})
@@ -5776,9 +6081,16 @@ def step3_interview_start():
 
 @app.route("/api/step3/interview/convert", methods=["POST"])
 def step3_interview_convert():
-    """知识深挖（Step3 访谈）：将已回答的访谈记录转换为知识条目，供后续融合使用。"""
+    """知识深挖（Step3 访谈）：将已回答的访谈记录转换为知识条目。
+
+    可选 push_to_pool=1 + pipeline_id：将回答转为 entry 级修订建议推入 Step3 建议池
+    （带 entry_id 的回答 → supplement 该条目的 L2 隐性列；否则 → add 新条目），
+    由专家在建议池统一裁决后应用到 Skill IR。
+    """
     answers_json = request.form.get("answers", "[]")
     source_label = request.form.get("source_label", "访谈记录")
+    pipeline_id = request.form.get("pipeline_id", "")
+    push_to_pool = request.form.get("push_to_pool", "") in ("1", "true", "yes")
 
     try:
         answers = json.loads(answers_json)
@@ -5789,10 +6101,39 @@ def step3_interview_convert():
         return jsonify({"status": "error", "error": "请提供访谈回答"})
 
     records = interview_answers_to_records(answers, source_label=source_label)
+
+    pushed = 0
+    if push_to_pool and pipeline_id:
+        # interview_answers_to_records 跳过空回答；用同样的过滤保证 zip 对齐
+        answered = [a for a in answers if str(a.get("answer", "")).strip()]
+        suggestions = []
+        for ans, rec in zip(answered, records):
+            entry_id = str(ans.get("entry_id") or ans.get("知识编号") or "").strip()
+            category = rec.get("知识分类", "经验判断")
+            if entry_id and category in ("经验判断", "适用边界", "例外情形"):
+                suggestions.append({
+                    "entry_id": entry_id,
+                    "field": category,
+                    "action": "supplement",
+                    "new_value": rec.get("知识描述", ""),
+                    "note": f"访谈回填（{source_label}）：{str(ans.get('question', ''))[:60]}",
+                    "by": "interview",
+                })
+            else:
+                suggestions.append({
+                    "action": "add",
+                    "category": category,
+                    "fields": {k: v for k, v in rec.items() if not str(k).startswith("_")},
+                    "note": f"访谈新增（{source_label}）",
+                    "by": "interview",
+                })
+        pushed = _push_step3_suggestions(pipeline_id, suggestions, source="interview")
+
     return jsonify({
         "status": "ok",
         "records": records,
         "count": len(records),
+        "pushed_to_pool": pushed,
     })
 
 

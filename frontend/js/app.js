@@ -1035,6 +1035,7 @@ function switchPanel(step) {
     if (s3Empty) { s3Empty.style.display = 'none'; }
     loadStep3PrevOutput();
     loadStep3RevisionContext();
+    loadStep3SuggestionPool();
     updateStep3AlignModeHint();
   }
   if (step === 4 && currentPipeline) {
@@ -2497,6 +2498,104 @@ async function loadStep3RevisionContext() {
     bodyEl.innerHTML = html;
     ctxEl.style.display = '';
   } catch (e) { ctxEl.style.display = 'none'; }
+}
+
+/* ===== Step3 建议池（验证回流 / 访谈转化）===== */
+var _s3SuggestionPool = [];
+
+async function loadStep3SuggestionPool() {
+  var panel = document.getElementById('s3-suggestion-panel');
+  var listEl = document.getElementById('s3-suggestion-list');
+  var countEl = document.getElementById('s3-suggestion-count');
+  if (!panel || !listEl) return;
+  var pid = currentPipeline ? currentPipeline.id : null;
+  if (!pid) { panel.classList.add('hidden'); return; }
+  try {
+    var resp = await fetch(API_BASE + '/api/step3/suggestions?pipeline_id=' + pid);
+    var data = await resp.json();
+    if (data.status !== 'ok') { panel.classList.add('hidden'); return; }
+    _s3SuggestionPool = data.suggestions || [];
+    if (!_s3SuggestionPool.length) { panel.classList.add('hidden'); return; }
+    panel.classList.remove('hidden');
+    if (countEl) {
+      var srcParts = [];
+      var bySrc = data.by_source || {};
+      var srcNames = { validation: '验证回流', interview: '访谈转化' };
+      Object.keys(bySrc).forEach(function (k) { srcParts.push((srcNames[k] || k) + ' ' + bySrc[k]); });
+      countEl.textContent = '共 ' + _s3SuggestionPool.length + ' 条' + (srcParts.length ? '（' + srcParts.join(' · ') + '）' : '');
+    }
+    var actionNames = { modify: '修改', supplement: '补充', delete: '清空字段', delete_entry: '删除条目', add: '新增条目' };
+    var srcNames2 = { validation: '🔁 验证回流', interview: '🎙 访谈转化' };
+    var html = '';
+    _s3SuggestionPool.forEach(function (s) {
+      html += '<div class="rc-insight" style="margin-bottom:8px;">';
+      html += '<label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;">';
+      html += '<input type="checkbox" class="s3-suggestion-check" value="' + escapeHtml(String(s.id)) + '" style="margin-top:3px;">';
+      html += '<div style="flex:1;">';
+      html += '<div class="rc-title">' + escapeHtml(srcNames2[s.source] || s.source || '') + ' · ' + escapeHtml(actionNames[s.action] || s.action || '');
+      if (s.entry_id) html += ' · <strong>' + escapeHtml(s.entry_id) + '</strong>';
+      if (s.field) html += ' / ' + escapeHtml(s.field);
+      html += '</div>';
+      if (s.new_value) html += '<div class="rc-text">新值：' + escapeHtml(String(s.new_value).slice(0, 200)) + '</div>';
+      if (s.fields && s.fields['知识描述']) html += '<div class="rc-text">' + escapeHtml(String(s.fields['知识描述']).slice(0, 200)) + '</div>';
+      if (s.note) html += '<div class="rc-text" style="opacity:.75;">' + escapeHtml(String(s.note).slice(0, 160)) + '</div>';
+      html += '</div></label></div>';
+    });
+    listEl.innerHTML = html;
+  } catch (e) { panel.classList.add('hidden'); }
+}
+
+function _s3CheckedSuggestionIds() {
+  var ids = [];
+  document.querySelectorAll('.s3-suggestion-check:checked').forEach(function (c) { ids.push(c.value); });
+  return ids;
+}
+
+async function step3ApplySuggestions() {
+  var pid = currentPipeline ? currentPipeline.id : null;
+  if (!pid) return;
+  var ids = _s3CheckedSuggestionIds();
+  if (!ids.length) { showToast('请先勾选要采纳的建议', 'error'); return; }
+  var btn = document.getElementById('s3-suggestion-apply');
+  if (btn) btn.disabled = true;
+  try {
+    var result = await apiCallJSON('/api/step3/apply_suggestions', { pipeline_id: pid, accepted_ids: ids });
+    if (result.status !== 'ok') { showToast(result.error || '应用建议失败', 'error'); return; }
+    if (currentPipeline) {
+      currentPipeline.step_data = currentPipeline.step_data || {};
+      if (result.aligned_file) {
+        currentPipeline.step_data.step3_aligned_file = result.aligned_file;
+        currentPipeline.step_data.step3_aligned_url = result.aligned_url || '';
+        currentPipeline.step_data.step3_aligned_version = result.aligned_version || 0;
+        if (result.aligned_md_file) {
+          currentPipeline.step_data.step3_aligned_md_file = result.aligned_md_file;
+          currentPipeline.step_data.step3_aligned_md_url = result.aligned_md_url || '';
+        }
+      }
+    }
+    showToast('已应用 ' + (result.applied_count || 0) + ' 条建议，生成对齐稿 v' + (result.aligned_version || '?'));
+    loadStep3SuggestionPool();
+    refreshCurrentPipeline();
+  } catch (e) {
+    showToast('应用建议失败: ' + e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function step3RejectSuggestions() {
+  var pid = currentPipeline ? currentPipeline.id : null;
+  if (!pid) return;
+  var ids = _s3CheckedSuggestionIds();
+  if (!ids.length) { showToast('请先勾选要驳回的建议', 'error'); return; }
+  try {
+    var result = await apiCallJSON('/api/step3/apply_suggestions', { pipeline_id: pid, rejected_ids: ids });
+    if (result.status !== 'ok') { showToast(result.error || '驳回失败', 'error'); return; }
+    showToast('已驳回 ' + ids.length + ' 条建议');
+    loadStep3SuggestionPool();
+  } catch (e) {
+    showToast('驳回失败: ' + e.message, 'error');
+  }
 }
 
 // Phase 1: Generate alignment preview (AI suggestions only)
