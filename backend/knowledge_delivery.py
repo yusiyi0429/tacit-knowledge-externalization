@@ -431,7 +431,7 @@ def excel_to_delivery_bundle(
     pipeline_context: dict | None = None,
     formats=None,
 ) -> dict:
-    """主入口：一次生成思维链 / QA / Skill(OpenClaw) 三类交付物。"""
+    """Excel 入口：读取工作簿后委托 records_to_delivery_bundle（过渡期兼容路径）。"""
     records, version_info = read_excel_knowledge(excel_path, pipeline_context)
     if not records:
         return {
@@ -441,12 +441,40 @@ def excel_to_delivery_bundle(
                 "请确认知识对齐稿中后段知识列已有内容。"
             ),
         }
+    return records_to_delivery_bundle(
+        records,
+        version_info,
+        config_path,
+        output_dir,
+        formats=formats,
+        source_name=os.path.splitext(os.path.basename(excel_path))[0],
+    )
 
+
+def records_to_delivery_bundle(
+    records: list,
+    version_info: dict,
+    config_path: str,
+    output_dir: str,
+    *,
+    formats=None,
+    source_name: str = "",
+) -> dict:
+    """records 主入口：一次生成思维链 / QA / Skill(OpenClaw) 三类交付物。
+
+    Skill IR 路径调用方式：
+        from skill_ir import ir_to_records, ir_version_info
+        records_to_delivery_bundle(ir_to_records(ir), ir_version_info(ir), ...)
+    """
+    if not records:
+        return {"status": "error", "message": "知识 records 为空，无法生成交付物。"}
+
+    version_info = version_info or {}
     warnings = validate_records(records) or []
     config = load_scenario_config(config_path)
     scenario_name = config.get(
         "scenario_name",
-        version_info.get("场景名称", os.path.splitext(os.path.basename(excel_path))[0]),
+        version_info.get("场景名称", source_name or "未命名场景"),
     )
     groups = group_by_category(records)
     metrics = compute_quality_metrics(records, groups)

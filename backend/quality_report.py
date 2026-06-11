@@ -385,12 +385,18 @@ def generate_report(records: list, config: dict, scores: dict, total_score: floa
 
 
 def quality_report(excel_path: str, config_path: str) -> dict:
-    """主评分流程"""
+    """Excel 入口：读取工作簿后委托 quality_report_from_records（过渡期兼容路径）。"""
     records, config_info = read_excel_data(excel_path)
     if not records:
         return {"status": "error", "message": f"No data found in {excel_path}"}
+    return quality_report_from_records(records, load_config(config_path))
 
-    config = load_config(config_path)
+
+def quality_report_from_records(records: list, config: dict | None = None) -> dict:
+    """records 主评分流程（Skill IR 路径：ir_to_records(ir) 直接入参）。"""
+    if not records:
+        return {"status": "error", "message": "知识 records 为空"}
+    config = config or {}
 
     scores = {
         "完整性": score_completeness(records, config),
