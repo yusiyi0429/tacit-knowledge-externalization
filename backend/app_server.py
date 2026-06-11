@@ -1425,6 +1425,8 @@ def api_step4_compile():
     # endregion
 
     input_path = None
+    ir_path = None
+    ir_source_key = ""
     pipeline = None
     if pipeline_id:
         with _pipelines_lock:
@@ -1436,35 +1438,39 @@ def api_step4_compile():
                     break
     if pipeline_id and not excel_file and pipeline:
             step_data = pipeline.get("step_data", {})
-            resolved, _src = resolve_knowledge_workbook_path(WORKSPACE, step_data, purpose="compile")
-            if resolved:
-                input_path = str(resolved)
+            # 首选 Skill IR（step3_aligned_file → step2_draft_file），Excel 为过渡期回退
+            ir_path, ir_source_key = resolve_knowledge_ir_path(WORKSPACE, step_data)
+            if not ir_path:
+                resolved, _src = resolve_knowledge_workbook_path(WORKSPACE, step_data, purpose="compile")
+                if resolved:
+                    input_path = str(resolved)
 
-    if not input_path:
+    if not input_path and not ir_path:
         if excel_file:
             input_path = save_upload(excel_file, prefix="compile")
         else:
             return jsonify({
                 "status": "error",
-                "error": "未找到可转化的知识稿。请先完成「知识萃取」，并在「知识对齐」节点生成 final_*.xlsx（或上传确认版 Excel）",
+                "error": "未找到可转化的知识稿。请先完成「知识萃取」，并在「知识对齐」节点生成对齐稿（或上传确认版 Excel）",
             })
+    input_basename = os.path.basename(str(ir_path)) if ir_path else os.path.basename(input_path or "")
     # region agent log
     _agent_debug_log(
         "run-2",
         "H6",
         "app_server.py:api_step4_compile:input",
         "step4 compile input resolved",
-        {"input_basename": os.path.basename(input_path), "input_exists": os.path.exists(input_path)},
+        {"input_basename": input_basename, "input_kind": "ir" if ir_path else "excel"},
     )
     # endregion
     _debug_log(
         "H5",
         "app_server.py:api_step4_compile",
         "step4 compile start",
-        {"has_pipeline_id": bool(pipeline_id), "input_basename": os.path.basename(input_path)},
+        {"has_pipeline_id": bool(pipeline_id), "input_basename": input_basename},
     )
 
-    from knowledge_delivery import excel_to_delivery_bundle
+    from knowledge_delivery import excel_to_delivery_bundle, records_to_delivery_bundle
 
     output_dir = str(WORKSPACE / f"delivery_{uuid.uuid4().hex[:8]}")
     config_path = str(SCHEMA_PATH) if SCHEMA_PATH.exists() else ""
@@ -1482,10 +1488,29 @@ def api_step4_compile():
     formats_raw = request.form.get("formats", "").strip()
     formats = [f.strip() for f in formats_raw.split(",") if f.strip()] if formats_raw else None
 
+    published_version = 0
     try:
-        result = excel_to_delivery_bundle(
-            input_path, config_path, output_dir, pipeline_ctx or None, formats=formats
-        )
+        if ir_path:
+            from skill_ir import ir_to_records, ir_version_info, load_ir
+
+            ir = load_ir(ir_path)
+            published_version = int(ir.get("skill_meta", {}).get("draft_version", 1) or 1)
+            result = records_to_delivery_bundle(
+                ir_to_records(ir),
+                ir_version_info(ir),
+                config_path,
+                output_dir,
+                formats=formats,
+                source_name=ir.get("skill_meta", {}).get("scenario_name", ""),
+            )
+            result["input_kind"] = "ir"
+            result["ir_source"] = ir_source_key
+            result["ir_version"] = published_version
+        else:
+            result = excel_to_delivery_bundle(
+                input_path, config_path, output_dir, pipeline_ctx or None, formats=formats
+            )
+            result["input_kind"] = "excel"
     except Exception as e:
         # region agent log
         _agent_debug_log(
@@ -1493,7 +1518,7 @@ def api_step4_compile():
             "H7",
             "app_server.py:api_step4_compile:exception",
             "step4 delivery generation raised exception",
-            {"error": str(e)[:500], "input_basename": os.path.basename(input_path)},
+            {"error": str(e)[:500], "input_basename": input_basename},
         )
         # endregion
         _debug_log(
@@ -1512,7 +1537,7 @@ def api_step4_compile():
             "H7",
             "app_server.py:api_step4_compile:result_error",
             "step4 delivery generation returned error",
-            {"error": str(err)[:500], "input_basename": os.path.basename(input_path)},
+            {"error": str(err)[:500], "input_basename": input_basename},
         )
         # endregion
         _debug_log(
@@ -1580,6 +1605,30 @@ def api_step4_compile():
         result["openclaw_manifest_url"] = manifest_pub[1]
         result["openclaw_manifest_name"] = manifest_pub[0]
 
+    # 质量评分（确定性规则）→ 发布门槛判定
+    quality_score = None
+    can_publish = False
+    try:
+        if ir_path:
+            from quality_report import quality_report_from_records
+            from skill_ir import ir_to_records as _ir2rec, load_ir as _load_ir
+
+            config = {}
+            if SCHEMA_PATH.exists():
+                from excel_to_skill import load_scenario_config
+                config = load_scenario_config(str(SCHEMA_PATH))
+            q = quality_report_from_records(_ir2rec(_load_ir(ir_path)), config)
+            if q.get("status") == "ok":
+                quality_score = q.get("total_score")
+                threshold = float((config.get("quality") or {}).get("skill_score_threshold", 75))
+                can_publish = bool(quality_score is not None and quality_score >= threshold)
+                result["quality_score"] = quality_score
+                result["quality_grade"] = q.get("grade", "")
+                result["publish_threshold"] = threshold
+                result["can_publish"] = can_publish
+    except Exception:
+        pass
+
     if pipeline_id:
         with _pipelines_lock:
             pipelines = load_pipelines()
@@ -1601,8 +1650,12 @@ def api_step4_compile():
                     if manifest_pub:
                         sd["step4_manifest_file"] = manifest_pub[0]
                         sd["step4_manifest_url"] = manifest_pub[1]
+                    if published_version:
+                        sd["step4_published_version"] = published_version
                     p.setdefault("step_status", {})
                     p["step_status"]["4"] = "done"
+                    if p["step_status"].get("5", "pending") == "pending":
+                        p["step_status"]["5"] = "active"
                     p["current_step"] = max(p.get("current_step", 1), 4)
                     p["updated_at"] = datetime.datetime.now().isoformat()
                     save_pipelines(pipelines)
@@ -1717,7 +1770,7 @@ def api_step4_generate_executable_skill():
 
 
 def _read_step3_knowledge_items(pipeline_id: str) -> tuple[list[dict], dict]:
-    """Shared helper: resolve pipeline, read step3 Excel, return (items, pipeline_dict)."""
+    """Shared helper: resolve pipeline, read step3 IR/Excel, return (items, pipeline_dict)."""
     with _pipelines_lock:
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
@@ -1727,6 +1780,18 @@ def _read_step3_knowledge_items(pipeline_id: str) -> tuple[list[dict], dict]:
         pipeline["step_data"] = dict(pipeline.get("step_data", {}))
 
     sd = pipeline.get("step_data", {})
+
+    # 首选 Skill IR（对齐版 → 萃取稿）
+    ir_path, _ir_key = resolve_knowledge_ir_path(WORKSPACE, sd)
+    if ir_path:
+        try:
+            from skill_ir import ir_to_records, load_ir
+            items = ir_to_records(load_ir(ir_path))
+            if items:
+                return items, pipeline
+        except Exception:
+            pass
+
     step3_key = sd.get("step3_final_file") or sd.get("step3_revision_file") or sd.get("step2_output_file")
     if not step3_key:
         raise ValueError("未找到 step3 对齐输出或 step2 萃取输出")
@@ -1904,6 +1969,7 @@ def api_step4_quality():
     excel_file = request.files.get("excel")
 
     input_path = None
+    ir_path = None
     if pipeline_id and not excel_file:
         with _pipelines_lock:
             pipelines = load_pipelines()
@@ -1915,9 +1981,42 @@ def api_step4_quality():
                     break
         if pipeline:
             step_data = pipeline.get("step_data", {})
-            resolved, _src = resolve_knowledge_workbook_path(WORKSPACE, step_data, purpose="compile")
-            if resolved:
-                input_path = str(resolved)
+            # 首选 Skill IR，Excel 为过渡期回退
+            ir_path, _ir_key = resolve_knowledge_ir_path(WORKSPACE, step_data)
+            if not ir_path:
+                resolved, _src = resolve_knowledge_workbook_path(WORKSPACE, step_data, purpose="compile")
+                if resolved:
+                    input_path = str(resolved)
+
+    # IR 路径：进程内规则评分（无子进程）
+    if ir_path:
+        try:
+            from quality_report import quality_report_from_records
+            from skill_ir import ir_to_records, load_ir
+
+            config = {}
+            if SCHEMA_PATH.exists():
+                from excel_to_skill import load_scenario_config
+                config = load_scenario_config(str(SCHEMA_PATH))
+            q = quality_report_from_records(ir_to_records(load_ir(ir_path)), config)
+            if q.get("status") != "ok":
+                return jsonify(q)
+            report_name = f"quality_report_{uuid.uuid4().hex[:8]}.md"
+            (WORKSPACE / report_name).write_text(q.get("report_markdown", ""), encoding="utf-8")
+            q.pop("report_markdown", None)
+            q["download_url"] = "/downloads/" + report_name
+            q["input_kind"] = "ir"
+            with _pipelines_lock:
+                pipelines = load_pipelines()
+                for p in pipelines:
+                    if p["id"] == pipeline_id:
+                        p.setdefault("step_data", {})["step4_quality_file"] = report_name
+                        p.setdefault("step_data", {})["step4_quality_url"] = "/downloads/" + report_name
+                        save_pipelines(pipelines)
+                        break
+            return jsonify(q)
+        except Exception as e:
+            return jsonify({"status": "error", "error": f"质量评分失败: {str(e)}"})
 
     if not input_path:
         if excel_file:
@@ -1925,7 +2024,7 @@ def api_step4_quality():
         else:
             return jsonify({
                 "status": "error",
-                "error": "未找到可分析的知识稿。请先完成「知识对齐」生成 final_*.xlsx（或上传确认版 Excel）",
+                "error": "未找到可分析的知识稿。请先完成「知识对齐」生成对齐稿（或上传确认版 Excel）",
             })
 
     report_name = f"quality_report_{uuid.uuid4().hex[:8]}.md"
