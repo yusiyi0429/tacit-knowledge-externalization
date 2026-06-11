@@ -126,15 +126,35 @@ def _resolve_column_by_item_key(header_map: dict, item_key: str):
 
 
 def resolve_field_columns(header_map: dict) -> dict:
-    """字段名 → 列号；未匹配则为 None。"""
-    cols = {}
+    """字段名 → 列号；未匹配则为 None。
+
+    两轮匹配：先全字段精确匹配（防止「描述」子串误命中「知识描述」列），
+    再对未解析字段做子串匹配；已被占用的列不重复分配。
+    """
+    cols = {field: None for field in FIELD_COLUMN_ALIASES}
+    used_cols: set = set()
+
+    # 第一轮：精确匹配
     for field, aliases in FIELD_COLUMN_ALIASES.items():
-        col = None
         for header, c in header_map.items():
-            if _match_alias(header, aliases):
-                col = c
+            if c in used_cols:
+                continue
+            if _norm(header) in aliases:
+                cols[field] = c
+                used_cols.add(c)
                 break
-        cols[field] = col
+
+    # 第二轮：子串匹配兜底（跳过已占用列）
+    for field, aliases in FIELD_COLUMN_ALIASES.items():
+        if cols[field] is not None:
+            continue
+        for header, c in header_map.items():
+            if c in used_cols:
+                continue
+            if _match_alias(header, aliases):
+                cols[field] = c
+                used_cols.add(c)
+                break
     return cols
 
 
