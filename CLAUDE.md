@@ -17,28 +17,33 @@ cd backend && python app_server.py --host 127.0.0.1 --port 5000 &
 浏览器访问 `http://127.0.0.1:5000`
 
 ## 项目定位
-将银行信贷专家的隐性经验 → 结构化、可交付的 AI Skill，通过 4 步流水线（场景锚定→知识萃取→知识对齐→智能转化）。
+将银行信贷专家的隐性经验 → 结构化、可交付的 AI Skill，通过 **5 步 Skill 中心化流水线**（场景锚定→知识萃取→知识对齐→智能转化→验证回放），验证分歧回流第 3 步形成闭环。
+
+流水线主产物是 **Skill IR（结构化 JSON 草稿，`skill_draft_*.json`）**：Step2 产出 v1（draft）→ Step3 专家对齐产出 vN（aligned）→ Step4 确定性渲染 SKILL.md 终版 → Step5 回放验证。SKILL.md 永远是渲染产物；Excel 工作簿保留为过渡期编辑面与兼容产物。详见 `docs/重构实施方案-Skill中心化流水线.md`。
 
 ## 技术栈
-- **后端**: Python Flask (5100+ lines in app_server.py), openpyxl, PyPDF2
+- **后端**: Python Flask (6000+ lines in app_server.py), openpyxl, PyPDF2
 - **前端**: Vanilla JS (无框架), Luckysheet (在线 Excel 编辑)
-- **存储**: 文件工作空间 (无数据库), 流水线 JSON 持久化
+- **存储**: 文件工作空间 + 外部知识库 SQLite (`data/kb/knowledge_base.db`), 流水线 JSON 持久化
 - **LLM**: OpenAI 兼容 / 建行 CCB 网关双模式
 
 ## 关键文件
 | 文件 | 职责 |
 |------|------|
-| `backend/app_server.py` | Flask 主服务 (路由, Skill 执行器, LLM 解析, 多源萃取路由) |
-| `backend/pipeline_artifacts.py` | 文件命名约束, step data key 定义 |
+| `backend/app_server.py` | Flask 主服务 (路由, Skill 执行器, LLM 解析, 多源萃取路由, Step5 验证, KB API) |
+| `backend/skill_ir.py` | Skill IR 单一事实源（new_draft/apply_revisions/render_skill_md/版本校验） |
+| `backend/knowledge_base.py` | 外部知识库（kb_entries 资产/kb_cases 案例库/发布登记/验证记录） |
+| `backend/validation_replay.py` | Step5 决策回放 + 分歧→entry 级修订建议（validation_to_revision_suggestions） |
+| `backend/pipeline_artifacts.py` | 文件命名约束, step data key 定义, IR 解析（resolve_knowledge_ir_path） |
 | `backend/knowledge_fusion.py` | 多源知识融合（去重/冲突检测/跨源合并/访谈转换） |
 | `backend/interview_session.py` | 专家访谈追问生成（案例反推/对比追问/极限假设） |
-| `backend/step2_preextract.py` | 知识萃取 Excel 生成 |
-| `backend/revision_processor.py` | 知识修订处理器 |
-| `backend/knowledge_delivery.py` | 智能转化 (SKILL.md/QA/COT 生成) |
-| `backend/quality_report.py` | 五维质量评分 |
-| `frontend/js/app.js` | 主逻辑 (流水线 CRUD, 步骤切换, Skill 执行, 多源融合 UI) |
-| `frontend/js/state.js` | 全局状态管理器 (PipelineState 类) |
-| `config/scenario-schema.yaml` | 场景知识结构定义 |
+| `backend/step2_preextract.py` | 知识萃取 Excel 生成（过渡期兼容产物） |
+| `backend/revision_processor.py` | 知识修订处理器（Excel 编辑面） |
+| `backend/knowledge_delivery.py` | 智能转化 (SKILL.md/QA/COT 生成, records_to_delivery_bundle) |
+| `backend/quality_report.py` | 五维质量评分 (quality_report_from_records 供 IR 路径) |
+| `frontend/js/app.js` | 主逻辑 (流水线 CRUD, 步骤切换, Skill 执行, 建议池, Step5 回放 UI) |
+| `frontend/js/state.js` | 全局状态管理器 (PipelineState 类, MAX_STEP=5) |
+| `config/scenario-schema.yaml` | 场景知识结构定义（含 replay_hit_threshold 回放门槛） |
 
 ## 天工 Agent 团队（10 人）—— 完整开发流程
 
@@ -104,9 +109,18 @@ critical（阻塞合入）/ high（应尽快修）/ medium（建议）/ low（�
 
 ## step data key 一致性规则
 以下三处必须保持同步，否则会出现数据静默丢失：
-- `backend/pipeline_artifacts.py` → `STEP_OUTPUT_KEYS_BY_STEP`
+- `backend/pipeline_artifacts.py` → `STEP_OUTPUT_KEYS_BY_STEP`（现含 1–5 步，注意 `auxiliary_step_data_keys` 的 `MAX_PIPELINE_STEP=5`）
 - `frontend/js/state.js` → `DOWNSTREAM_OUTPUT_KEYS`
 - `frontend/js/app.js` → `DOWNSTREAM_OUTPUT_KEYS`
+
+新增产物文件前缀必须同步进 `DOWNLOAD_ALLOWED_PREFIXES`（已含 `skill_draft_`、`validation_`、`revision_suggestions_`、`kb_`），否则下载 403。
+
+## Skill IR 不变量
+- LLM 永远不直接产 IR 整体；IR 由程序从 records 组装（`_parse_extracted_items` 六层降级之后）
+- SKILL.md 永远由 `skill_ir.render_skill_md()` 确定性渲染，不允许反向手改 md 回填
+- 修订寻址协议 `{entry_id, field, action, old_value, new_value, note, by}`；删除条目的 entry_id 不得被 add 复用
+- 版本链：`parent_version < draft_version` 单调递增；`save_ir` 落盘前强制 `validate_ir`
+- 验证回流建议只进 Step3 建议池（`step3_pending_suggestions`），绝不自动应用——裁决权在专家
 
 ## 已知风险点
 - **路径穿越**: 所有文件访问必须经过 `safe_workspace_path()` / `basename_only()`
@@ -117,3 +131,6 @@ critical（阻塞合入）/ high（应尽快修）/ medium（建议）/ low（�
 - **多源融合**: `knowledge_fusion.py` 的去重基于词重叠率，可能漏掉语义重复但用词不同的条目；冲突检测仅基于分类内关键词对比，不覆盖跨分类冲突
 - **访谈执行**: `execute_interview_session` 需要 LLM 调用，如果 LLM 不可用则整个追问失败；生成的追问质量依赖 prompt 设计
 - **融合性能**: multi_source_extract 对每个文件依次调用 LLM，N 个文件会产生 N 次 LLM 调用，注意 token 消耗
+- **列解析子串匹配**: `resolve_field_columns` 必须精确匹配优先且不复用已占用列（曾因「描述」子串命中「知识描述」导致反模式覆盖知识描述）
+- **判官偏置**: Step5 回放的 `judge_model` 与萃取模型相同会导致命中率虚高，应配置不同模型
+- **KB supersede 误判**: `knowledge_base.publish_entries` 的 supersede 基于 bigram 重叠（阈值 0.7），语义相近但表述差异大的条目可能被误判为新条目导致重复膨胀，发布前注意人工核对

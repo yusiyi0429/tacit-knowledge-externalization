@@ -1,8 +1,17 @@
 # 重构实施方案：Skill 中心化流水线 + 外部知识库 + 验证回流
 
-> 状态：方案稿（待落地）
-> 适用版本：基于当前 `main` 分支（`backend/app_server.py` ≈ 5700 行）
-> 配套阅读：`CLAUDE.md`（step data key 同步契约）、`docs/业务说明文档.md`
+> 状态：**已实施**（Phase 0–6 全部落地，本文档保留为架构设计依据）
+> 配套阅读：`CLAUDE.md`（step data key 同步契约 + Skill IR 不变量）、`docs/业务说明文档.md`
+
+## 实施偏差说明（落地时的取舍）
+
+与方案的主要差异，均为降低风险的过渡期设计：
+
+1. **Step3 对齐采用「Excel 编辑面 + IR 收口」双轨**：专家意见解析/采纳/直通仍走成熟的 Excel 单元格寻址机制（`revision_processor` 色标审计保留），每次产出 `final_*.xlsx` 后由 `_persist_step3_aligned_ir()` 重建对齐版 IR（vN, status=aligned）。entry 级寻址的 IR 直接修订路径已实现（`/api/step3/apply_suggestions`），服务于验证回流与访谈转化两类建议；专家意见路径的 IR 直改可在后续迭代切换。
+2. **建议池来源**：当前聚合 验证回流（validation）+ 访谈转化（interview）两路 entry 级建议；融合冲突/重复以 flags_summary 形式展示，不生成可应用建议。
+3. **Step1 继承预检落在 Step2**：`kb_inherit` 勾选项在知识萃取界面（继承条目作为融合源参与去重），Step1 不单独做勾选 UI。
+4. **旧 `/api/validate/replay` 原样保留**（验证 Excel 知识文本），新 `/api/step5/replay` 验证 SKILL 终版/IR 渲染。
+5. **测试**：新增 `backend/scripts/test_skill_ir.py`、`test_knowledge_base.py`（单元）与 `e2e_ir_pipeline_test.py`（无 LLM 全链路端到端，覆盖 草稿→对齐→编译→回流→采纳→v+1 重编译→KB 发布→回滚清理）。
 
 ---
 
