@@ -37,6 +37,13 @@ DOWNLOAD_ALLOWED_PREFIXES = (
     "interview_",
     # 信号报告
     "signal_report_",
+    # Skill IR 草稿（Skill 中心化流水线）
+    "skill_draft_",
+    # Step5 验证环节
+    "validation_",
+    "revision_suggestions_",
+    # 知识库导出
+    "kb_",
 )
 
 STEP_OUTPUT_KEYS_BY_STEP = {
@@ -59,13 +66,20 @@ STEP_OUTPUT_KEYS_BY_STEP = {
         # 信号报告（新版统一端点产出）
         "step2_signal_report_file", "step2_signal_report_url",
         "step2_source_count", "step2_dedup_count",
+        # Skill IR 草稿 v1（Skill 中心化流水线主产物）
+        "step2_draft_file", "step2_draft_url",
+        "step2_draft_md_file", "step2_draft_md_url",
+        "step2_draft_version",
     ),
-    # UI 第 3 步「知识对齐」产出 final_*.xlsx
+    # UI 第 3 步「知识对齐」产出 final_*.xlsx + 对齐版 Skill IR（vN, status=aligned）
     3: (
         "step3_final_file", "step3_final_download_url", "step3_final_md_file", "step3_final_md_download_url",
         "step3_final_notes", "step3_final_style", "step3_final_count",
         "step3_revision_file", "step3_download_url", "step3_md_file", "step3_md_download_url",
         "step3_revision_notes", "step3_revision_style", "step3_revision_count", "step3_excel_path",
+        "step3_aligned_file", "step3_aligned_url",
+        "step3_aligned_md_file", "step3_aligned_md_url",
+        "step3_aligned_version", "step3_pending_suggestions",
     ),
     4: (
         "step4_skill_file", "step4_download_url",
@@ -73,6 +87,15 @@ STEP_OUTPUT_KEYS_BY_STEP = {
         "step4_qa_file", "step4_qa_download_url", "step4_qa_md_file", "step4_qa_md_download_url",
         "step4_manifest_file", "step4_manifest_url",
         "step4_quality_file", "step4_quality_url",
+        "step4_published_version",
+    ),
+    # 第 5 步「验证」：决策回放 + 分歧回流
+    5: (
+        "step5_replay_file", "step5_replay_url",
+        "step5_result_file", "step5_result_url",
+        "step5_suggestions_file", "step5_suggestions_url",
+        "step5_hit_rate", "step5_case_source", "step5_run_id",
+        "step5_golden_report_file", "step5_golden_report_url",
     ),
 }
 
@@ -99,6 +122,32 @@ def is_step3_revision_filename(name: str) -> bool:
 def is_step3_final_filename(name: str) -> bool:
     n = basename_only(name).lower()
     return n.endswith(".xlsx") and (n.startswith("final_") or n.startswith("edited_step3_"))
+
+
+def is_skill_draft_filename(name: str) -> bool:
+    """Skill IR 草稿文件（Step2 v1 draft / Step3 aligned vN）。"""
+    n = basename_only(name).lower()
+    return n.endswith(".json") and n.startswith("skill_draft_")
+
+
+def resolve_knowledge_ir_path(
+    workspace: Path,
+    step_data: dict,
+) -> tuple[Path | None, str]:
+    """Resolve the best Skill IR draft for compile/validation.
+
+    优先级：step3_aligned_file（对齐版）→ step2_draft_file（萃取稿，smoke only）。
+    """
+    if not isinstance(step_data, dict):
+        return None, ""
+    for key in ("step3_aligned_file", "step2_draft_file"):
+        raw = step_data.get(key, "")
+        if not raw or not is_skill_draft_filename(str(raw)):
+            continue
+        resolved = safe_workspace_path(workspace, str(raw), must_exist=True)
+        if resolved:
+            return resolved, key
+    return None, ""
 
 
 def resolve_knowledge_workbook_path(
@@ -196,12 +245,15 @@ def validate_step_data_patch(patch: dict) -> str | None:
         ("step2_output_file", is_step2_preextract_filename),
         ("step3_revision_file", is_step3_revision_filename),
         ("step3_final_file", is_step3_final_filename),
+        ("step2_draft_file", is_skill_draft_filename),
+        ("step3_aligned_file", is_skill_draft_filename),
     )
     for key, fn in checks:
         val = patch.get(key)
         if val and not fn(str(val)):
             return f"非法 {key}: {val}"
-    for key in ("step1_download_url", "step2_download_url", "step3_download_url", "step3_final_download_url", "step4_download_url"):
+    for key in ("step1_download_url", "step2_download_url", "step3_download_url", "step3_final_download_url", "step4_download_url",
+                "step2_draft_url", "step3_aligned_url", "step5_replay_url", "step5_suggestions_url"):
         url = patch.get(key)
         if not url:
             continue
@@ -219,10 +271,13 @@ def downstream_output_keys(from_step: int) -> list[str]:
     return keys
 
 
+MAX_PIPELINE_STEP = 5
+
+
 def auxiliary_step_data_keys(from_step: int) -> list[str]:
     """Non-output step_data keys to clear on rollback / upstream regenerate."""
     keys = []
-    for step in range(from_step, 5):
+    for step in range(from_step, MAX_PIPELINE_STEP + 1):
         keys.extend((
             f"step{step}_cached_file",
             f"step{step}_excel_path",

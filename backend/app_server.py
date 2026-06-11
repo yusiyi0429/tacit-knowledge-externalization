@@ -894,6 +894,7 @@ def api_create_pipeline():
             "2": "pending",
             "3": "pending",
             "4": "pending",
+            "5": "pending",
         },
         "step_data": {},
         "created_at": now,
@@ -981,7 +982,7 @@ def api_clear_pipeline(pipeline_id):
         if not pipeline:
             return jsonify({"status": "error", "error": "流水线不存在"})
         pipeline["step_data"] = {}
-        pipeline["step_status"] = {str(i): "pending" for i in range(1, 5)}
+        pipeline["step_status"] = {str(i): "pending" for i in range(1, 6)}
         pipeline["current_step"] = 1
         pipeline["updated_at"] = datetime.datetime.now().isoformat()
         save_pipelines(pipelines)
@@ -991,8 +992,8 @@ def api_clear_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>/rollback/<int:step>", methods=["POST"])
 def api_rollback_pipeline(pipeline_id, step):
     """Roll back a pipeline to a previous step; reset downstream step status and outputs."""
-    if step < 1 or step > 4:
-        return jsonify({"status": "error", "error": "步骤号必须在 1-4 之间"})
+    if step < 1 or step > 5:
+        return jsonify({"status": "error", "error": "步骤号必须在 1-5 之间"})
 
     with _pipelines_lock:
         pipelines = load_pipelines()
@@ -1000,7 +1001,7 @@ def api_rollback_pipeline(pipeline_id, step):
         if not pipeline:
             return jsonify({"status": "error", "error": "流水线不存在"})
 
-        for s in range(step, 5):
+        for s in range(step, 6):
             pipeline["step_status"][str(s)] = "pending"
 
         sd = pipeline.setdefault("step_data", {})
@@ -2516,6 +2517,93 @@ def _persist_step2_excel_pipeline(
                 p["updated_at"] = datetime.datetime.now().isoformat()
                 save_pipelines(pipelines)
                 break
+
+
+def _pipeline_scenario_meta(pipeline_id: str) -> dict:
+    """收集 Skill IR 所需的场景元数据（Step1 表单 + 流水线属性）。"""
+    if not pipeline_id:
+        return {}
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                sd = p.get("step_data", {}) or {}
+                form = sd.get("step1_form_data", {}) or {}
+                return {
+                    "scenario_name": form.get("scenario_name") or p.get("scenario", "") or p.get("name", ""),
+                    "scenario_content": form.get("scenario_content", ""),
+                    "sub_scenarios": form.get("sub_scenarios") or [],
+                    "domain": p.get("domain", ""),
+                }
+    return {}
+
+
+def _persist_step2_skill_draft(
+    pipeline_id: str,
+    records: list,
+    *,
+    signals: dict | None = None,
+    origin: str = "doc_extract",
+) -> dict:
+    """Step2 主产物：从萃取 records 组装 Skill IR v1 草稿并落盘 + 渲染 md 预览。
+
+    返回 {draft_file, draft_url, draft_md_file, draft_md_url, draft_version}；失败返回 {}。
+    """
+    if not records:
+        return {}
+    try:
+        from skill_ir import new_draft, render_skill_md, save_ir
+
+        meta = _pipeline_scenario_meta(pipeline_id)
+        ir = new_draft(
+            meta, records,
+            signals=signals or {},
+            origin=origin,
+            pipeline_id=pipeline_id,
+        )
+        draft_name = save_ir(WORKSPACE, ir, pipeline_id=pipeline_id)
+
+        md_name, md_url = "", ""
+        try:
+            config = {}
+            if SCHEMA_PATH.exists():
+                from excel_to_skill import load_scenario_config
+                config = load_scenario_config(str(SCHEMA_PATH))
+            md_content = render_skill_md(ir, config)
+            md_name = f"SKILL_draft_{uuid.uuid4().hex[:8]}.md"
+            (WORKSPACE / md_name).write_text(md_content, encoding="utf-8")
+            md_url = f"/downloads/{md_name}"
+        except Exception as e:
+            _debug_log("E", "_persist_step2_skill_draft", "render_error", str(e)[-200:])
+            md_name, md_url = "", ""
+
+        info = {
+            "draft_file": draft_name,
+            "draft_url": f"/downloads/{draft_name}",
+            "draft_md_file": md_name,
+            "draft_md_url": md_url,
+            "draft_version": 1,
+        }
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p.get("id") == pipeline_id:
+                    sd = p.setdefault("step_data", {})
+                    sd["step2_draft_file"] = draft_name
+                    sd["step2_draft_url"] = info["draft_url"]
+                    sd["step2_draft_version"] = 1
+                    if md_name:
+                        sd["step2_draft_md_file"] = md_name
+                        sd["step2_draft_md_url"] = md_url
+                    else:
+                        sd.pop("step2_draft_md_file", None)
+                        sd.pop("step2_draft_md_url", None)
+                    save_pipelines(pipelines)
+                    break
+        return info
+    except Exception as e:
+        _debug_log("E", "_persist_step2_skill_draft", "draft_error", str(e)[-200:])
+        return {}
 
 
 def _step1_knowledge_columns_from_pipeline(pipeline_id: str) -> list[str]:
@@ -5482,6 +5570,13 @@ def step2_extract_unified():
         except Exception:
             pass
 
+        # Skill IR 草稿 v1（主产物）
+        draft_info = _persist_step2_skill_draft(
+            pipeline_id, items,
+            signals={"signal_report": signal_report},
+            origin="case_review" if content_type == "case_review" else "doc_extract",
+        )
+
         return jsonify({
             "status": "ok",
             "preextract_file": preextract_file,
@@ -5493,6 +5588,11 @@ def step2_extract_unified():
             "errors": errors,
             "markdown_file": step2_md_name,
             "markdown_download_url": step2_md_url,
+            "skill_draft_file": draft_info.get("draft_file", ""),
+            "skill_draft_url": draft_info.get("draft_url", ""),
+            "skill_draft_md_file": draft_info.get("draft_md_file", ""),
+            "skill_draft_md_url": draft_info.get("draft_md_url", ""),
+            "skill_draft_version": draft_info.get("draft_version", 0),
         })
 
     # N>1：融合多源结果
@@ -5575,6 +5675,13 @@ def step2_extract_unified():
     except Exception:
         pass
 
+    # Skill IR 草稿 v1（主产物，多源融合后的 records）
+    draft_info = _persist_step2_skill_draft(
+        pipeline_id, fused.get("records", []),
+        signals={"signal_report": signal_report},
+        origin="case_review" if content_type == "case_review" else "doc_extract",
+    )
+
     return jsonify({
         "status": "ok",
         "preextract_file": excel_file,
@@ -5588,6 +5695,11 @@ def step2_extract_unified():
         "errors": errors,
         "markdown_file": multi_md_name,
         "markdown_download_url": multi_md_url,
+        "skill_draft_file": draft_info.get("draft_file", ""),
+        "skill_draft_url": draft_info.get("draft_url", ""),
+        "skill_draft_md_file": draft_info.get("draft_md_file", ""),
+        "skill_draft_md_url": draft_info.get("draft_md_url", ""),
+        "skill_draft_version": draft_info.get("draft_version", 0),
     })
 
 

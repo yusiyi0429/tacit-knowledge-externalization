@@ -107,13 +107,19 @@ const PIPELINE_OUTPUT_KEYS = [
   'step2_fusion_file', 'step2_fusion_download_url', 'step2_fusion_count', 'step2_fusion_conflicts', 'step2_fusion_sources',
   'step2_interview_file', 'step2_interview_count',
   'step2_signal_report_file', 'step2_signal_report_url', 'step2_source_count', 'step2_dedup_count',
+  'step2_draft_file', 'step2_draft_url', 'step2_draft_md_file', 'step2_draft_md_url', 'step2_draft_version',
   'step3_revision_file', 'step3_download_url', 'step3_md_file', 'step3_md_download_url', 'step3_revision_notes', 'step3_revision_style', 'step3_revision_count', 'step3_excel_path',
   'step3_final_file', 'step3_final_download_url', 'step3_final_md_file', 'step3_final_md_download_url', 'step3_final_notes', 'step3_final_style', 'step3_final_count',
+  'step3_aligned_file', 'step3_aligned_url', 'step3_aligned_md_file', 'step3_aligned_md_url', 'step3_aligned_version', 'step3_pending_suggestions',
   'step4_skill_file', 'step4_download_url',
   'step4_cot_file', 'step4_cot_download_url',
   'step4_qa_file', 'step4_qa_download_url', 'step4_qa_md_file', 'step4_qa_md_download_url',
   'step4_manifest_file', 'step4_manifest_url',
   'step4_quality_file', 'step4_quality_url',
+  'step4_published_version',
+  'step5_replay_file', 'step5_replay_url', 'step5_result_file', 'step5_result_url',
+  'step5_suggestions_file', 'step5_suggestions_url', 'step5_hit_rate', 'step5_case_source', 'step5_run_id',
+  'step5_golden_report_file', 'step5_golden_report_url',
 ];
 
 const DOWNSTREAM_OUTPUT_KEYS = [
@@ -121,13 +127,19 @@ const DOWNSTREAM_OUTPUT_KEYS = [
   'step2_fusion_file', 'step2_fusion_download_url', 'step2_fusion_count', 'step2_fusion_conflicts', 'step2_fusion_sources',
   'step2_interview_file', 'step2_interview_count',
   'step2_signal_report_file', 'step2_signal_report_url', 'step2_source_count', 'step2_dedup_count',
+  'step2_draft_file', 'step2_draft_url', 'step2_draft_md_file', 'step2_draft_md_url', 'step2_draft_version',
   'step3_revision_file', 'step3_download_url', 'step3_md_file', 'step3_md_download_url', 'step3_revision_notes', 'step3_revision_style', 'step3_revision_count', 'step3_excel_path',
   'step3_final_file', 'step3_final_download_url', 'step3_final_md_file', 'step3_final_md_download_url', 'step3_final_notes', 'step3_final_style', 'step3_final_count',
+  'step3_aligned_file', 'step3_aligned_url', 'step3_aligned_md_file', 'step3_aligned_md_url', 'step3_aligned_version', 'step3_pending_suggestions',
   'step4_skill_file', 'step4_download_url',
   'step4_cot_file', 'step4_cot_download_url',
   'step4_qa_file', 'step4_qa_download_url', 'step4_qa_md_file', 'step4_qa_md_download_url',
   'step4_manifest_file', 'step4_manifest_url',
   'step4_quality_file', 'step4_quality_url',
+  'step4_published_version',
+  'step5_replay_file', 'step5_replay_url', 'step5_result_file', 'step5_result_url',
+  'step5_suggestions_file', 'step5_suggestions_url', 'step5_hit_rate', 'step5_case_source', 'step5_run_id',
+  'step5_golden_report_file', 'step5_golden_report_url',
 ];
 
 function mergeStepDataPreserveOutputs(serverData, localData, options) {
@@ -175,8 +187,9 @@ function clearDownstreamOutputs(fromStep) {
     2: DOWNSTREAM_OUTPUT_KEYS.filter(k => k.startsWith('step2_') || k.startsWith('skill_')),
     3: DOWNSTREAM_OUTPUT_KEYS.filter(k => k.startsWith('step3_')),
     4: DOWNSTREAM_OUTPUT_KEYS.filter(k => k.startsWith('step4_')),
+    5: DOWNSTREAM_OUTPUT_KEYS.filter(k => k.startsWith('step5_')),
   };
-  for (let s = start; s <= 4; s++) {
+  for (let s = start; s <= 5; s++) {
     (keysByStep[s] || []).forEach(k => delete currentPipeline.step_data[k]);
   }
   if (fromStep <= 1) _lastStep2ExtractedText = '';
@@ -716,13 +729,34 @@ function step2Execute() {
           currentPipeline.step_data.step2_signal_report_file = result.signal_report_file;
           currentPipeline.step_data.step2_signal_report_url = result.signal_report_url || ('/downloads/' + result.signal_report_file);
         }
+        if (result.skill_draft_file) {
+          currentPipeline.step_data.step2_draft_file = result.skill_draft_file;
+          currentPipeline.step_data.step2_draft_url = result.skill_draft_url || ('/downloads/' + result.skill_draft_file);
+          currentPipeline.step_data.step2_draft_version = result.skill_draft_version || 1;
+          if (result.skill_draft_md_file) {
+            currentPipeline.step_data.step2_draft_md_file = result.skill_draft_md_file;
+            currentPipeline.step_data.step2_draft_md_url = result.skill_draft_md_url || ('/downloads/' + result.skill_draft_md_file);
+          }
+        }
       }
 
       var html = '<div class="s2-result-success">';
       html += '<div class="s2-result-header">知识萃取完成</div>';
       html += '<div class="s2-result-meta">共提取 <strong>' + extractedCount + '</strong> 条知识';
       if (sourceCount > 1) html += ' · ' + sourceCount + ' 源 · 去重 ' + dedupCount;
+      if (result.skill_draft_file) html += ' · 已生成 <strong>Skill 草稿 v' + (result.skill_draft_version || 1) + '</strong>';
       html += '</div>';
+
+      // Skill 草稿卡片（流水线主产物）
+      if (result.skill_draft_file) {
+        html += '<div class="signal-review-panel" style="margin-top:12px;display:block;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
+        html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">&#129518; Skill 草稿 v' + (result.skill_draft_version || 1) + '（初版，待专家对齐）</div>';
+        html += '<div class="s2-result-actions">';
+        if (result.skill_draft_md_file) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(result.skill_draft_md_file) + '\',\'Skill 草稿预览 (v' + (result.skill_draft_version || 1) + ')\')">预览 Skill 草稿</button>';
+        if (result.skill_draft_md_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.skill_draft_md_url + '" download>下载草稿 Markdown</a>';
+        if (result.skill_draft_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.skill_draft_url + '" download>下载草稿 JSON (IR)</a>';
+        html += '</div></div>';
+      }
 
       // 信号报告概览卡片
       if (result.signal_report && typeof result.signal_report === 'object') {

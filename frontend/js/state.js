@@ -6,7 +6,7 @@
   'use strict';
 
   const API_BASE = global.location.origin;
-  const MAX_STEP = 4;
+  const MAX_STEP = 5;
   const MAX_FORM_STEP = 3;
   const SAVE_DEBOUNCE_MS = 2000;
 
@@ -19,13 +19,19 @@
     'step2_fusion_file', 'step2_fusion_download_url', 'step2_fusion_count', 'step2_fusion_conflicts', 'step2_fusion_sources',
     'step2_interview_file', 'step2_interview_count',
     'step2_signal_report_file', 'step2_signal_report_url', 'step2_source_count', 'step2_dedup_count',
+    'step2_draft_file', 'step2_draft_url', 'step2_draft_md_file', 'step2_draft_md_url', 'step2_draft_version',
     'step3_revision_file', 'step3_download_url', 'step3_md_file', 'step3_md_download_url', 'step3_revision_notes', 'step3_revision_style', 'step3_revision_count', 'step3_excel_path',
     'step3_final_file', 'step3_final_download_url', 'step3_final_md_file', 'step3_final_md_download_url', 'step3_final_notes', 'step3_final_style', 'step3_final_count',
+    'step3_aligned_file', 'step3_aligned_url', 'step3_aligned_md_file', 'step3_aligned_md_url', 'step3_aligned_version', 'step3_pending_suggestions',
     'step4_skill_file', 'step4_download_url',
     'step4_cot_file', 'step4_cot_download_url',
     'step4_qa_file', 'step4_qa_download_url', 'step4_qa_md_file', 'step4_qa_md_download_url',
     'step4_manifest_file', 'step4_manifest_url',
     'step4_quality_file', 'step4_quality_url',
+    'step4_published_version',
+    'step5_replay_file', 'step5_replay_url', 'step5_result_file', 'step5_result_url',
+    'step5_suggestions_file', 'step5_suggestions_url', 'step5_hit_rate', 'step5_case_source', 'step5_run_id',
+    'step5_golden_report_file', 'step5_golden_report_url',
   ];
 
   const DOWNSTREAM_OUTPUT_KEYS = [
@@ -33,13 +39,19 @@
     'step2_fusion_file', 'step2_fusion_download_url', 'step2_fusion_count', 'step2_fusion_conflicts', 'step2_fusion_sources',
     'step2_interview_file', 'step2_interview_count',
     'step2_signal_report_file', 'step2_signal_report_url', 'step2_source_count', 'step2_dedup_count',
+    'step2_draft_file', 'step2_draft_url', 'step2_draft_md_file', 'step2_draft_md_url', 'step2_draft_version',
     'step3_revision_file', 'step3_download_url', 'step3_md_file', 'step3_md_download_url', 'step3_revision_notes', 'step3_revision_style', 'step3_revision_count', 'step3_excel_path',
     'step3_final_file', 'step3_final_download_url', 'step3_final_md_file', 'step3_final_md_download_url', 'step3_final_notes', 'step3_final_style', 'step3_final_count',
+    'step3_aligned_file', 'step3_aligned_url', 'step3_aligned_md_file', 'step3_aligned_md_url', 'step3_aligned_version', 'step3_pending_suggestions',
     'step4_skill_file', 'step4_download_url',
     'step4_cot_file', 'step4_cot_download_url',
     'step4_qa_file', 'step4_qa_download_url', 'step4_qa_md_file', 'step4_qa_md_download_url',
     'step4_manifest_file', 'step4_manifest_url',
     'step4_quality_file', 'step4_quality_url',
+    'step4_published_version',
+    'step5_replay_file', 'step5_replay_url', 'step5_result_file', 'step5_result_url',
+    'step5_suggestions_file', 'step5_suggestions_url', 'step5_hit_rate', 'step5_case_source', 'step5_run_id',
+    'step5_golden_report_file', 'step5_golden_report_url',
   ];
 
   // ── Internal State ──
@@ -125,8 +137,9 @@
         2: DOWNSTREAM_OUTPUT_KEYS.filter(function (k) { return k.indexOf('step2_') === 0 || k.indexOf('skill_') === 0; }),
         3: DOWNSTREAM_OUTPUT_KEYS.filter(function (k) { return k.indexOf('step3_') === 0; }),
         4: DOWNSTREAM_OUTPUT_KEYS.filter(function (k) { return k.indexOf('step4_') === 0; }),
+        5: DOWNSTREAM_OUTPUT_KEYS.filter(function (k) { return k.indexOf('step5_') === 0; }),
       };
-      for (var s = start; s <= 4; s++) {
+      for (var s = start; s <= MAX_STEP; s++) {
         (keysByStep[s] || []).forEach(function (k) { delete _pipeline.step_data[k]; });
       }
       _notify('outputsCleared', fromStep);
