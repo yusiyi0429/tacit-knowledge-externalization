@@ -311,6 +311,13 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   </div>
                   <button type="button" class="s1-add-sub-btn" onclick="addStep2TextRow()" style="margin-top:4px">+ 添加更多文本来源</button>
                 </div>
+                <div class="form-group">
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="s2-kb-inherit" style="width:auto;">
+                    继承知识库已沉淀知识（作为融合源参与去重）
+                  </label>
+                  <div class="file-hint" id="s2-kb-inherit-hint"></div>
+                </div>
               </div>
 
               <!-- 模式二：案例复盘 -->

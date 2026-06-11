@@ -6065,6 +6065,188 @@ def api_step5_golden_verify():
     return jsonify(report)
 
 
+# ─── 外部知识库 API（知识资产 / 案例库 / 发布登记） ────────────────
+
+@app.route("/api/kb/entries", methods=["GET"])
+def api_kb_entries():
+    """检索知识库条目（Step1 继承预检 / 浏览）。"""
+    try:
+        import knowledge_base as kb
+        entries = kb.search_entries(
+            domain=request.args.get("domain", ""),
+            scenario=request.args.get("scenario", ""),
+            query=request.args.get("q", ""),
+            top_k=int(request.args.get("top_k", "20") or 20),
+            status=request.args.get("status", "active"),
+        )
+        return jsonify({"status": "ok", "entries": entries, "total": len(entries)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"知识库检索失败: {str(e)}"})
+
+
+@app.route("/api/kb/entries/import", methods=["POST"])
+def api_kb_entries_import():
+    """选中 KB 条目 → 标准 records（供前端注入流水线 / 调试）。"""
+    data = request.get_json(force=True) or {}
+    entry_uids = data.get("entry_uids") or []
+    if not isinstance(entry_uids, list) or not entry_uids:
+        return jsonify({"status": "error", "error": "请提供 entry_uids"})
+    try:
+        import knowledge_base as kb
+        records = kb.import_entries_as_records([str(u) for u in entry_uids])
+        return jsonify({"status": "ok", "records": records, "count": len(records)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"导入失败: {str(e)}"})
+
+
+@app.route("/api/kb/publish", methods=["POST"])
+def api_kb_publish():
+    """Step4 发布入库：当前流水线的最新 Skill IR → kb_entries + 发布登记。"""
+    data = request.get_json(force=True) or {}
+    pipeline_id = data.get("pipeline_id", "")
+    by = data.get("by", "")
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    sd = {}
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p["id"] == pipeline_id:
+                sd = p.get("step_data", {}) or {}
+                break
+    ir_path, _key = resolve_knowledge_ir_path(WORKSPACE, sd)
+    if not ir_path:
+        return jsonify({"status": "error", "error": "未找到 Skill 草稿（IR），无法发布"})
+
+    skill_md = ""
+    skill_file = sd.get("step4_skill_file", "")
+    if skill_file:
+        sp = safe_workspace_path(WORKSPACE, skill_file, must_exist=True)
+        if sp:
+            try:
+                skill_md = sp.read_text(encoding="utf-8")
+            except Exception:
+                skill_md = ""
+
+    try:
+        import knowledge_base as kb
+        from skill_ir import STATUS_PUBLISHED, load_ir, mark_status, save_ir
+
+        ir = load_ir(ir_path)
+        result = kb.publish_entries(
+            ir,
+            pipeline_id=pipeline_id,
+            by=by,
+            skill_md=skill_md,
+            quality_score=None,
+            replay_hit_rate=sd.get("step5_hit_rate"),
+        )
+        # IR 状态标记 published 并落盘新文件
+        published_ir = mark_status(ir, STATUS_PUBLISHED)
+        try:
+            pub_name = save_ir(WORKSPACE, published_ir, pipeline_id=pipeline_id)
+            with _pipelines_lock:
+                pipelines = load_pipelines()
+                for p in pipelines:
+                    if p["id"] == pipeline_id:
+                        sd2 = p.setdefault("step_data", {})
+                        sd2["step3_aligned_file"] = pub_name
+                        sd2["step3_aligned_url"] = f"/downloads/{pub_name}"
+                        save_pipelines(pipelines)
+                        break
+        except Exception:
+            pass
+        result["status"] = "ok"
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"发布失败: {str(e)}"})
+
+
+@app.route("/api/kb/entries/<entry_uid>/deprecate", methods=["POST"])
+def api_kb_deprecate(entry_uid):
+    data = request.get_json(force=True) or {}
+    try:
+        import knowledge_base as kb
+        ok = kb.deprecate_entry(entry_uid, note=data.get("note", ""), by=data.get("by", ""))
+        if not ok:
+            return jsonify({"status": "error", "error": "条目不存在或已失效"})
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
+@app.route("/api/kb/entries/<entry_uid>/timeline", methods=["GET"])
+def api_kb_timeline(entry_uid):
+    try:
+        import knowledge_base as kb
+        return jsonify({"status": "ok", "timeline": kb.get_entry_timeline(entry_uid)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
+@app.route("/api/kb/cases", methods=["GET"])
+def api_kb_list_cases():
+    try:
+        import knowledge_base as kb
+        cases = kb.list_cases(
+            domain=request.args.get("domain", ""),
+            scenario=request.args.get("scenario", ""),
+            difficulty=request.args.get("difficulty", ""),
+            limit=int(request.args.get("limit", "20") or 20),
+        )
+        return jsonify({"status": "ok", "cases": cases, "total": len(cases)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
+@app.route("/api/kb/cases", methods=["POST"])
+def api_kb_add_cases():
+    """录入案例（单条或批量）。"""
+    data = request.get_json(force=True) or {}
+    raw_cases = data.get("cases")
+    if not isinstance(raw_cases, list):
+        raw_cases = [data]
+    try:
+        import knowledge_base as kb
+        uids = []
+        errors = []
+        for c in raw_cases:
+            if not isinstance(c, dict):
+                continue
+            try:
+                uid = kb.add_case(
+                    description=c.get("description", "") or c.get("场景", ""),
+                    expert_conclusion=c.get("expert_conclusion", "") or c.get("结论", "") or c.get("conclusion", ""),
+                    domain=c.get("domain", ""),
+                    scenario=c.get("scenario", ""),
+                    facts=c.get("facts") if isinstance(c.get("facts"), dict) else None,
+                    expert_reasoning=c.get("expert_reasoning", ""),
+                    difficulty=c.get("difficulty", ""),
+                    tags=c.get("tags", ""),
+                    source=c.get("source", ""),
+                )
+                uids.append(uid)
+            except ValueError as ve:
+                errors.append(str(ve))
+        return jsonify({"status": "ok", "case_uids": uids, "created": len(uids), "errors": errors})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
+@app.route("/api/kb/skills", methods=["GET"])
+def api_kb_skills():
+    try:
+        import knowledge_base as kb
+        releases = kb.list_releases(
+            skill_slug=request.args.get("skill_slug", ""),
+            limit=int(request.args.get("limit", "20") or 20),
+        )
+        return jsonify({"status": "ok", "releases": releases, "total": len(releases)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
 # ─── 多源知识融合路由 ────────────────────────────────────────
 
 def _llm_call_for_interview(system_prompt, user_prompt, model_name):
@@ -6281,6 +6463,22 @@ def step2_extract_unified():
 
     if not results:
         return jsonify({"status": "error", "error": "所有来源提取均失败", "errors": errors})
+
+    # 知识库继承：已沉淀条目作为一个融合源参与去重/冲突检测（KB 已有 vs 新萃取 对比信号）
+    if request.form.get("kb_inherit", "") in ("1", "true", "yes"):
+        try:
+            import knowledge_base as kb
+            meta = _pipeline_scenario_meta(pipeline_id)
+            kb_entries = kb.search_entries(
+                domain=meta.get("domain", ""),
+                scenario=meta.get("scenario_name", ""),
+                top_k=20,
+            )
+            kb_records = kb.import_entries_as_records([e["entry_uid"] for e in kb_entries])
+            if kb_records:
+                results.append({"records": kb_records, "source_label": "知识库继承"})
+        except Exception as e:
+            errors.append({"source": "知识库继承", "error": str(e)})
 
     source_count = len(results)
 

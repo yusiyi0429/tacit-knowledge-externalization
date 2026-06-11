@@ -689,6 +689,11 @@ function step2Execute() {
   var outputFmt = document.getElementById('s2-output-format')?.value || 'excel';
   fd.append('output_format', outputFmt);
 
+  // 知识库继承
+  if (document.getElementById('s2-kb-inherit')?.checked) {
+    fd.append('kb_inherit', '1');
+  }
+
   if (!hasFiles && textInputs.length === 0) {
     showToast('请至少上传一个文件或填入文本来源', 'error');
     btn.disabled = false; btn.innerHTML = origBtnHtml; btn._locked = false;
@@ -822,6 +827,25 @@ function updateStep2Readiness() {
   if (!model)           { renderStepReadiness('s2-readiness', '请先配置并选择模型', 'warn'); return; }
   if (!hasFiles && !hasText) { renderStepReadiness('s2-readiness', '请至少上传一个文件或填入文本来源', 'warn'); return; }
   renderStepReadiness('s2-readiness', '已就绪：可执行知识萃取', 'ok');
+}
+
+async function loadStep2KbHint() {
+  var hintEl = document.getElementById('s2-kb-inherit-hint');
+  if (!hintEl || !currentPipeline) return;
+  try {
+    var params = new URLSearchParams({
+      domain: currentPipeline.domain || '',
+      scenario: currentPipeline.scenario || '',
+      top_k: '20',
+    });
+    var resp = await fetch(API_BASE + '/api/kb/entries?' + params.toString());
+    var data = await resp.json();
+    if (data.status === 'ok' && data.total > 0) {
+      hintEl.textContent = '知识库已有 ' + data.total + ' 条相关知识，勾选后将与新萃取结果融合去重';
+    } else {
+      hintEl.textContent = '知识库暂无相关沉淀（首条流水线发布后可供后续继承）';
+    }
+  } catch (e) { hintEl.textContent = ''; }
 }
 
 function updateStep3AlignModeHint() {
@@ -1026,6 +1050,7 @@ function switchPanel(step) {
       refreshCurrentPipeline().then(() => {
         loadStep2PrevOutput();
         updateStep2Readiness();
+        loadStep2KbHint();
       });
     }
   }
