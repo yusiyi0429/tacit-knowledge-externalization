@@ -1,12 +1,13 @@
 """
-显性化校验闭环（方案四）
-上传历史案例（含已知专家结论），用生成的 SKILL.md/QA 让 LLM 判断，
-与专家结论比对，输出命中率/分歧清单。
+显性化校验闭环（Step5 验证环节）
+上传历史案例（含已知专家结论），用生成的 SKILL.md 终版让 LLM（判官模型）判断，
+与专家结论比对，输出命中率/分歧清单；分歧自动生成 entry 级修订建议回流 Step3。
 """
 
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 
 
@@ -87,6 +88,126 @@ def _normalize_label(label: str) -> str:
     if any(k in s for k in ("条件", "conditional", "有条件", "附条件")):
         return "条件通过"
     return s
+
+
+def _entry_ids_from_rules(rules: list, valid_ids: set[str]) -> list[str]:
+    """从 referenced_rules 中提取合法的 entry_id（KN-xxx）。"""
+    ids = []
+    for r in rules or []:
+        for m in re.findall(r"KN-\d{3,}", str(r)):
+            if m in valid_ids and m not in ids:
+                ids.append(m)
+    return ids
+
+
+def build_feedback_prompt(mismatches: list[dict], ir: dict) -> tuple[str, str]:
+    """构建「分歧 → entry 级修订建议」的 LLM prompt。"""
+    entries_brief = []
+    for e in (ir or {}).get("entries", []):
+        fields = e.get("fields") or {}
+        entries_brief.append({
+            "entry_id": e.get("entry_id"),
+            "知识描述": str(fields.get("知识描述", ""))[:120],
+            "适用条件": str(fields.get("适用条件", ""))[:80],
+            "例外情形": str(fields.get("例外情形", ""))[:80],
+        })
+
+    system_prompt = (
+        "你是一位知识工程专家。决策回放发现知识库判断与专家结论存在分歧。\n"
+        "请针对每条分歧，判断哪条知识条目（entry_id）需要修订，并生成结构化修订建议。\n\n"
+        "规则：\n"
+        "1. 只能引用提供的 entry_id；不确定关联哪条时可以建议新增（action=add）\n"
+        "2. action 取值：modify（改写字段）| supplement（补充字段，常用于 例外情形/适用边界/经验判断）| add（新增条目）\n"
+        "3. 优先用 supplement 补充「例外情形」或「适用边界」——分歧往往说明规则有未覆盖的边界\n"
+        "4. 输出 JSON 数组，禁止任何前后说明文字：\n"
+        '[{"entry_id": "KN-001", "field": "例外情形", "action": "supplement", '
+        '"new_value": "补充内容", "note": "来自案例X的分歧分析"}]\n'
+        "5. 每条分歧最多生成 2 条建议，建议总数不超过 10 条"
+    )
+
+    mismatch_text = ""
+    for m in mismatches[:10]:
+        mismatch_text += (
+            f"\n---\n案例 {m.get('case_id', '?')}：\n"
+            f"知识库判断：{m.get('prediction', '')}\n"
+            f"专家结论：{m.get('expert_conclusion', '')}\n"
+            f"推理过程：{str(m.get('reasoning', ''))[:300]}\n"
+            f"引用规则：{', '.join(str(r) for r in m.get('referenced_rules', []))}\n"
+        )
+
+    user_prompt = (
+        f"知识条目清单：\n{json.dumps(entries_brief, ensure_ascii=False)}\n\n"
+        f"分歧清单：{mismatch_text}"
+    )
+    return system_prompt, user_prompt
+
+
+def validation_to_revision_suggestions(
+    mismatches: list[dict],
+    ir: dict,
+    llm_call_fn=None,
+    *,
+    model_name: str = "",
+) -> list[dict]:
+    """分歧 → entry 级修订建议（与 Step3 建议池同协议，by=validation）。
+
+    优先 LLM 生成；LLM 不可用/解析失败时降级为程序化建议
+    （对分歧引用的条目生成「例外情形」supplement 占位建议，由专家补全）。
+    """
+    if not mismatches:
+        return []
+    valid_ids = {str(e.get("entry_id")) for e in (ir or {}).get("entries", [])}
+
+    suggestions: list[dict] = []
+    if llm_call_fn:
+        try:
+            system_prompt, user_prompt = build_feedback_prompt(mismatches, ir)
+            raw = llm_call_fn(system_prompt, user_prompt, model_name)
+            m = re.search(r"\[[\s\S]*\]", raw or "")
+            parsed = json.loads(m.group(0)) if m else []
+            for s in parsed if isinstance(parsed, list) else []:
+                if not isinstance(s, dict):
+                    continue
+                action = str(s.get("action", "")).strip().lower()
+                entry_id = str(s.get("entry_id", "")).strip()
+                if action in ("modify", "supplement") and entry_id not in valid_ids:
+                    continue
+                if action not in ("modify", "supplement", "add"):
+                    continue
+                suggestions.append({
+                    "entry_id": entry_id if action != "add" else "",
+                    "field": str(s.get("field", "")).strip(),
+                    "action": action,
+                    "new_value": str(s.get("new_value", "")).strip(),
+                    "fields": s.get("fields") if isinstance(s.get("fields"), dict) else None,
+                    "note": str(s.get("note", "")).strip() or "验证回放分歧建议",
+                    "by": "validation",
+                })
+        except Exception:
+            suggestions = []
+
+    if not suggestions:
+        # 程序化降级：对每条分歧引用的条目补「例外情形」占位
+        seen = set()
+        for m_item in mismatches[:10]:
+            for eid in _entry_ids_from_rules(m_item.get("referenced_rules"), valid_ids):
+                key = (eid, m_item.get("case_id"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                suggestions.append({
+                    "entry_id": eid,
+                    "field": "例外情形",
+                    "action": "supplement",
+                    "new_value": (
+                        f"[待专家确认] 案例 {m_item.get('case_id', '?')} 中专家结论为"
+                        f"「{m_item.get('expert_conclusion', '')}」，与本规则推导结果"
+                        f"「{m_item.get('prediction', '')}」不一致，可能存在未覆盖的例外情形"
+                    ),
+                    "note": "验证回放分歧（程序化生成，需专家补全）",
+                    "by": "validation",
+                })
+    return suggestions[:10]
 
 
 def generate_replay_report(result: dict, cases: list[dict], predictions: list[dict]) -> str:

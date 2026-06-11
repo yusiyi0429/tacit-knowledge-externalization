@@ -9,6 +9,9 @@ __pycache__/
 .ruff_cache/
 .tox/
 
+# 外部知识库（运行时生成）
+data/kb/*.db
+
 # Environment
 .env
 .env.local

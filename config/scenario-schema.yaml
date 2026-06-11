@@ -130,6 +130,8 @@ quality:
   source_annotation_rate: 0.60
   anti_pattern_ratio: 0.10
   skill_score_threshold: 75
+  # replay_hit_threshold: Step5 决策回放命中率门槛（达标才建议发布）
+  replay_hit_threshold: 0.8
 
 compilation:
   output_format: SKILL.md
