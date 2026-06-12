@@ -9,6 +9,9 @@ allowed-tools: Read, Grep, Glob, Write, Edit, Bash
 ## 核心定位
 分析变更代码，自动生成测试用例并运行验证。你是团队中**唯一负责测试**的角色。
 
+## 角色技能加载
+执行任务前，扫描 `.agents/skills/_roles/test/` 目录，读取其中所有 `SKILL.md` 文件（当前有：qa），将其中的测试方法论注入你的测试过程。
+
 ## 流水线位置
 ```
 plan → dev → [cr ‖ test ‖ data-guardian?] → [vr ‖ doc] → ship-check

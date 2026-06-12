@@ -5,13 +5,23 @@
 ## 快速启动
 
 ```bash
-# 开发环境
-cd backend && python app_server.py --host 127.0.0.1 --port 5000
+# 1. 安装依赖
+cd backend && pip install -r requirements.txt
+
+# 2. 启动服务
+python app_server.py --host 127.0.0.1 --port 5000
 # 访问 http://127.0.0.1:5000
 
-# LLM 配置（复制模板后编辑）
+# 3. LLM 配置（复制模板后编辑）
 cp config/llm-config.local.yaml.example config/llm-config.local.yaml
 # 编辑 config/llm-config.local.yaml 填入 API Key
+
+# 4. 前端 vendor 初始化（首次运行或 Luckysheet 更新后）
+cd ../frontend && npm install && npm run vendor
+# 或：cd ../scripts && ./setup-frontend-vendor.sh
+
+# 5. 运行测试
+cd ../backend && python -m pytest scripts/ -v
 
 # Docker 部署（内网）
 docker load -i tacit-knowledge-externalization-*.tar
@@ -55,12 +65,29 @@ backend/
   quality_report.py       # 五维质量评分
   llm_client.py           # LLM 客户端：OpenAI 兼容 / 建行 CCB 网关双模式
   golden_db.py            # 黄金数据库管理
-  scripts/                # 测试脚本、初始化脚本
+  shared.py               # 共享工具/配置/全局状态（所有路由导入）
+  skill_registry.py       # Skill 注册表定义
+  excel_to_skill.py       # Step 4：Excel→SKILL.md 确定性转换
+  skill_generator.py      # Meta-skill：从 Step3 + golden DB 生成可执行 SKILL.md
+  sandbox_db.py           # 沙盒数据库
+  workbook_layout.py      # Excel 工作簿布局
+  scripts/                # 测试脚本（test_*.py, e2e_*.py, validate_*.py）
 frontend/
   index.html              # 单页应用入口
   js/app.js               # 主逻辑：流水线 CRUD、步骤切换、Skill 执行、Step5 回放 UI
   js/state.js             # 全局状态管理器 (PipelineState, MAX_STEP=5)
+  js/utils.js             # 工具函数
+  js/excel-luckysheet.js  # Luckysheet Excel 编辑器集成
   css/                    # 样式文件
+  vendor/                 # Luckysheet 离线包（npm run vendor 生成）
+  package.json            # 前端依赖（Luckysheet, jQuery）
+
+scripts/（根目录）
+  build.sh                # 构建脚本
+  start.sh                # 启动脚本
+  build-docker-*.sh       # Docker 构建（multiarch/arm64）
+  setup-frontend-vendor.sh # 前端 vendor 包初始化
+  copy-frontend-vendor.js # 复制 Luckysheet 到 vendor/
 config/
   llm-config.yaml         # LLM 配置（模型列表、参数）
   llm-config.local.yaml   # 本地覆盖（含 API Key，gitignored）
@@ -80,10 +107,6 @@ docker/
   Dockerfile.incremental  # 增量构建
   deploy-run-example.sh   # 部署示例
 docker-compose.yml        # 内网部署编排
-scripts/
-  build.sh                # 构建脚本
-  start.sh                # 启动脚本
-  build-docker-*.sh       # Docker 构建（multiarch/arm64）
 ```
 
 ## 关键文件索引
@@ -95,6 +118,8 @@ scripts/
 | `backend/skill_ir.py` | Skill IR 单一事实源：draft/apply_revisions/render_skill_md/版本校验 | **critical** |
 | `backend/pipeline_artifacts.py` | 文件命名约束、step data key 定义、IR 解析 | **critical** |
 | `frontend/js/state.js` | 全局状态：PipelineState、MAX_STEP=5、DOWNSTREAM_OUTPUT_KEYS | **critical** |
+| `backend/shared.py` | 共享工具/配置/全局状态，所有路由处理器导入 | **critical** |
+| `backend/skill_registry.py` | Skill 注册表：知识萃取等 Skill 定义 | **critical** |
 
 ### 流水线步骤模块
 
@@ -104,6 +129,7 @@ scripts/
 | Step 2 知识萃取 | `backend/step2_preextract.py` + `knowledge_fusion.py` | 萃取条目 Excel / IR v1 |
 | Step 3 知识对齐 | `backend/revision_processor.py` | 修订稿 IR vN |
 | Step 4 智能转化 | `backend/knowledge_delivery.py` | SKILL.md / QA / COT |
+| Step 4 增强 | `backend/excel_to_skill.py` | Excel→SKILL.md（确定性程序，不依赖模型） |
 | Step 5 验证回放 | `backend/validation_replay.py` | 回放报告 + 修订建议 |
 
 ### 支持模块
@@ -111,11 +137,16 @@ scripts/
 | 文件 | 职责 |
 |------|------|
 | `backend/app_server.py` | Flask 路由总线（所有 API 入口） |
+| `backend/shared.py` | 共享工具/配置/全局状态（从 app_server.py 拆分） |
 | `backend/knowledge_base.py` | 知识库管理（entries/案例/发布/验证） |
+| `backend/skill_registry.py` | Skill 注册表定义 |
+| `backend/skill_generator.py` | Meta-skill：从 Step3 + golden DB 生成可执行 SKILL.md |
 | `backend/interview_session.py` | 专家访谈追问生成 |
 | `backend/quality_report.py` | 五维质量评分 |
 | `backend/llm_client.py` | LLM 调用（OpenAI / CCB 双模式） |
 | `backend/golden_db.py` | 黄金数据库 |
+| `backend/sandbox_db.py` | 沙盒数据库 |
+| `backend/workbook_layout.py` | Excel 工作簿布局 |
 | `frontend/js/app.js` | 前端主逻辑（所有 UI 交互） |
 
 ## API 路由速查
@@ -134,6 +165,17 @@ scripts/
 ## 天工 Agent 团队（10 人）
 
 完整 prompt 见 `.claude/commands/*.md`，工作流编排见 `.claude/workflows/*.js`。
+
+`.claude/` 结构：
+```
+.claude/
+├── commands/            # 10 个 Agent prompt（*.md）
+├── workflows/           # 工作流编排脚本（*.js）
+├── workflows-config.json # 工作流配置
+├── skills/              # 项目级 skill 安装目录
+├── settings.json        # 项目级配置
+└── settings.local.json  # 权限白名单
+```
 
 | 角色 | 职责 | 用法 |
 |------|------|------|

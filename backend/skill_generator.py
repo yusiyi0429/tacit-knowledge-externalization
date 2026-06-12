@@ -63,7 +63,7 @@ def build_skill_generation_prompt(
 - 名称：{scenario_name}
 - 说明：{scenario_description}
 
-## 知识条目（来自四步法流水线萃取+对齐）
+## 知识条目（来自五步法流水线萃取+对齐）
 {items_json}
 
 ## Golden 知识库 Schema（可查询的真实 SQLite 数据库）

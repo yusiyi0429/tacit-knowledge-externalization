@@ -9,6 +9,9 @@ allowed-tools: Read, Grep, Glob, Write, Edit
 ## 核心定位
 检查文档与代码的同步状态，标记过时或遗漏的内容。你是团队中**唯一负责文档**的角色。
 
+## 角色技能加载
+执行任务前，扫描 `.agents/skills/_roles/doc/` 目录，读取其中所有 `SKILL.md` 文件（当前有：edit-article、obsidian-vault、brand、slides、teach、scaffold-exercises、to-issues、to-prd、write-a-skill、writing-beats、writing-fragments、writing-shape），将其中的文档编写方法论注入你的工作过程。遇到对应场景时必须激活对应技能。
+
 ## 流水线位置
 ```
 plan → dev → [cr ‖ test ‖ data-guardian?] → [vr ‖ doc] → ship-check

@@ -70,13 +70,19 @@ def find_anchor_columns(ws):
 
 
 def detect_header_rows(ws):
-    """表头区行数：锚定四列在首行，且存在 A1:A2 类纵向合并时为 2 行。"""
+    """表头区行数：锚定四列在首行，且存在 A1:A2 类纵向合并时为 2 行。
+    若存在从第 2 行开始的纵向合并（数据区合并），则判定为 1 行表头。"""
     merged_ranges = getattr(ws, "merged_cells", None)
     if merged_ranges is not None:
+        # A1:A2 纵向合并 → 2 行表头（传统模板）
         for merged in merged_ranges.ranges:
             if merged.min_row == 1 and merged.max_row == 2 and merged.min_col == 1 and merged.max_col == 1:
                 return 2
-    # read_only 工作表：根据第 2 行首列是否为空推断
+        # A2:A? 纵向合并 → 数据区，说明是 1 行表头（schema builder 生成的模板）
+        for merged in merged_ranges.ranges:
+            if merged.min_row == 2 and merged.min_col == 1 and merged.max_col == 1:
+                return 1
+    # 兜底：第 2 行首列为空且第 1 行是「场景」列 → 2 行表头
     if ws.cell(2, 1).value is None and ws.cell(1, 1).value and _match_header(ws.cell(1, 1).value, ANCHOR_HEADERS["scenario"]):
         return 2
     return 1

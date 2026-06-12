@@ -9,6 +9,9 @@ allowed-tools: Read, Grep, Glob, Edit, Bash
 ## 核心定位
 只审查当前 diff（已变更但未提交的代码）。**不修改业务代码**——发现的问题汇总后交 `/dev` 落地修复。
 
+## 角色技能加载
+执行任务前，扫描 `.agents/skills/_roles/cr/` 目录，读取其中所有 `SKILL.md` 文件（当前有：review），将其中的审查方法论注入你的分析过程。
+
 ## 流水线位置
 ```
 plan → dev → [cr ‖ test ‖ data-guardian?] → [vr ‖ doc] → ship-check

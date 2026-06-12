@@ -1013,7 +1013,7 @@ function switchPanel(step) {
   if (step === 0) {
     // Overview mode: hide step nav
     navSteps.classList.remove('visible');
-    brandEl.textContent = '隐性知识显性化 · 四步法';
+    brandEl.textContent = '隐性知识显性化 · 五步法';
     loadPipelineOverview();
   } else {
     // Pipeline mode: show step nav with progress
@@ -3482,8 +3482,8 @@ async function loadPipelineOverview() {
     html += '<div class="overview-banner">';
     html += '<div class="overview-banner-inner">';
     html += '<div class="overview-banner-text">';
-    html += '<div class="overview-banner-title">隐性知识显性化 · 四步法萃取流水线</div>';
-    html += '<div class="overview-banner-desc">将领域专家的隐性经验系统性显性化为 AI 可加载的结构化知识，通过四步法流水线，从场景定义到智能转化，层层递进、步步可追溯。</div>';
+    html += '<div class="overview-banner-title">隐性知识显性化 · 五步法萃取流水线</div>';
+    html += '<div class="overview-banner-desc">将领域专家的隐性经验系统性显性化为 AI 可加载的结构化知识，通过五步法流水线，从场景定义到智能转化，层层递进、步步可追溯。</div>';
     html += '</div>';
     html += '<div class="overview-banner-action" onclick="showNewPipelineForm()">';
     html += '<span class="banner-action-icon">+</span>';
@@ -3498,9 +3498,10 @@ async function loadPipelineOverview() {
       { num: '02', title: '知识萃取', desc: '从已有文档中提取知识条目，AI 辅助生成待审稿', icon: '&#9997;' },
       { num: '03', title: '知识对齐', desc: '融合修订与确认，完成专家意见对齐并生成最终可发布稿', icon: '&#10003;' },
       { num: '04', title: '智能转化', desc: '生成思维链、QA 对、OpenClaw Skill 三类交付物', icon: '&#9881;' },
+      { num: '05', title: '验证回放', desc: '用 SKILL 终版判历史案例，分歧回流第3步形成闭环', icon: '&#9851;' },
     ];
     html += '<div class="overview-roadmap">';
-    html += '<div class="roadmap-header"><span class="roadmap-header-line"></span><span class="roadmap-header-text">四步法流程概览</span><span class="roadmap-header-line"></span></div>';
+    html += '<div class="roadmap-header"><span class="roadmap-header-line"></span><span class="roadmap-header-text">五步法流程概览</span><span class="roadmap-header-line"></span></div>';
     html += '<div class="roadmap-cards">';
     stepCards.forEach((s, i) => {
       html += '<div class="roadmap-step" data-step="' + s.num + '">';

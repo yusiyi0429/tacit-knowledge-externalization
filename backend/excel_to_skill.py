@@ -866,7 +866,7 @@ def _format_overview_scenario(version_info: dict, records: list) -> list:
 
     lines.append("## 概述")
     lines.append("")
-    lines.append("本 Skill 由隐性知识显性化四步法流水线生成，将确认版 Excel 中的场景锚定与知识列转化为结构化 Markdown。")
+    lines.append("本 Skill 由隐性知识显性化五步法流水线生成，将确认版 Excel 中的场景锚定与知识列转化为结构化 Markdown。")
     lines.append("")
 
     if scenario_name:

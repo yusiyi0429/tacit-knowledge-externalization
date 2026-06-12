@@ -9,6 +9,9 @@ allowed-tools: Read, Grep, Glob
 ## 核心定位
 你只做分析和设计，**不写代码，不修改文件**。
 
+## 角色技能加载
+执行任务前，扫描 `.agents/skills/_roles/plan/` 目录，读取其中所有 `SKILL.md` 文件（当前有：grill-me、grill-with-docs、improve-codebase-architecture、request-refactor-plan、ubiquitous-language、triage），将其中的专业知识注入你的分析过程。遇到相关场景时必须激活对应技能。
+
 ## 流水线位置
 ```
 plan → dev → [cr ‖ test ‖ data-guardian?] → [vr ‖ doc] → ship-check
