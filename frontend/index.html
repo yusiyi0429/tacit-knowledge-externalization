@@ -905,14 +905,16 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>判官模型（建议与萃取模型分离，避免自评偏置）</label>
                 <select id="s5-model"></select>
               </div>
-              <button class="action-btn" id="s5-replay-btn" onclick="step5RunReplay()">
-                <span class="action-icon">&#9889;</span> 执行决策回放
+              <button type="button" class="btn btn--primary btn--md" id="s5-replay-btn" onclick="step5RunReplay()">
+                <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
+                <span class="btn__text">执行决策回放</span>
               </button>
               <div class="action-note">用 SKILL 终版逐案判断，与专家结论比对命中率；分歧自动生成 entry 级修订建议</div>
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
                 <div class="file-hint" style="margin-bottom:6px">&#127942; Golden 基准验证</div>
-                <button class="action-btn small-btn secondary-btn" id="s5-golden-btn" onclick="step5GoldenVerify()" style="width:100%;justify-content:center;">
-                  对比黄金条目（P/R/F1）
+                <button type="button" class="btn btn--outline btn--md" id="s5-golden-btn" onclick="step5GoldenVerify()" style="width:100%;">
+                  <span class="btn__icon btn__icon--left" data-lucide="award"></span>
+                  <span class="btn__text">对比黄金条目（P/R/F1）</span>
                 </button>
                 <div class="file-hint" style="margin-top:4px">衡量萃取结果与人工精标基准的接近程度</div>
               </div>

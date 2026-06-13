@@ -4379,13 +4379,16 @@ async function step5RunReplay() {
         if (s.new_value) html += '<br><span style="font-size:11px;">' + escapeHtml(String(s.new_value).slice(0, 160)) + '</span>';
         html += '</div>';
       });
-      html += '<button class="action-btn" style="margin-top:10px;" onclick="step5PushFeedback()">&#128260; 回流到知识对齐（建议池）</button>';
+      html += '<button type="button" class="btn btn--outline btn--md" style="margin-top:10px;" onclick="step5PushFeedback()">'
+        + '<span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span>'
+        + '<span class="btn__text">回流到知识对齐（建议池）</span></button>';
       html += '<div class="file-hint" style="margin-top:4px;">建议不会自动应用——回流后请到第 3 步建议池逐条裁决</div>';
     } else if (data.mismatch_count === 0) {
       html += '<div style="margin-top:10px;color:#16a34a;">所有案例判断与专家结论一致，无需回流。</div>';
     }
     html += '</div>';
     renderOutput('s5-output', html);
+    refreshIcons();
     loadStep5Context();
     try { await markStepDone(5); } catch (e) { /* ignore */ }
   } catch (e) {
