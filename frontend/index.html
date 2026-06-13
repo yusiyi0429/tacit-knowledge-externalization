@@ -29,8 +29,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
   <nav class="app-nav">
     <div class="nav-brand" id="nav-brand">隐性知识显性化 · 五步法</div>
     <div class="nav-steps" id="nav-steps">
-      <button class="nav-back-btn" onclick="goBackToOverview()" title="返回总览">
-        <span class="back-arrow">‹</span> 返回
+      <button class="btn btn--ghost btn--sm" onclick="goBackToOverview()" title="返回总览">
+        <span class="btn__icon btn__icon--left" data-lucide="chevron-left"></span>
+        <span class="btn__text">返回</span>
       </button>
       <div class="step-track">
         <button class="step-btn" data-step="1"><span class="btn-num">01</span>场景锚定</button>
@@ -47,23 +48,23 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
         <span id="auto-save-text"></span>
       </span>
-      <button class="nav-action-btn" id="save-pipeline-btn" onclick="saveCurrentPipeline()" title="保存当前流水线">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        保存
+      <button class="btn btn--ghost btn--sm" id="save-pipeline-btn" onclick="saveCurrentPipeline()" title="保存当前流水线">
+        <span class="btn__icon btn__icon--left" data-lucide="save"></span>
+        <span class="btn__text">保存</span>
       </button>
-      <button class="nav-action-btn nav-action-btn-danger" id="clear-pipeline-btn" onclick="clearCurrentPipeline()" title="清空当前流水线">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        清空
+      <button class="btn btn--danger btn--sm" id="clear-pipeline-btn" onclick="clearCurrentPipeline()" title="清空当前流水线">
+        <span class="btn__icon btn__icon--left" data-lucide="trash-2"></span>
+        <span class="btn__text">清空</span>
       </button>
     </div>
     <div class="nav-actions">
-      <button class="nav-config-btn" id="skill-nav-btn" onclick="openSkillPanel()" title="Skill配置">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        Skill配置
+      <button class="btn btn--ghost btn--sm" id="skill-nav-btn" onclick="openSkillPanel()" title="Skill配置">
+        <span class="btn__icon btn__icon--left" data-lucide="sparkles"></span>
+        <span class="btn__text">Skill配置</span>
       </button>
-      <button class="nav-config-btn" id="model-nav-btn" onclick="openModelPanel()" title="模型配置">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        模型配置
+      <button class="btn btn--ghost btn--sm" id="model-nav-btn" onclick="openModelPanel()" title="模型配置">
+        <span class="btn__icon btn__icon--left" data-lucide="settings"></span>
+        <span class="btn__text">模型配置</span>
       </button>
       <div class="nav-status" id="server-status">
         <span class="status-dot"></span>检测中...
