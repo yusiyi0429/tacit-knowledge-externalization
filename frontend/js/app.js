@@ -12,6 +12,13 @@ let _step2InputMode = 'doc'; // 'doc' | 'case'
 let _step2ActiveSkill = 'knowledge-extraction'; // 当前选中的 Skill
 let _alignTacitAnnotations = {}; // { noteId: { question, answer } } — Step3 修订经验批注缓存
 
+/* ===== Lucide icons helper ===== */
+function refreshIcons() {
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+}
+
 /* ===== Step2 Skill 卡片选择 ===== */
 function selectStep2Skill(skillId) {
   _step2ActiveSkill = skillId;
@@ -922,6 +929,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadStep1SchemaAndTemplates();
   setupFormAutoSave();
   loadModels();
+  refreshIcons();
   // 初始化列宽拖动调节
   if (App.initResizableColumns) { setTimeout(App.initResizableColumns, 300); }
 });
