@@ -759,39 +759,45 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               </div>
 
               <div style="display:flex;flex-direction:column;gap:8px;">
-                <button class="action-btn" id="s4-compile-btn" onclick="step4Compile()">
-                  <span class="action-icon">&#9889;</span> 一键编译交付包（确定性）
+                <button type="button" class="btn btn--primary btn--md" id="s4-compile-btn" onclick="step4Compile()">
+                  <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
+                  <span class="btn__text">一键编译交付包（确定性）</span>
                 </button>
                 <div class="action-note">从对齐版 Skill 草稿（IR）确定性生成 SKILL.md 终版 + 思维链 + QA，不经 LLM 二次发挥</div>
 
-                <button class="action-btn" id="s4-cot-btn" onclick="step4GenerateCOT()" style="margin-top:4px;">
-                  <span class="action-icon">&#128161;</span> 生成思维链 (COT)
+                <button type="button" class="btn btn--primary btn--md" id="s4-cot-btn" onclick="step4GenerateCOT()" style="margin-top:4px;">
+                  <span class="btn__icon btn__icon--left" data-lucide="lightbulb"></span>
+                  <span class="btn__text">生成思维链 (COT)</span>
                 </button>
                 <div class="action-note">LLM 根据知识条目生成分步骤推理链条，供 Agent 决策时调用</div>
 
-                <button class="action-btn" id="s4-qa-btn" onclick="step4GenerateQA()" style="margin-top:4px;">
-                  <span class="action-icon">&#128172;</span> 生成 QA 对
+                <button type="button" class="btn btn--primary btn--md" id="s4-qa-btn" onclick="step4GenerateQA()" style="margin-top:4px;">
+                  <span class="btn__icon btn__icon--left" data-lucide="message-circle"></span>
+                  <span class="btn__text">生成 QA 对</span>
                 </button>
                 <div class="action-note">LLM 将知识条目转化为 QA 对，用于 RAG 检索或 few-shot 示例</div>
 
-                <button class="action-btn" id="s4-exec-skill-btn" onclick="step4GenerateExecSkill()" style="margin-top:4px;">
-                  <span class="action-icon">&#129302;</span> 生成可执行 Agent Skill
+                <button type="button" class="btn btn--primary btn--md" id="s4-exec-skill-btn" onclick="step4GenerateExecSkill()" style="margin-top:4px;">
+                  <span class="btn__icon btn__icon--left" data-lucide="bot"></span>
+                  <span class="btn__text">生成可执行 Agent Skill</span>
                 </button>
                 <div class="action-note">结合 golden 知识库，LLM 生成含 SQL 匹配引擎 + 决策链的可部署 Skill</div>
               </div>
 
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
                 <div class="file-hint" style="margin-bottom:6px">&#128203; 知识库健康检查</div>
-                <button class="action-btn small-btn secondary-btn" id="s4-freshness-btn" onclick="step4FreshnessAudit()" style="width:100%;justify-content:center;">
-                  &#128260; 知识保鲜度审计
+                <button type="button" class="btn btn--outline btn--md" id="s4-freshness-btn" onclick="step4FreshnessAudit()" style="width:100%;">
+                  <span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span>
+                  <span class="btn__text">知识保鲜度审计</span>
                 </button>
                 <div class="file-hint" style="margin-top:4px">检测知识时效性、置信度衰减和被案例突破的规则</div>
               </div>
 
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
                 <div class="file-hint" style="margin-bottom:6px">&#128270; 显性化校验</div>
-                <button class="action-btn small-btn secondary-btn" id="s4-validate-btn" onclick="openValidatePanel()" style="width:100%;justify-content:center;">
-                  &#9889; 显性化校验回放
+                <button type="button" class="btn btn--outline btn--md" id="s4-validate-btn" onclick="openValidatePanel()" style="width:100%;">
+                  <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
+                  <span class="btn__text">显性化校验回放</span>
                 </button>
                 <div class="file-hint" style="margin-top:4px">上传历史案例，用知识库判断，与专家结论比对命中率</div>
                 <div class="validate-section hidden" id="s4-validate-panel">
@@ -801,7 +807,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   <div class="form-group" style="margin-top:8px;">
                     <select id="s4-validate-model"></select>
                   </div>
-                  <button class="action-btn small" id="s4-validate-run-btn" onclick="runValidateReplay()">执行校验</button>
+                  <button type="button" class="btn btn--primary btn--sm" id="s4-validate-run-btn" onclick="runValidateReplay()">
+                    <span class="btn__text">执行校验</span>
+                  </button>
                   <div id="s4-validate-result"></div>
                 </div>
               </div>

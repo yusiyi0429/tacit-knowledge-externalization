@@ -3149,9 +3149,11 @@ function renderStep4ArtifactCard(key, title, desc, countLabel, downloads, previe
 async function step4FreshnessAudit() {
   var btn = document.getElementById('s4-freshness-btn');
   if (!btn || btn._locked || !currentPipeline) return;
+  var origBtnHtml = btn.innerHTML;
   btn._locked = true;
   btn.disabled = true;
-  btn.innerHTML = '🔄 审计中...';
+  btn.classList.add('loading');
+  btn.innerHTML = '<span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span><span class="btn__text">审计中...</span>';
   var fd = new FormData();
   fd.append('skill_id', 'knowledge-freshness-audit');
   fd.append('pipeline_id', currentPipeline.id);
@@ -3182,7 +3184,9 @@ async function step4FreshnessAudit() {
   } finally {
     btn._locked = false;
     btn.disabled = false;
-    btn.innerHTML = '🔄 知识保鲜度审计';
+    btn.classList.remove('loading');
+    btn.innerHTML = origBtnHtml;
+    refreshIcons();
   }
 }
 
@@ -3220,6 +3224,7 @@ async function step4GenerateCOT() {
   } finally {
     btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
     btn.classList.remove('loading');
+    refreshIcons();
   }
 }
 
@@ -3258,6 +3263,7 @@ async function step4GenerateQA() {
   } finally {
     btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
     btn.classList.remove('loading');
+    refreshIcons();
   }
 }
 
@@ -3300,6 +3306,7 @@ async function step4GenerateExecSkill() {
   } finally {
     btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
     btn.classList.remove('loading');
+    refreshIcons();
   }
 }
 
@@ -4155,7 +4162,8 @@ async function runValidateReplay() {
   var model = document.getElementById('s4-validate-model')?.value || resolveModelName('s4-model');
   if (!model) { showToast('请选择模型', 'error'); return; }
 
-  btn.disabled = true; btn.textContent = '校验中...';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn__icon btn__icon--left" data-lucide="loader-2"></span><span class="btn__text">校验中...</span>';
   resultEl.innerHTML = '<div class="loading"><div class="spinner"></div>正在用知识库判断 ' + cases.length + ' 个案例...</div>';
 
   try {
@@ -4188,7 +4196,9 @@ async function runValidateReplay() {
   } catch (e) {
     resultEl.innerHTML = '<div style="color:var(--error);font-size:12px;margin-top:8px">网络错误: ' + escapeHtml(e.message) + '</div>';
   }
-  btn.disabled = false; btn.textContent = '执行校验';
+  btn.disabled = false;
+  btn.innerHTML = '<span class="btn__icon btn__icon--left" data-lucide="zap"></span><span class="btn__text">执行校验</span>';
+  refreshIcons();
 }
 
 /* ===== Step4: 一键编译交付包（确定性主路径）===== */
