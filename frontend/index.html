@@ -212,7 +212,10 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               <div class="form-group">
                 <label>子场景</label>
                 <div id="s1-sub-scenarios"></div>
-                <button class="s1-add-sub-btn" onclick="step1AddSubScenario()">+ 添加子场景</button>
+                <button type="button" class="s1-add-sub-btn btn btn--outline btn--sm" onclick="step1AddSubScenario()">
+                  <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
+                  <span class="btn__text">添加子场景</span>
+                </button>
               </div>
             </div>
           </div>
@@ -223,8 +226,13 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>知识列（可自定义）</label>
                 <div id="s1-knowledge-columns" class="s1-knowledge-columns"></div>
                 <div class="s1-k-col-actions">
-                  <button type="button" class="s1-add-sub-btn" onclick="step1AddKnowledgeColumn()">+ 添加列</button>
-                  <button type="button" class="s1-k-col-reset" onclick="step1ResetKnowledgeColumns()">恢复默认列</button>
+                  <button type="button" class="s1-add-sub-btn btn btn--outline btn--sm" onclick="step1AddKnowledgeColumn()">
+                    <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
+                    <span class="btn__text">添加列</span>
+                  </button>
+                  <button type="button" class="s1-k-col-reset btn btn--ghost btn--sm" onclick="step1ResetKnowledgeColumns()">
+                    <span class="btn__text">恢复默认列</span>
+                  </button>
                 </div>
                 <div class="file-hint">锚定四列（场景/场景说明/子场景/子场景说明）固定，此处仅配置知识列</div>
               </div>
@@ -254,8 +262,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 </div>
                 <div class="file-hint">上传/选用 Excel 后，将按文件表头为准，自定义知识列仅作记录</div>
               </details>
-              <button class="action-btn" id="s1-generate" onclick="step1Generate()">
-                <span class="action-icon">&#9654;</span> 生成场景骨架
+              <button type="button" class="btn btn--primary btn--md" id="s1-generate" onclick="step1Generate()">
+                <span class="btn__icon btn__icon--left" data-lucide="play"></span>
+                <span class="btn__text">生成场景骨架</span>
               </button>
               <div class="action-note">自由定义知识列与输出格式；后续步骤仍使用配套 Excel 继续流水线</div>
             </div>

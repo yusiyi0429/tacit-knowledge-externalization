@@ -1634,11 +1634,8 @@ a { color: var(--red); text-decoration: none; }
 }
 .s1-k-col-remove:hover { border-color: var(--error); color: var(--error); }
 .s1-k-col-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-.s1-k-col-reset {
-  padding: 6px 12px; border: 1px dashed var(--border); background: transparent; border-radius: var(--radius);
-  font-size: 12px; cursor: pointer; color: var(--text-secondary); font-family: var(--font-cn);
-}
-.s1-k-col-reset:hover { border-color: var(--red-light); color: var(--red); }
+.s1-k-col-reset { display: inline-flex; }
+.s1-k-col-reset:hover { color: var(--red); }
 .s1-schema-preview {
   margin-top: 8px;
   padding: 8px 10px;
@@ -1686,13 +1683,8 @@ a { color: var(--red); text-decoration: none; }
 }
 .s1-sub-content:focus { outline: none; border-color: var(--accent); }
 
-.s1-add-sub-btn {
-  display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px;
-  background: none; border: 1px dashed var(--border-light); border-radius: 6px;
-  color: var(--text-secondary); font-size: 13px; cursor: pointer;
-  transition: all 0.2s;
-}
-.s1-add-sub-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(220,53,69,0.04); }
+.s1-add-sub-btn { display: inline-flex; }
+.s1-add-sub-btn:hover { color: var(--red); }
 
 .s1-template-row {
   display: flex; align-items: center; gap: 10px; margin-bottom: 16px;

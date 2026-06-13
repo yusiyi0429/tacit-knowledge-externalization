@@ -19,6 +19,21 @@ function refreshIcons() {
   }
 }
 
+/* ===== Button markup helper ===== */
+function renderBtn(opts) {
+  opts = opts || {};
+  const variant = opts.variant || 'primary';
+  const size = opts.size || 'md';
+  const classes = ['btn', 'btn--' + variant, 'btn--' + size];
+  if (opts.cls) classes.push(opts.cls);
+  const iconHtml = opts.icon ? '<span class="btn__icon btn__icon--' + (opts.iconPosition || 'left') + '" data-lucide="' + escapeHtml(opts.icon) + '"></span>' : '';
+  const textHtml = opts.text ? '<span class="btn__text">' + escapeHtml(opts.text) + '</span>' : '';
+  const idAttr = opts.id ? ' id="' + opts.id + '"' : '';
+  const typeAttr = opts.type !== false ? ' type="' + (opts.type || 'button') + '"' : '';
+  const attrs = opts.attrs ? ' ' + opts.attrs : '';
+  return '<button' + typeAttr + ' class="' + classes.join(' ') + '"' + idAttr + attrs + '>' + iconHtml + textHtml + '</button>';
+}
+
 /* ===== Step2 Skill 卡片选择 ===== */
 function selectStep2Skill(skillId) {
   _step2ActiveSkill = skillId;
