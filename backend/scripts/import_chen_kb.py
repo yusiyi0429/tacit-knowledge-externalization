@@ -89,56 +89,58 @@ def main() -> None:
         print("未找到 .md 文件", file=sys.stderr)
         sys.exit(1)
 
-    # 试点：先处理第一个 .md，但收集所有 entries 后一次性 publish
-    # TODO: 未来批量处理多文件时，应聚合各文件的 domain（如取众数），而非仅用最后一个文件的 domain
-    entries = []
-    # 从第一个文件确定 domain（试点仅处理单个文件，批量扩展时需改为聚合逻辑）
-    first_doc = read_markdown(md_files[0])
-    domain = classify_domain(first_doc["title"], first_doc["content"])
-    for path in md_files[:1]:
+    # 全量处理：收集所有 .md 文件，按 domain 分组，每域调用一次 publish_entries
+    entries_by_domain: dict[str, list[dict]] = {}
+    for path in md_files:
         doc = read_markdown(path)
+        domain = classify_domain(doc["title"], doc["content"])
         summary = truncate_summary(doc["content"])
 
-        entries.append(
-            {
-                "sub_scenario": "",
-                "category": "会议纪要",
-                "fields": {
-                    "知识描述": doc["title"],
-                    "具体方法": summary,
-                    "适用条件": "",
-                    "判断逻辑": "",
-                    "贡献专家": "陈总监",
-                    "来源文件": doc["filename"],
-                    "原文内容": doc["content"],
-                },
-            }
-        )
+        entry = {
+            "sub_scenario": "",
+            "category": "会议纪要",
+            "fields": {
+                "知识描述": doc["title"],
+                "具体方法": summary,
+                "适用条件": "",
+                "判断逻辑": "",
+                "贡献专家": "陈总监",
+                "来源文件": doc["filename"],
+                "原文内容": doc["content"],
+            },
+        }
+        entries_by_domain.setdefault(domain, []).append(entry)
         print(f"处理 [{domain}] {path.name}")
 
-    ir = {
-        "skill_meta": {
-            "domain": domain,
-            "scenario_name": "总监知识汇集",
-        },
-        "anchors": {
-            "scenario": "总监知识汇集",
-        },
-        "entries": entries,
-    }
+    # 每域分别发布
+    all_uids: list[str] = []
+    for domain, entries in entries_by_domain.items():
+        ir = {
+            "skill_meta": {
+                "domain": domain,
+                "scenario_name": "总监知识汇集",
+            },
+            "anchors": {
+                "scenario": "总监知识汇集",
+            },
+            "entries": entries,
+        }
 
-    try:
-        result = publish_entries(
-            ir=ir,
-            pipeline_id="chen-director-pilot",
-            by="import-script",
-        )
-    except Exception as exc:
-        print(f"错误：publish_entries 失败: {exc}", file=sys.stderr)
-        sys.exit(1)
+        try:
+            result = publish_entries(
+                ir=ir,
+                pipeline_id="chen-director-pilot",
+                by="import-script",
+            )
+        except Exception as exc:
+            print(f"错误：publish_entries 失败 [{domain}]: {exc}", file=sys.stderr)
+            sys.exit(1)
 
-    entry_uid = result["entry_uids"][0] if result.get("entry_uids") else "N/A"
-    print(f"导入完成 -> {entry_uid}")
+        uids = result.get("entry_uids") or []
+        all_uids.extend(uids)
+        print(f"  [{domain}] 导入 {len(entries)} 条 -> {uids}")
+
+    print(f"\n全部导入完成，共 {len(all_uids)} 条 entry ({len(entries_by_domain)} 个域)")
 
 
 if __name__ == "__main__":
