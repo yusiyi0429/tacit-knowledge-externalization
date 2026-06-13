@@ -1,0 +1,65 @@
+[
+  {
+    "entry_id": "KN-009",
+    "field": "例外情形",
+    "action": "supplement",
+    "new_value": "在AI落地前，若数字化业务流程和实时数据基础尚未完善，可优先推荐部署员工端数字化工具（如提供客户完整视图的App），以建立实时数据能力，为后续AI落地创造条件。",
+    "fields": null,
+    "note": "来自案例case-001的分歧：专家认为应先提供员工端App建立客户数据视图，而非直接引入AI，补充KN-009的例外情形。",
+    "by": "validation"
+  },
+  {
+    "entry_id": "KN-017",
+    "field": "例外情形",
+    "action": "supplement",
+    "new_value": "在业务架构和技术架构重构完成前，可先通过部署员工端工具（如客户视图App）实现部分数据的实时化与数字化，作为过渡性步骤，无需等待完全重构。",
+    "fields": null,
+    "note": "来自案例case-001的分歧：专家推荐优先部署员工端App，而非等待完整重构，补充KN-017的例外情形。",
+    "by": "validation"
+  },
+  {
+    "entry_id": "KN-009",
+    "field": "适用条件",
+    "action": "modify",
+    "new_value": "适用于已具备一定数字化基础（如数字化办公推行、团队规模较大）但尚未建立实时数据基础的场景；在实时数据基础完善后，应组建小型AI团队小步快跑试错。",
+    "fields": null,
+    "note": "来自案例case-002的分歧：专家认为应在确保实时数据基础后，先组建AI团队试错，而非直接推进Next Best Action推荐，调整适用条件。",
+    "by": "validation"
+  },
+  {
+    "entry_id": "KN-022",
+    "field": "适用条件",
+    "action": "modify",
+    "new_value": "适用于从零开始或数字化基础薄弱的银行；若已有一定数字化基础，可并行推进实时数据建设与AI试点项目（如Next Best Action推荐），无需严格按顺序执行。",
+    "fields": null,
+    "note": "来自案例case-002的分歧：专家认为在200人数字化团队基础上，可直接推进AI推荐项目，调整顺序要求。",
+    "by": "validation"
+  },
+  {
+    "entry_id": "KN-011",
+    "field": "例外情形",
+    "action": "supplement",
+    "new_value": "在推动AI转型时，若CEO已具备数字化认知或技术团队已有AI试点经验，可授权技术负责人或核心团队主导，无需CEO亲自全程推动。",
+    "fields": null,
+    "note": "来自案例case-002的分歧：专家推理中引用KN-011，但案例中未强调CEO亲自推动，补充例外情形。",
+    "by": "validation"
+  },
+  {
+    "entry_id": "KN-005",
+    "field": "适用条件",
+    "action": "modify",
+    "new_value": "适用于存在监管要求（如稳定性）与业务敏捷性矛盾的银行，且目标市场对功能迭代频率有显著差异；对于海外市场，若零售与企业用户旅程和功能需求完全不同，也可适用。",
+    "fields": null,
+    "note": "来自案例case-003的分歧：专家认为双App架构适用于零售与企业客户需求不同的场景，扩展适用条件。",
+    "by": "validation"
+  },
+  {
+    "entry_id": "KN-005",
+    "field": "例外情形",
+    "action": "supplement",
+    "new_value": "若银行目标市场为单一用户群体（如仅零售），或零售与企业用户需求高度重叠，则无需拆分App。",
+    "fields": null,
+    "note": "来自案例case-003的分歧：专家建议补充例外情形，避免误用。",
+    "by": "validation"
+  }
+]
