@@ -3493,7 +3493,7 @@ async function loadPipelineOverview() {
     html += '<div class="overview-banner-title">隐性知识显性化 · 五步法萃取流水线</div>';
     html += '<div class="overview-banner-desc">将领域专家的隐性经验系统性显性化为 AI 可加载的结构化知识，通过五步法流水线，从场景定义到智能转化，层层递进、步步可追溯。</div>';
     html += '</div>';
-    html += '<button class="btn btn--secondary btn--lg" onclick="showNewPipelineForm()">';
+    html += '<button type="button" class="btn btn--light btn--lg" onclick="showNewPipelineForm()">';
     html += '<span class="btn__icon btn__icon--left" data-lucide="plus"></span>';
     html += '<span class="btn__text">新建流水线</span>';
     html += '</button>';
@@ -3545,8 +3545,8 @@ async function loadPipelineOverview() {
     html += '</div>';
     html += '<div class="form-group"><label>业务领域</label><input type="text" id="np-domain" placeholder="如：信贷、风控、营销（默认同场景名称）"></div>';
     html += '<div class="form-actions">';
-    html += '<button class="btn btn--secondary btn--md" onclick="hideNewPipelineForm()"><span class="btn__text">取消</span></button>';
-    html += '<button class="btn btn--primary btn--md" onclick="createPipeline()"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">创建并开始</span></button>';
+    html += '<button type="button" class="btn btn--secondary btn--md" onclick="hideNewPipelineForm()"><span class="btn__text">取消</span></button>';
+    html += '<button type="button" class="btn btn--primary btn--md" onclick="createPipeline()"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">创建并开始</span></button>';
     html += '</div>';
     html += '</div>';
 
@@ -3624,9 +3624,9 @@ function renderPipelineItem(p) {
   html += '</div>';
   html += '<div class="pipeline-item-right">';
   if (!isComplete) {
-    html += '<button class="btn btn--outline btn--sm"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">继续</span></button>';
+    html += '<button type="button" class="btn btn--outline btn--sm"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">继续</span></button>';
   }
-  html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation();deletePipeline(\'' + p.id + '\', this)" title="删除"><span class="btn__icon btn__icon--left" data-lucide="trash-2"></span><span class="btn__text">删除</span></button>';
+  html += '<button type="button" class="btn btn--ghost btn--sm" onclick="event.stopPropagation();deletePipeline(\'' + p.id + '\', this)" title="删除"><span class="btn__icon btn__icon--left" data-lucide="trash-2"></span><span class="btn__text">删除</span></button>';
   html += '</div>';
   html += '</div>';
   html += '<div class="pipeline-item-meta">';
@@ -3662,7 +3662,6 @@ function showNewPipelineForm() {
   const roadmap = document.querySelector('.overview-roadmap');
   if (form) { form.style.display = 'block'; }
   if (roadmap) { roadmap.style.display = 'none'; }
-  refreshIcons();
 }
 
 function hideNewPipelineForm() {
@@ -3675,7 +3674,6 @@ function hideNewPipelineForm() {
   const domainEl = document.getElementById('np-domain');
   if (nameEl) nameEl.value = '';
   if (domainEl) domainEl.value = '';
-  refreshIcons();
 }
 
 async function createPipeline() {
