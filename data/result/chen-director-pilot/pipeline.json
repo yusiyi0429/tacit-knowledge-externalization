@@ -1,10 +1,48 @@
 {
-  "pipeline_id": "chen-director-pilot",
+  "pipeline_id": "7a9f1ab3717f",
   "name": "总监带队访谈/会议纪要方法论",
   "expert": "陈总监",
   "description": "基于陈总监多篇会议纪要，沉淀总监带队访谈与会议纪要方法论",
-  "current_step": 0,
-  "step_status": "ready",
+  "current_step": 2,
+  "step_status": {
+    "1": "done",
+    "2": "active",
+    "3": "pending",
+    "4": "pending",
+    "5": "pending"
+  },
   "source_kb_entry_uids": ["KB-gen-4d8f227a", "KB-gen-b742d553"],
-  "step_data": {}
+  "step_data": {
+    "step1_output_file": "step1-template.xlsx",
+    "step1_download_url": "/downloads/template_4c97455c.xlsx",
+    "step1_template_source": "schema",
+    "step1_template_name": "通用知识萃取结构 (v1.1)",
+    "step1_output_format": "excel",
+    "step1_knowledge_columns": [
+      "环节",
+      "访谈方向",
+      "具体方法",
+      "知识类型",
+      "知识引用",
+      "适用条件",
+      "判断逻辑",
+      "反模式/踩坑提示",
+      "经验判断",
+      "适用边界",
+      "例外情形",
+      "来源文档",
+      "来源位置",
+      "置信度",
+      "贡献专家",
+      "证据数",
+      "突破数"
+    ],
+    "step1_sub_scenario_count": 4,
+    "step1_sub_scenarios": [
+      {"name": "会议前准备", "description": "明确访谈/会议目标、参会人、议题清单"},
+      {"name": "会议中记录", "description": "结构化记录关键观点、案例、决策与待办"},
+      {"name": "会议后提炼", "description": "从纪要中萃取方法论、监管洞察与可复用框架"},
+      {"name": "知识转化", "description": "将提炼内容转化为 SKILL.md / QA / COT"}
+    ]
+  }
 }
