@@ -76,6 +76,10 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <span class="btn__icon btn__icon--left" data-lucide="settings"></span>
         <span class="btn__text">模型配置</span>
       </button>
+      <button class="btn btn--ghost btn--sm" id="verify-nav-btn" onclick="openVerifyPanel()" title="验证知识库">
+        <span class="btn__icon btn__icon--left" data-lucide="clipboard-check"></span>
+        <span class="btn__text">验证知识库</span>
+      </button>
       <div class="nav-status" id="server-status">
         <span class="status-dot"></span>检测中...
       </div>
@@ -182,7 +186,57 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
       </div>
     </div>
   </div>
-  <div class="model-overlay hidden" id="model-overlay" onclick="closeModelPanel();closeSkillPanel()"></div>
+
+  <!-- Verify Knowledge Base Panel (Slide-in) -->
+  <div class="verify-panel" id="verify-panel">
+    <div class="verify-panel-header">
+      <h3>验证知识库</h3>
+      <button type="button" class="btn btn--ghost btn--sm verify-panel-close" onclick="closeVerifyPanel()" title="关闭">
+        <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+      </button>
+    </div>
+    <div class="verify-panel-body" id="verify-panel-body">
+      <div class="verify-section">
+        <div class="verify-section-header">
+          <span>测试用例</span>
+          <div class="verify-actions">
+            <button type="button" class="btn btn--outline btn--sm" onclick="importVerificationData()">
+              <span class="btn__text">导入 result 数据</span>
+            </button>
+            <button type="button" class="btn btn--primary btn--sm" onclick="showAddVerificationCaseForm()">
+              <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
+              <span class="btn__text">新增用例</span>
+            </button>
+          </div>
+        </div>
+        <div id="verification-case-list"></div>
+      </div>
+
+      <div class="verify-section">
+        <div class="verify-section-header">
+          <span>运行验证</span>
+        </div>
+        <div class="form-group">
+          <label>选择流水线或 SKILL 文件</label>
+          <select id="verify-pipeline-select">
+            <option value="">-- 选择流水线 --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>判官模型</label>
+          <select id="verify-model-select"></select>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn--primary btn--sm" onclick="runVerificationSuite()">
+            <span class="btn__icon btn__icon--left" data-lucide="play"></span>
+            <span class="btn__text">运行全部用例</span>
+          </button>
+        </div>
+        <div id="verification-report"></div>
+      </div>
+    </div>
+  </div>
+  <div class="model-overlay hidden" id="model-overlay" onclick="closeModelPanel();closeSkillPanel();closeVerifyPanel()"></div>
 
   <!-- Content Area -->
   <div class="app-content">

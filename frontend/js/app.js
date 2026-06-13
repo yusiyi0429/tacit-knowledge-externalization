@@ -1459,6 +1459,236 @@ function closeSkillPanel() {
   document.getElementById('skill-nav-btn').classList.remove('active');
 }
 
+// ─── Verify Knowledge Base Panel ─────────────────────────────────
+
+function openVerifyPanel() {
+  closeModelPanel();
+  closeSkillPanel();
+  document.getElementById('verify-panel').classList.add('open');
+  document.getElementById('model-overlay').classList.remove('hidden');
+  document.getElementById('verify-nav-btn').classList.add('active');
+  loadVerificationPanel();
+}
+function closeVerifyPanel() {
+  document.getElementById('verify-panel').classList.remove('open');
+  document.getElementById('model-overlay').classList.add('hidden');
+  document.getElementById('verify-nav-btn').classList.remove('active');
+}
+
+let verificationCases = [];
+
+async function loadVerificationPanel() {
+  await Promise.all([loadVerificationCases(), loadModels(), loadPipelinesForVerify()]);
+  refreshVerifyModelSelect();
+}
+
+async function loadVerificationCases() {
+  try {
+    const resp = await fetch(API_BASE + '/api/kb/verification_cases?limit=200');
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      verificationCases = data.cases || [];
+      renderVerificationCases();
+    } else {
+      showToast(data.error || '加载用例失败', 'error');
+    }
+  } catch (e) {
+    showToast('加载用例网络错误', 'error');
+  }
+}
+
+function renderVerificationCases() {
+  const container = document.getElementById('verification-case-list');
+  if (!container) return;
+  if (!verificationCases.length) {
+    container.innerHTML = '<div class="verify-empty">暂无测试用例，请导入或新增</div>';
+    return;
+  }
+  let html = '';
+  verificationCases.forEach(function (c) {
+    const inputSummary = (c.input && c.input.title) ? escapeHtml(c.input.title) : '';
+    html += '<div class="verify-case-item" data-uid="' + escapeHtml(c.case_uid) + '">';
+    html += '<div class="verify-case-title">' + escapeHtml(c.name) + '</div>';
+    html += '<div class="verify-case-meta">' + escapeHtml(c.source || 'manual') + (inputSummary ? ' · ' + inputSummary : '') + '</div>';
+    html += '<div class="verify-case-actions">';
+    html += '<button type="button" class="btn btn--outline btn--sm" onclick="runSingleVerificationCase(\'' + escapeHtml(c.case_uid) + '\')">';
+    html += '<span class="btn__icon btn__icon--left" data-lucide="play"></span><span class="btn__text">运行</span></button>';
+    html += '<button type="button" class="btn btn--ghost btn--sm" onclick="deleteVerificationCase(\'' + escapeHtml(c.case_uid) + '\')">';
+    html += '<span class="btn__text">删除</span></button>';
+    html += '</div></div>';
+  });
+  container.innerHTML = html;
+  if (typeof refreshIcons === 'function') refreshIcons(container);
+}
+
+function refreshVerifyModelSelect() {
+  const sel = document.getElementById('verify-model-select');
+  if (!sel || !allModels.length) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">-- 选择模型 --</option>';
+  allModels.forEach(function (m) {
+    const opt = document.createElement('option');
+    opt.value = m.name;
+    opt.textContent = m.name;
+    sel.appendChild(opt);
+  });
+  if (cur) sel.value = cur;
+}
+
+async function loadPipelinesForVerify() {
+  const sel = document.getElementById('verify-pipeline-select');
+  if (!sel) return;
+  try {
+    const resp = await fetch(API_BASE + '/api/pipelines');
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      const pipelines = data.pipelines || [];
+      sel.innerHTML = '<option value="">-- 选择流水线 --</option>';
+      pipelines.forEach(function (p) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = (p.name || p.scenario || '未命名') + ' (' + p.id.slice(0, 6) + '...)';
+        sel.appendChild(opt);
+      });
+    }
+  } catch (e) {
+    console.error('load pipelines for verify failed', e);
+  }
+}
+
+function showAddVerificationCaseForm() {
+  const name = prompt('用例名称：');
+  if (!name) return;
+  const inputRaw = prompt('输入 JSON（留空使用默认示例）：');
+  let input = {};
+  try { input = inputRaw ? JSON.parse(inputRaw) : {document_type: '示例', title: name, content: ''}; } catch (e) { input = {title: name}; }
+  const expectedRaw = prompt('期望输出 JSON（如 {"prediction":"通过"}，可留空）：');
+  let expected = {};
+  try { expected = expectedRaw ? JSON.parse(expectedRaw) : {}; } catch (e) { expected = {}; }
+  fetch(API_BASE + '/api/kb/verification_cases', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: name, input: input, expected_output: expected}),
+  }).then(function (r) { return r.json(); }).then(function (data) {
+    if (data.status === 'ok') {
+      showToast('已新增用例', 'success');
+      loadVerificationCases();
+    } else {
+      showToast(data.error || '新增失败', 'error');
+    }
+  }).catch(function (e) { showToast('新增失败', 'error'); });
+}
+
+async function deleteVerificationCase(caseUid) {
+  if (!confirm('确定删除该用例？')) return;
+  try {
+    const resp = await fetch(API_BASE + '/api/kb/verification_cases/' + encodeURIComponent(caseUid), {method: 'DELETE'});
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      showToast('已删除', 'success');
+      loadVerificationCases();
+    } else {
+      showToast(data.error || '删除失败', 'error');
+    }
+  } catch (e) { showToast('删除失败', 'error'); }
+}
+
+async function importVerificationData() {
+  try {
+    const resp = await fetch(API_BASE + '/api/verify/import_result_data', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({}),
+    });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      showToast('导入成功', 'success');
+      loadVerificationCases();
+    } else {
+      showToast(data.error || '导入失败', 'error');
+    }
+  } catch (e) { showToast('导入失败', 'error'); }
+}
+
+function getVerifyModelName() {
+  const sel = document.getElementById('verify-model-select');
+  return sel ? sel.value : (allModels[0] ? allModels[0].name : '');
+}
+
+function getVerifyPipelineId() {
+  const sel = document.getElementById('verify-pipeline-select');
+  return sel ? sel.value : '';
+}
+
+async function runSingleVerificationCase(caseUid) {
+  const model = getVerifyModelName();
+  const pipelineId = getVerifyPipelineId();
+  if (!pipelineId && !currentPipeline) { showToast('请先选择流水线', 'warn'); return; }
+  showToast('正在运行用例...', 'info');
+  try {
+    const resp = await fetch(API_BASE + '/api/validate/run_case', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({case_uid: caseUid, pipeline_id: pipelineId || (currentPipeline && currentPipeline.id), model: model}),
+    });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      renderVerificationReport(data.result || {});
+      showToast('运行完成', 'success');
+    } else {
+      showToast(data.error || '运行失败', 'error');
+    }
+  } catch (e) { showToast('运行失败', 'error'); }
+}
+
+async function runVerificationSuite() {
+  const model = getVerifyModelName();
+  const pipelineId = getVerifyPipelineId();
+  if (!pipelineId && !currentPipeline) { showToast('请先选择流水线', 'warn'); return; }
+  if (!verificationCases.length) { showToast('没有可运行的用例', 'warn'); return; }
+  showToast('正在批量运行...', 'info');
+  try {
+    const resp = await fetch(API_BASE + '/api/validate/run_suite', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        case_uids: verificationCases.map(function (c) { return c.case_uid; }),
+        pipeline_id: pipelineId || (currentPipeline && currentPipeline.id),
+        model: model,
+      }),
+    });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      renderVerificationReport(data.report || {});
+      showToast('批量运行完成', 'success');
+    } else {
+      showToast(data.error || '运行失败', 'error');
+    }
+  } catch (e) { showToast('运行失败', 'error'); }
+}
+
+function renderVerificationReport(report) {
+  const container = document.getElementById('verification-report');
+  if (!container) return;
+  const total = report.total || 0;
+  const pass = report.pass || 0;
+  const rate = total ? ((pass / total) * 100).toFixed(1) : 0;
+  let html = '<div class="verify-report-box">';
+  html += '<h4>验证结果</h4>';
+  html += '<div>用例数：' + total + '，通过：' + pass + '，失败：' + (report.fail || 0) + '，通过率：' + rate + '%</div>';
+  if (report.mismatches && report.mismatches.length) {
+    html += '<div style="margin-top:8px;"><strong>不一致用例：</strong></div>';
+    html += '<ul>';
+    report.mismatches.forEach(function (m) {
+      const diff = m.diff || {};
+      html += '<li>' + escapeHtml(String(m.case_id || '?')) + ' — 期望：' + escapeHtml(String(diff.expected_prediction || '')) + '，实际：' + escapeHtml(String(diff.actual_prediction || '')) + '</li>';
+    });
+    html += '</ul>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
 let allSkills = [];
 
 const SKILL_META = {
