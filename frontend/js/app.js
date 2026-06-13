@@ -3493,10 +3493,10 @@ async function loadPipelineOverview() {
     html += '<div class="overview-banner-title">隐性知识显性化 · 五步法萃取流水线</div>';
     html += '<div class="overview-banner-desc">将领域专家的隐性经验系统性显性化为 AI 可加载的结构化知识，通过五步法流水线，从场景定义到智能转化，层层递进、步步可追溯。</div>';
     html += '</div>';
-    html += '<div class="overview-banner-action" onclick="showNewPipelineForm()">';
-    html += '<span class="banner-action-icon">+</span>';
-    html += '<span>新建流水线</span>';
-    html += '</div>';
+    html += '<button class="btn btn--secondary btn--lg" onclick="showNewPipelineForm()">';
+    html += '<span class="btn__icon btn__icon--left" data-lucide="plus"></span>';
+    html += '<span class="btn__text">新建流水线</span>';
+    html += '</button>';
     html += '</div>';
     html += '</div>';
 
@@ -3571,6 +3571,7 @@ async function loadPipelineOverview() {
 
     html += '</div>';
     container.innerHTML = html;
+    refreshIcons();
   } catch (e) {
     container.innerHTML = '<div class="pipeline-overview"><div class="error-list"><div class="error-item">加载失败: ' + escapeHtml(e.message) + '</div></div></div>';
   }
@@ -3623,9 +3624,9 @@ function renderPipelineItem(p) {
   html += '</div>';
   html += '<div class="pipeline-item-right">';
   if (!isComplete) {
-    html += '<span class="pipeline-item-continue">继续 &#8250;</span>';
+    html += '<button class="btn btn--outline btn--sm"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">继续</span></button>';
   }
-  html += '<button class="pipeline-delete-btn" onclick="event.stopPropagation();deletePipeline(\'' + p.id + '\', this)" title="删除">&#10005;</button>';
+  html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation();deletePipeline(\'' + p.id + '\', this)" title="删除"><span class="btn__icon btn__icon--left" data-lucide="trash-2"></span><span class="btn__text">删除</span></button>';
   html += '</div>';
   html += '</div>';
   html += '<div class="pipeline-item-meta">';
