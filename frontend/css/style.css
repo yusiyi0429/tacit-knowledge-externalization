@@ -336,10 +336,8 @@ a { color: var(--red); text-decoration: none; }
 }
 .skill-panel-header h3 { font-size: 16px; font-weight: 700; color: var(--text); margin: 0; }
 .skill-panel-close {
-  width: 28px; height: 28px; border: none; border-radius: 4px;
-  background: var(--border-light); color: var(--text-secondary);
-  font-size: 18px; cursor: pointer; display: flex; align-items: center;
-  justify-content: center; transition: all 0.2s;
+  width: 28px !important; min-width: 28px !important; height: 28px !important;
+  padding: 0 !important; border-radius: 4px !important;
 }
 .skill-panel-close:hover { background: var(--error); color: #fff; }
 .skill-panel-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
@@ -968,10 +966,8 @@ a { color: var(--red); text-decoration: none; }
 }
 .model-panel-header h3 { font-size: 16px; font-weight: 700; color: var(--text); }
 .model-panel-close {
-  width: 28px; height: 28px; border: none; border-radius: 4px;
-  background: var(--border-light); color: var(--text-secondary);
-  font-size: 18px; cursor: pointer; display: flex; align-items: center;
-  justify-content: center; transition: all 0.2s;
+  width: 28px !important; min-width: 28px !important; height: 28px !important;
+  padding: 0 !important; border-radius: 4px !important;
 }
 .model-panel-close:hover { background: var(--error); color: #fff; }
 .model-panel-body { flex: 1; overflow-y: auto; padding: 16px 20px; }

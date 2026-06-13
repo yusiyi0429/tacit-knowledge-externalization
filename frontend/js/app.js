@@ -1658,8 +1658,9 @@ function showAddModelForm() {
   editingModelName = null;
   const titleEl = document.getElementById('model-form-title');
   const saveBtn = document.getElementById('model-form-save-btn');
+  const saveBtnText = saveBtn ? saveBtn.querySelector('.btn__text') : null;
   if (titleEl) titleEl.textContent = '添加自定义模型';
-  if (saveBtn) saveBtn.textContent = '添加';
+  if (saveBtnText) saveBtnText.textContent = '添加';
   document.getElementById('new-model-name').readOnly = false;
   ['new-model-name','new-model-model','new-model-url','new-model-apikey','new-model-desc','new-model-tx-code','new-model-sec-node'].forEach(id => {
     const el = document.getElementById(id);
@@ -1689,7 +1690,9 @@ async function editModel(name) {
     const m = data.model;
     editingModelName = name;
     document.getElementById('model-form-title').textContent = m.is_preset ? '编辑预设模型' : '编辑自定义模型';
-    document.getElementById('model-form-save-btn').textContent = '保存';
+    const editSaveBtn = document.getElementById('model-form-save-btn');
+    const editSaveBtnText = editSaveBtn ? editSaveBtn.querySelector('.btn__text') : null;
+    if (editSaveBtnText) editSaveBtnText.textContent = '保存';
     document.getElementById('new-model-name').value = m.name || '';
     document.getElementById('new-model-name').readOnly = true;
     document.getElementById('new-model-model').value = m.model || '';
@@ -1745,11 +1748,11 @@ function renderModelList() {
     html += '<div class="model-card-url">' + escapeHtml(m.url) + '</div>';
     html += '<div class="model-card-key">Key: ' + escapeHtml(m.api_key || m.api_key_masked || '') + '</div>';
     html += '<div class="model-card-actions">';
-    html += '<button type="button" class="mini-btn" data-action="edit" data-model-index="' + idx + '">编辑</button>';
-    html += '<button type="button" class="mini-btn" data-action="test" data-model-index="' + idx + '">测试连接</button>';
-    html += '<button type="button" class="mini-btn" data-action="stream" data-model-index="' + idx + '">流式测试</button>';
+    html += renderBtn({ variant: 'outline', size: 'sm', icon: 'pencil', text: '编辑', cls: 'model-card-btn', attrs: 'data-action="edit" data-model-index="' + idx + '"' });
+    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: '测试连接', cls: 'model-card-btn', attrs: 'data-action="test" data-model-index="' + idx + '"' });
+    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: '流式测试', cls: 'model-card-btn', attrs: 'data-action="stream" data-model-index="' + idx + '"' });
     if (!m.is_preset) {
-      html += '<button type="button" class="mini-btn danger" data-action="delete" data-model-index="' + idx + '">删除</button>';
+      html += renderBtn({ variant: 'danger', size: 'sm', icon: 'trash-2', text: '删除', cls: 'model-card-btn', attrs: 'data-action="delete" data-model-index="' + idx + '"' });
     }
     html += '</div>';
     html += '<div class="model-card-status" id="model-status-' + idx + '"></div>';
@@ -1757,6 +1760,7 @@ function renderModelList() {
     html += '</div>';
   });
   container.innerHTML = html;
+  refreshIcons();
 }
 
 function initModelListEvents() {
@@ -1855,7 +1859,8 @@ async function testModelStream(name, modelIndex, btnEl) {
   }
   if (btnEl) {
     btnEl.disabled = true;
-    btnEl.textContent = '流式中...';
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '流式中...' });
+    refreshIcons();
   }
   setModelTestStatus(statusEl, 'testing', '流式连接 ' + name + ' ...');
   let fullText = '';
@@ -1900,7 +1905,8 @@ async function testModelStream(name, modelIndex, btnEl) {
   }
   if (btnEl) {
     btnEl.disabled = false;
-    btnEl.textContent = '流式测试';
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '流式测试' });
+    refreshIcons();
   }
 }
 
@@ -1908,8 +1914,8 @@ async function testModel(name, modelIndex, btnEl) {
   const statusEl = document.getElementById('model-status-' + modelIndex);
   if (btnEl) {
     btnEl.disabled = true;
-    btnEl.classList.add('testing');
-    btnEl.textContent = '测试中...';
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '测试中...' });
+    refreshIcons();
   }
   setModelTestStatus(statusEl, 'testing', '正在连接 ' + name + ' ...');
   try {
@@ -1924,8 +1930,8 @@ async function testModel(name, modelIndex, btnEl) {
   }
   if (btnEl) {
     btnEl.disabled = false;
-    btnEl.classList.remove('testing');
-    btnEl.textContent = '测试连接';
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '测试连接' });
+    refreshIcons();
   }
 }
 
@@ -3456,8 +3462,9 @@ function copyMarkdownContent() {
     const btn = document.querySelector('.md-btn-copy');
     if (btn) {
       const orig = btn.innerHTML;
-      btn.innerHTML = '&#10003; 已复制';
-      setTimeout(() => { btn.innerHTML = orig; }, 1500);
+      btn.innerHTML = renderBtnChildren({ icon: 'check', text: '已复制' });
+      refreshIcons();
+      setTimeout(() => { btn.innerHTML = orig; refreshIcons(); }, 1500);
     }
   });
 }
@@ -3468,7 +3475,7 @@ async function saveMarkdownContent() {
   const content = document.getElementById('markdown-editor-content').value;
   const saveBtn = document.getElementById('md-editor-save-btn');
 
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '&#9203; 保存中...'; }
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存中...' }); refreshIcons(); }
 
   try {
     const resp = await fetch(API_BASE + '/api/files/save', {
@@ -3478,16 +3485,16 @@ async function saveMarkdownContent() {
     });
     const data = await resp.json();
     if (data.status === 'ok') {
-      if (saveBtn) { saveBtn.innerHTML = '&#10003; 已保存'; }
+      if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'check', text: '已保存' }); refreshIcons(); }
       showToast('文件已保存');
-      setTimeout(() => { if (saveBtn) saveBtn.innerHTML = '&#128190; 保存'; }, 2000);
+      setTimeout(() => { if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); } }, 2000);
     } else {
       alert('保存失败: ' + (data.error || '未知错误'));
-      if (saveBtn) saveBtn.innerHTML = '&#128190; 保存';
+      if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); }
     }
   } catch (e) {
     alert('保存失败: ' + e.message);
-    if (saveBtn) saveBtn.innerHTML = '&#128190; 保存';
+    if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); }
   } finally {
     if (saveBtn) saveBtn.disabled = false;
   }
@@ -4011,7 +4018,9 @@ async function saveExcelEditor() {
   }
 
   const saveBtn = document.getElementById('excel-editor-save-btn');
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '保存中...'; }
+  const saveBtnText = saveBtn ? saveBtn.querySelector('.btn__text') : null;
+  if (saveBtn) { saveBtn.disabled = true; }
+  if (saveBtnText) { saveBtnText.textContent = '保存中...'; }
 
   try {
     const resp = await fetch(API_BASE + '/api/excel/save', {
@@ -4111,7 +4120,8 @@ async function saveExcelEditor() {
   } catch (e) {
     alert('保存失败: ' + e.message);
   } finally {
-    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '保存'; }
+    if (saveBtn) { saveBtn.disabled = false; }
+    if (saveBtnText) { saveBtnText.textContent = '保存'; }
   }
 }
 

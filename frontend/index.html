@@ -86,7 +86,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
   <div class="skill-panel" id="skill-panel">
     <div class="skill-panel-header">
       <h3>Skill 配置</h3>
-      <button class="skill-panel-close" onclick="closeSkillPanel()">&times;</button>
+      <button type="button" class="btn btn--ghost btn--sm skill-panel-close" onclick="closeSkillPanel()" title="关闭">
+        <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+      </button>
     </div>
     <div class="skill-panel-body" id="skill-panel-body">
       <!-- rendered by JS -->
@@ -97,13 +99,18 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
   <div class="model-panel" id="model-panel">
     <div class="model-panel-header">
       <h3>LLM 模型配置</h3>
-      <button class="model-panel-close" onclick="closeModelPanel()">&times;</button>
+      <button type="button" class="btn btn--ghost btn--sm model-panel-close" onclick="closeModelPanel()" title="关闭">
+        <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+      </button>
     </div>
     <div class="model-panel-body">
       <div class="model-section">
         <div class="model-section-header">
           <span>已配置模型</span>
-          <button class="action-btn small" onclick="showAddModelForm()">+ 添加模型</button>
+          <button type="button" class="btn btn--outline btn--sm" onclick="showAddModelForm()">
+            <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
+            <span class="btn__text">添加模型</span>
+          </button>
         </div>
         <div id="model-list"></div>
       </div>
@@ -165,8 +172,12 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <input type="text" id="new-model-desc" placeholder="模型能力简述">
         </div>
         <div class="form-actions">
-          <button class="action-btn secondary small" onclick="hideAddModelForm()">取消</button>
-          <button class="action-btn small" id="model-form-save-btn" onclick="saveModel()">添加</button>
+          <button type="button" class="btn btn--secondary btn--sm" onclick="hideAddModelForm()">
+            <span class="btn__text">取消</span>
+          </button>
+          <button type="button" class="btn btn--primary btn--sm" id="model-form-save-btn" onclick="saveModel()">
+            <span class="btn__text">添加</span>
+          </button>
         </div>
       </div>
     </div>
@@ -947,8 +958,12 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <span id="excel-editor-step-label">在线编辑</span>
       </div>
       <div class="excel-editor-actions">
-        <button class="excel-btn excel-btn-save" id="excel-editor-save-btn" onclick="saveExcelEditor()">保存</button>
-        <button class="excel-btn excel-btn-close" onclick="closeExcelEditor()">关闭</button>
+        <button type="button" class="btn btn--primary btn--sm excel-btn-save" id="excel-editor-save-btn" onclick="saveExcelEditor()">
+          <span class="btn__text">保存</span>
+        </button>
+        <button type="button" class="btn btn--ghost btn--sm excel-btn-close" onclick="closeExcelEditor()">
+          <span class="btn__text">关闭</span>
+        </button>
       </div>
     </div>
     <div class="excel-editor-body" id="excel-editor-content">
@@ -966,10 +981,22 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <span id="markdown-editor-title">SKILL.md 预览编辑</span>
       </div>
       <div class="md-editor-actions">
-        <button class="md-btn md-btn-save" id="md-editor-save-btn" onclick="saveMarkdownContent()">&#128190; 保存</button>
-        <button class="md-btn md-btn-download" id="md-editor-download-btn" onclick="downloadMarkdownContent()">&#11015; 下载</button>
-        <button class="md-btn md-btn-copy" onclick="copyMarkdownContent()">&#128203; 复制</button>
-        <button class="md-btn md-btn-close" onclick="closeMarkdownEditor()">&times; 关闭</button>
+        <button type="button" class="btn btn--primary btn--sm md-btn-save" id="md-editor-save-btn" onclick="saveMarkdownContent()">
+          <span class="btn__icon btn__icon--left" data-lucide="save"></span>
+          <span class="btn__text">保存</span>
+        </button>
+        <button type="button" class="btn btn--outline btn--sm md-btn-download" id="md-editor-download-btn" onclick="downloadMarkdownContent()">
+          <span class="btn__icon btn__icon--left" data-lucide="download"></span>
+          <span class="btn__text">下载</span>
+        </button>
+        <button type="button" class="btn btn--outline btn--sm md-btn-copy" onclick="copyMarkdownContent()">
+          <span class="btn__icon btn__icon--left" data-lucide="copy"></span>
+          <span class="btn__text">复制</span>
+        </button>
+        <button type="button" class="btn btn--ghost btn--sm md-btn-close" onclick="closeMarkdownEditor()">
+          <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+          <span class="btn__text">关闭</span>
+        </button>
       </div>
     </div>
     <div class="md-editor-body">
