@@ -3545,8 +3545,8 @@ async function loadPipelineOverview() {
     html += '</div>';
     html += '<div class="form-group"><label>业务领域</label><input type="text" id="np-domain" placeholder="如：信贷、风控、营销（默认同场景名称）"></div>';
     html += '<div class="form-actions">';
-    html += '<button class="action-btn secondary small" onclick="hideNewPipelineForm()">取消</button>';
-    html += '<button class="action-btn small" onclick="createPipeline()">创建并开始</button>';
+    html += '<button class="btn btn--secondary btn--md" onclick="hideNewPipelineForm()"><span class="btn__text">取消</span></button>';
+    html += '<button class="btn btn--primary btn--md" onclick="createPipeline()"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">创建并开始</span></button>';
     html += '</div>';
     html += '</div>';
 
@@ -3662,6 +3662,7 @@ function showNewPipelineForm() {
   const roadmap = document.querySelector('.overview-roadmap');
   if (form) { form.style.display = 'block'; }
   if (roadmap) { roadmap.style.display = 'none'; }
+  refreshIcons();
 }
 
 function hideNewPipelineForm() {
@@ -3674,6 +3675,7 @@ function hideNewPipelineForm() {
   const domainEl = document.getElementById('np-domain');
   if (nameEl) nameEl.value = '';
   if (domainEl) domainEl.value = '';
+  refreshIcons();
 }
 
 async function createPipeline() {
