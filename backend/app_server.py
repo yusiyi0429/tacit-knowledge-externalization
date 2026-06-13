@@ -2563,7 +2563,7 @@ def _resolve_step1_workbook_path(pipeline_id: str):
     return None
 
 
-def _write_step2_preextract_excel(pipeline_id: str, extracted_items: list):
+def _write_step2_preextract_excel(pipeline_id: str, extracted_items: list, sub_scenarios: list | None = None):
     from step2_preextract import write_preextract_excel
 
     step1_path = _resolve_step1_workbook_path(pipeline_id)
@@ -2574,6 +2574,7 @@ def _write_step2_preextract_excel(pipeline_id: str, extracted_items: list):
         output_path=output_path,
         items=extracted_items or [],
         pipeline_id=pipeline_id,
+        sub_scenarios=sub_scenarios,
     )
     return output_name, meta
 
@@ -3065,10 +3066,22 @@ def _execute_knowledge_extraction():
     extract_stats = {"raw_count": 0, "processed_count": 0, "min_items": style_rule["min_items"], "max_items": style_rule["max_items"]}
     output_name = None
     excel_meta = {}
+    scenario_meta = _pipeline_scenario_meta(pipeline_id) if pipeline_id else {}
+    sub_scenarios = scenario_meta.get("sub_scenarios", [])
+    user_content = f"请从以下文档中提取知识条目：\n\n{doc_text}"
+    if sub_scenarios:
+        sub_names = [s.get("name", "") for s in sub_scenarios if s.get("name")]
+        if sub_names:
+            user_content += (
+                "\n\n【子场景要求】\n"
+                "本文档涉及以下子场景，请为每个子场景分别提取知识条目：\n" +
+                "\n".join(f"- {name}" for name in sub_names) +
+                "\n\n每条知识条目必须包含一个「子场景」字段，值为上述子场景名称之一。"
+            )
     try:
         result = call_llm_with_retry(model_cfg, [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"请从以下文档中提取知识条目：\n\n{doc_text}"}
+            {"role": "user", "content": user_content}
         ], stream=False, temperature=style_rule["temperature"], max_tokens=max_tokens)
 
         if isinstance(result, dict):
@@ -3107,7 +3120,7 @@ def _execute_knowledge_extraction():
                 "build": STEP2_EXCEL_BUILD,
             })
 
-        output_name, excel_meta = _write_step2_preextract_excel(pipeline_id, extracted_items)
+        output_name, excel_meta = _write_step2_preextract_excel(pipeline_id, extracted_items, sub_scenarios=sub_scenarios)
         step2_md_name, step2_md_url = _maybe_generate_markdown_artifact(
             pipeline_id,
             output_name,
@@ -6247,6 +6260,258 @@ def api_kb_skills():
         return jsonify({"status": "error", "error": str(e)})
 
 
+# ─── 验证知识库路由（本地知识库验证 agent-skill）───────────────────────
+
+def _resolve_skill_text_for_verification(pipeline_id: str, skill_file: str = "") -> tuple[str, str]:
+    """解析待验证 SKILL 文本：显式 skill_file > pipeline step4_skill_file > IR 渲染 > Excel。"""
+    if skill_file:
+        # 优先在工作区内查找
+        skill_path = safe_workspace_path(WORKSPACE, skill_file, must_exist=True)
+        if skill_path:
+            try:
+                return skill_path.read_text(encoding="utf-8"), "skill_file"
+            except Exception:
+                pass
+        # 允许项目内相对路径（如 data/result/SKILL.md）。这是项目固定资源目录的回退查找，
+        # 不替代 safe_workspace_path 的安全沙箱，仅用于加载已发布产物。
+        project_skill = PROJECT_DIR / skill_file
+        if project_skill.exists():
+            try:
+                return project_skill.read_text(encoding="utf-8"), "skill_file"
+            except Exception:
+                pass
+    return _resolve_skill_text_for_validation(pipeline_id)
+
+
+@app.route("/api/kb/verification_cases", methods=["GET"])
+def api_kb_list_verification_cases():
+    try:
+        import knowledge_base as kb
+        cases = kb.list_verification_cases(
+            skill_id=request.args.get("skill_id", ""),
+            source=request.args.get("source", ""),
+            tags=request.args.get("tags", ""),
+            limit=int(request.args.get("limit", "100") or 100),
+        )
+        return jsonify({"status": "ok", "cases": cases, "total": len(cases)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
+@app.route("/api/kb/verification_cases", methods=["POST"])
+def api_kb_add_verification_case():
+    data = request.get_json(force=True) or {}
+    try:
+        import knowledge_base as kb
+        case_uid = kb.add_verification_case(
+            name=data.get("name", ""),
+            input_data=data.get("input") or data.get("input_json") or {},
+            description=data.get("description", ""),
+            expected_output=data.get("expected_output") or data.get("expected_output_json") or {},
+            tags=data.get("tags", ""),
+            source=data.get("source", "manual"),
+            skill_id=data.get("skill_id", ""),
+        )
+        return jsonify({"status": "ok", "case_uid": case_uid})
+    except ValueError as ve:
+        return jsonify({"status": "error", "error": str(ve)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"创建失败: {str(e)}"})
+
+
+@app.route("/api/kb/verification_cases/<case_uid>", methods=["PUT"])
+def api_kb_update_verification_case(case_uid):
+    data = request.get_json(force=True) or {}
+    try:
+        import knowledge_base as kb
+        updates = {}
+        for k in ("name", "description", "tags", "source", "skill_id"):
+            if k in data:
+                updates[k] = data[k]
+        if "input" in data or "input_json" in data:
+            updates["input_json"] = data.get("input") or data.get("input_json") or {}
+        if "expected_output" in data or "expected_output_json" in data:
+            updates["expected_output_json"] = data.get("expected_output") or data.get("expected_output_json") or {}
+        ok = kb.update_verification_case(case_uid, **updates)
+        if not ok:
+            return jsonify({"status": "error", "error": "用例不存在或无有效更新"})
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"更新失败: {str(e)}"})
+
+
+@app.route("/api/kb/verification_cases/<case_uid>", methods=["DELETE"])
+def api_kb_delete_verification_case(case_uid):
+    try:
+        import knowledge_base as kb
+        ok = kb.delete_verification_case(case_uid)
+        if not ok:
+            return jsonify({"status": "error", "error": "用例不存在"})
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"删除失败: {str(e)}"})
+
+
+@app.route("/api/kb/verification_runs", methods=["GET"])
+def api_kb_list_verification_runs():
+    try:
+        import knowledge_base as kb
+        runs = kb.list_verification_runs(
+            case_id=int(request.args.get("case_id", "0") or 0),
+            skill_id=request.args.get("skill_id", ""),
+            limit=int(request.args.get("limit", "100") or 100),
+        )
+        return jsonify({"status": "ok", "runs": runs, "total": len(runs)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
+@app.route("/api/kb/verification_rules", methods=["GET"])
+def api_kb_list_verification_rules():
+    try:
+        import knowledge_base as kb
+        rules = kb.list_verification_rules(
+            rule_type=request.args.get("rule_type", ""),
+            enabled_only=request.args.get("enabled_only", "false").lower() == "true",
+            limit=int(request.args.get("limit", "100") or 100),
+        )
+        return jsonify({"status": "ok", "rules": rules, "total": len(rules)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
+@app.route("/api/validate/run_case", methods=["POST"])
+def api_validate_run_case():
+    """运行单个验证用例。"""
+    data = request.get_json(force=True) or {}
+    case_uid = data.get("case_uid", "")
+    pipeline_id = data.get("pipeline_id", "")
+    skill_file = data.get("skill_file", "")
+    model_name = data.get("model", "")
+
+    if not case_uid:
+        return jsonify({"status": "error", "error": "缺少 case_uid"})
+
+    import knowledge_base as kb
+    case = kb.get_verification_case(case_uid)
+    if not case:
+        return jsonify({"status": "error", "error": "用例不存在"})
+
+    skill_text, source_kind = _resolve_skill_text_for_verification(pipeline_id, skill_file)
+    if not skill_text:
+        return jsonify({"status": "error", "error": "未找到可验证的 SKILL/知识稿"})
+
+    model_cfg = get_model_by_name(model_name)
+    if not model_cfg:
+        model_cfg = load_llm_config()[0] if load_llm_config() else None
+    if not model_cfg:
+        return jsonify({"status": "error", "error": "无可用 LLM 模型"})
+
+    try:
+        from validation_replay import run_verification_case
+        result = run_verification_case(case, skill_text, model_cfg)
+        run_uid = kb.add_verification_run(
+            case_id=case.get("id", 0),
+            skill_id=case.get("skill_id", ""),
+            skill_version=pipeline_id or skill_file,
+            result_status=result.get("status", ""),
+            actual_output=result.get("actual_output", {}),
+            diff=result.get("diff", {}),
+            score=result.get("score", 0.0),
+            judge_model=model_cfg.get("name", ""),
+        )
+        return jsonify({"status": "ok", "run_uid": run_uid, "result": result})
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"运行失败: {str(e)}"})
+
+
+@app.route("/api/validate/run_suite", methods=["POST"])
+def api_validate_run_suite():
+    """批量运行验证用例。"""
+    data = request.get_json(force=True) or {}
+    case_uids = data.get("case_uids") or []
+    pipeline_id = data.get("pipeline_id", "")
+    skill_file = data.get("skill_file", "")
+    model_name = data.get("model", "")
+
+    if not case_uids:
+        return jsonify({"status": "error", "error": "缺少 case_uids"})
+
+    skill_text, source_kind = _resolve_skill_text_for_verification(pipeline_id, skill_file)
+    if not skill_text:
+        return jsonify({"status": "error", "error": "未找到可验证的 SKILL/知识稿"})
+
+    model_cfg = get_model_by_name(model_name)
+    if not model_cfg:
+        model_cfg = load_llm_config()[0] if load_llm_config() else None
+    if not model_cfg:
+        return jsonify({"status": "error", "error": "无可用 LLM 模型"})
+
+    import knowledge_base as kb
+    cases = []
+    for uid in case_uids:
+        case = kb.get_verification_case(uid)
+        if case:
+            cases.append(case)
+    if not cases:
+        return jsonify({"status": "error", "error": "未找到有效用例"})
+
+    try:
+        from validation_replay import run_verification_suite, generate_verification_report
+        results = run_verification_suite(cases, skill_text, model_cfg)
+        run_uids = []
+        for case, result in zip(cases, results):
+            run_uid = kb.add_verification_run(
+                case_id=case.get("id", 0),
+                skill_id=case.get("skill_id", ""),
+                skill_version=pipeline_id or skill_file,
+                result_status=result.get("status", ""),
+                actual_output=result.get("actual_output", {}),
+                diff=result.get("diff", {}),
+                score=result.get("score", 0.0),
+                judge_model=model_cfg.get("name", ""),
+            )
+            run_uids.append(run_uid)
+        report = generate_verification_report(results)
+        return jsonify({"status": "ok", "run_uids": run_uids, "report": report, "results": results})
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"批量运行失败: {str(e)}"})
+
+
+@app.route("/api/validate/report/<run_uid>", methods=["GET"])
+def api_validate_report(run_uid):
+    try:
+        import knowledge_base as kb
+        from validation_replay import generate_verification_report, verification_report_to_markdown
+        run = kb.get_verification_run(run_uid)
+        if not run:
+            return jsonify({"status": "error", "error": "运行记录不存在"})
+        case_id = run.get("case_id", 0)
+        runs = kb.list_verification_runs(case_id=case_id, limit=1000)
+        report = generate_verification_report(runs)
+        return jsonify({
+            "status": "ok",
+            "run": run,
+            "report": report,
+            "markdown": verification_report_to_markdown(report),
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"获取报告失败: {str(e)}"})
+
+
+@app.route("/api/verify/import_result_data", methods=["POST"])
+def api_verify_import_result_data():
+    """从 data/result/test-data/ 和 golden_test.db 导入初始验证数据。"""
+    data = request.get_json(force=True) or {}
+    skill_id = data.get("skill_id", "")
+    try:
+        from scripts.import_verification_data import import_result_data
+        stats = import_result_data(skill_id=skill_id)
+        return jsonify({"status": "ok", "stats": stats})
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"导入失败: {str(e)}"})
+
+
 # ─── 多源知识融合路由 ────────────────────────────────────────
 
 def _llm_call_for_interview(system_prompt, user_prompt, model_name):
@@ -6389,6 +6654,9 @@ def step2_extract_unified():
             f"要求：输出 5~20 条。"
         )
 
+    scenario_meta = _pipeline_scenario_meta(pipeline_id) if pipeline_id else {}
+    sub_scenarios = scenario_meta.get("sub_scenarios", [])
+
     # 收集所有提取源（主线程预先提取文本，Flask 文件对象非线程安全）
     errors: list[dict] = []
     sources: list[dict] = []
@@ -6425,6 +6693,15 @@ def step2_extract_unified():
         """提取单个来源的知识条目（线程安全，纯函数）。"""
         try:
             user_prompt = f"请从以下文档中提取知识条目：\n\n{src['content']}"
+            if sub_scenarios:
+                sub_names = [s.get("name", "") for s in sub_scenarios if s.get("name")]
+                if sub_names:
+                    user_prompt += (
+                        "\n\n【子场景要求】\n"
+                        "本文档涉及以下子场景，请为每个子场景分别提取知识条目：\n" +
+                        "\n".join(f"- {name}" for name in sub_names) +
+                        "\n\n每条知识条目必须包含一个「子场景」字段，值为上述子场景名称之一。"
+                    )
             llm_result = call_llm_with_retry(
                 model_cfg,
                 [
@@ -6504,6 +6781,7 @@ def step2_extract_unified():
                 output_path=output_path,
                 items=items,
                 pipeline_id=pipeline_id,
+                sub_scenarios=sub_scenarios,
             )
             preextract_file = output_name
             preextract_download_url = f"/downloads/{output_name}"
@@ -6598,6 +6876,7 @@ def step2_extract_unified():
         from step2_preextract import write_fusion_to_excel
         fusion_excel_path = write_fusion_to_excel(
             fused, WORKSPACE, pipeline_id, step1_path=step1_path,
+            sub_scenarios=sub_scenarios,
         )
         excel_file = Path(fusion_excel_path).name
         excel_download_url = f"/downloads/{excel_file}"

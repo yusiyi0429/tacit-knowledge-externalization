@@ -254,8 +254,24 @@ def _ensure_blocks(ws, data_start: int, block_height: int, needed_blocks: int, a
         current += 1
 
 
-def _fill_into_template_data(ws, items: list, pipeline_id: str = "") -> int:
-    """在 Step1 模板数据区按行填入知识，返回写入行数。"""
+def _pick_sub_scenario(item: dict) -> str:
+    """从 LLM 输出项中提取子场景名称。"""
+    for key in ("子场景", "sub_scenario", "子场景名称", "sub-scenario"):
+        val = item.get(key)
+        if val is not None:
+            s = str(val).strip()
+            if s:
+                return s
+    return ""
+
+
+def _fill_into_template_data(
+    ws, items: list, pipeline_id: str = "", sub_scenarios: list | None = None
+) -> int:
+    """在 Step1 模板数据区按行填入知识，返回写入行数。
+
+    若传入 sub_scenarios 列表，会尝试把带「子场景」字段的项写入对应子场景块。
+    """
     anchor = find_anchor_columns(ws)
     if len(anchor) < 4:
         return 0
@@ -277,16 +293,47 @@ def _fill_into_template_data(ws, items: list, pipeline_id: str = "") -> int:
     if not any(field_cols.values()):
         return 0
 
+    sub_scenarios = sub_scenarios or []
+    sub_order = [s.get("name", "") for s in sub_scenarios if s.get("name")]
+    sub_to_block_idx = {name: idx for idx, name in enumerate(sub_order)}
+
+    # 确保每个子场景都有独立的数据块
     needed_blocks = max(1, (len(items) + block_height - 1) // block_height)
+    if sub_order:
+        needed_blocks = max(len(sub_order), needed_blocks)
     _ensure_blocks(ws, data_start, block_height, needed_blocks, anchor_cols)
 
-    written = 0
+    # 按子场景字段分组条目，优先让同子场景条目连续
+    grouped_items: list[tuple[int, dict, dict]] = []
+    fallback_items: list[tuple[int, dict, dict]] = []
     for idx, raw in enumerate(items):
         item = normalize_item(raw)
         raw_item = raw if isinstance(raw, dict) else {}
-        block_idx = idx // block_height
-        offset = idx % block_height
-        row = data_start + block_idx * block_height + offset
+        sub_name = _pick_sub_scenario(raw_item) or _pick_sub_scenario(item)
+        if sub_name and sub_name in sub_to_block_idx:
+            grouped_items.append((idx, item, raw_item))
+        else:
+            fallback_items.append((idx, item, raw_item))
+
+    # 按子场景顺序排列：先按已知子场景分组，再处理无子场景的条目
+    ordered_items = grouped_items + fallback_items
+
+    # 每个子场景当前写入行游标
+    sub_cursor: dict[str, int] = {}
+    for name, block_idx in sub_to_block_idx.items():
+        sub_cursor[name] = data_start + block_idx * block_height
+
+    written = 0
+    for idx, item, raw_item in ordered_items:
+        sub_name = _pick_sub_scenario(raw_item) or _pick_sub_scenario(item)
+        if sub_name and sub_name in sub_cursor:
+            row = sub_cursor[sub_name]
+            sub_cursor[sub_name] = row + 1
+        else:
+            # 回退：顺序填充到下一个可用行
+            block_idx = idx // block_height
+            offset = idx % block_height
+            row = data_start + block_idx * block_height + offset
         row_written = False
 
         # 自动写入知识编号
@@ -317,8 +364,8 @@ def _fill_into_template_data(ws, items: list, pipeline_id: str = "") -> int:
         if row_written:
             written += 1
 
-    # Smart-merge anchor columns based on actual extraction row span.
-    _smart_merge_anchor_columns(ws, anchor_cols, data_start, len(items))
+    # Keep Step1-created anchor merges intact. No smart re-merge needed
+    # when sub-scenario positioning respects existing block boundaries.
     return written
 
 
@@ -379,6 +426,7 @@ def write_preextract_excel(
     output_path: Path | str,
     items: list,
     pipeline_id: str = "",
+    sub_scenarios: list | None = None,
 ) -> dict:
     """
     生成萃取 Excel。
@@ -394,7 +442,7 @@ def write_preextract_excel(
         wb = openpyxl.load_workbook(output_path)
         ws = wb[wb.sheetnames[0]]
         used_template = True
-        filled_rows = _fill_into_template_data(ws, items, pipeline_id)
+        filled_rows = _fill_into_template_data(ws, items, pipeline_id, sub_scenarios=sub_scenarios)
         if filled_rows == 0 and items:
             filled_rows = _append_standard_rows(ws, items, pipeline_id)
         wb.save(output_path)
@@ -418,7 +466,7 @@ def write_preextract_excel(
     }
 
 
-def write_fusion_to_excel(fusion_dict: dict, output_dir, pipeline_id: str = "", step1_path: Path | str | None = None) -> str:
+def write_fusion_to_excel(fusion_dict: dict, output_dir, pipeline_id: str = "", step1_path: Path | str | None = None, sub_scenarios: list | None = None) -> str:
     """将融合结果JSON导出为preextract Excel文件。
 
     接收 merge_extraction_results() 返回的融合dict，遍历records：
@@ -461,6 +509,7 @@ def write_fusion_to_excel(fusion_dict: dict, output_dir, pipeline_id: str = "", 
         output_path=output_path,
         items=items,
         pipeline_id=pipeline_id,
+        sub_scenarios=sub_scenarios,
     )
 
     # 重新打开，追加「来源标注」和「融合状态」列

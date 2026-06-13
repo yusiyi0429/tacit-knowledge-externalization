@@ -11,6 +11,13 @@ import re
 from datetime import datetime
 
 
+def extract_assistant_content(result: dict) -> str:
+    """从 LLM 响应 dict 中提取 assistant content。"""
+    choices = result.get("choices") if isinstance(result, dict) else None
+    if isinstance(choices, list) and choices:
+        msg = choices[0].get("message") or {}
+        return str(msg.get("content") or "")
+    return ""
 def build_validation_prompt(knowledge_text: str, cases: list[dict]) -> tuple[str, str]:
     """构建校验 system prompt 和 user prompt。"""
     system_prompt = (
@@ -236,5 +243,202 @@ def generate_replay_report(result: dict, cases: list[dict], predictions: list[di
                 lines.append(f"- 引用的规则：{', '.join(rules)}")
             lines.append("")
             lines.append("> 建议：请检查上述规则是否需要更新或补充例外情形。")
+            lines.append("")
+    return "\n".join(lines)
+
+
+# ─── Agent-Skill 验证知识库（新增）────────────────────────────────────
+
+def _normalize_verification_output(raw: str) -> dict:
+    """从 LLM 原始输出中尽量提取结构化结论。"""
+    if not raw:
+        return {"raw": "", "prediction": "", "reasoning": ""}
+    text = raw.strip()
+    # 优先提取 JSON 块
+    m = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if m:
+        text = m.group(1).strip()
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            return {
+                "raw": raw,
+                "prediction": str(parsed.get("prediction") or parsed.get("结论") or parsed.get("result", "")).strip(),
+                "reasoning": str(parsed.get("reasoning") or parsed.get("推理") or "").strip(),
+            }
+    except (json.JSONDecodeError, TypeError):
+        pass
+    # 退化：从文本中找「通过/拒绝/条件通过」。顺序很重要：
+    # 先匹配更具体的「拒绝」「条件通过」，避免「条件通过」被「通过」前缀误吞。
+    for keyword, label in [("拒绝", "拒绝"), ("条件通过", "条件通过"), ("通过", "通过")]:
+        if keyword in text:
+            return {"raw": raw, "prediction": label, "reasoning": text[:500]}
+    return {"raw": raw, "prediction": "", "reasoning": text[:500]}
+
+
+def build_agent_skill_verification_prompt(skill_text: str, case_input: dict) -> tuple[str, str]:
+    """构建让 SKILL.md 作为判官的 system/user prompt。"""
+    system_prompt = (
+        "你是一份已发布的 Agent Skill（银行信贷领域）。请根据你的知识，对输入案例给出判断结论。\n"
+        "输出要求：\n"
+        "1. 先说明推理过程（引用知识中的规则）\n"
+        "2. 最后给出明确结论：通过 / 拒绝 / 条件通过\n"
+        "3. 尽量输出 JSON：{\"reasoning\": \"...\", \"prediction\": \"通过|拒绝|条件通过\"}"
+    )
+    user_prompt = (
+        f"## 你的知识（SKILL）\n{skill_text[:8000]}\n\n"
+        f"## 待判断案例\n{json.dumps(case_input, ensure_ascii=False, indent=2)}"
+    )
+    return system_prompt, user_prompt
+
+
+def compare_verification_output(actual: dict, expected: dict) -> dict:
+    """对比实际输出与期望输出，返回 diff 和 score。"""
+    actual_pred = _normalize_label(actual.get("prediction", ""))
+    expected_pred = _normalize_label(expected.get("prediction", expected.get("结论", "")))
+    match = bool(actual_pred and expected_pred and actual_pred == expected_pred)
+    score = 1.0 if match else 0.0
+    diff = {
+        "prediction_match": match,
+        "actual_prediction": actual.get("prediction", ""),
+        "expected_prediction": expected.get("prediction", expected.get("结论", "")),
+        "actual_reasoning": actual.get("reasoning", "")[:500],
+        "expected_reasoning": expected.get("reasoning", "")[:500],
+    }
+    status = "pass" if match else "fail"
+    return {"status": status, "score": score, "diff": diff}
+
+
+def run_verification_case(
+    case_record: dict,
+    skill_text: str,
+    model_cfg: dict,
+    llm_call_fn=None,
+) -> dict:
+    """运行单个验证用例，返回结果字典（含 actual_output/diff/status/score）。"""
+    case_input = case_record.get("input") or case_record.get("input_json") or {}
+    expected_output = case_record.get("expected_output") or case_record.get("expected_output_json") or {}
+    case_id = case_record.get("id") or case_record.get("case_uid", "")
+
+    system_prompt, user_prompt = build_agent_skill_verification_prompt(skill_text, case_input)
+
+    if llm_call_fn is None:
+        from llm_client import call_llm_with_retry
+        llm_call_fn = call_llm_with_retry
+
+    try:
+        result = llm_call_fn(
+            model_cfg,
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+            stream=False,
+            temperature=0.1,
+            max_tokens=4096,
+        )
+        raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
+    except Exception as e:
+        return {
+            "case_id": case_id,
+            "status": "error",
+            "score": 0.0,
+            "actual_output": {"error": str(e)},
+            "diff": {"error": str(e)},
+        }
+
+    actual_output = _normalize_verification_output(raw or "")
+    comparison = compare_verification_output(actual_output, expected_output)
+    return {
+        "case_id": case_id,
+        "status": comparison["status"],
+        "score": comparison["score"],
+        "actual_output": actual_output,
+        "diff": comparison["diff"],
+    }
+
+
+def run_verification_suite(
+    cases: list[dict],
+    skill_text: str,
+    model_cfg: dict,
+    llm_call_fn=None,
+) -> list[dict]:
+    """批量运行验证用例。"""
+    results = []
+    for case in cases:
+        try:
+            result = run_verification_case(case, skill_text, model_cfg, llm_call_fn=llm_call_fn)
+        except Exception as e:
+            result = {
+                "case_id": case.get("id") or case.get("case_uid", ""),
+                "status": "error",
+                "score": 0.0,
+                "actual_output": {"error": str(e)},
+                "diff": {"error": str(e)},
+            }
+        results.append(result)
+    return results
+
+
+def generate_verification_report(run_records: list[dict]) -> dict:
+    """生成验证报告（结构化的命中率和偏差项）。"""
+    total = len(run_records)
+    if not total:
+        return {"total": 0, "pass": 0, "fail": 0, "partial": 0, "pass_rate": 0.0, "mismatches": []}
+    pass_count = sum(1 for r in run_records if r.get("status") == "pass")
+    fail_count = sum(1 for r in run_records if r.get("status") == "fail")
+    partial_count = sum(1 for r in run_records if r.get("status") == "partial")
+    pass_rate = round(pass_count / total, 3)
+    mismatches = [r for r in run_records if r.get("status") != "pass"]
+
+    suggestions = []
+    for r in mismatches:
+        diff = r.get("diff") or {}
+        suggestions.append({
+            "case_id": r.get("case_id", ""),
+            "entry_id": "",
+            "field": "例外情形",
+            "action": "supplement",
+            "new_value": (
+                f"[待专家确认] 用例 {r.get('case_id', '?')} 期望结论为"
+                f"「{diff.get('expected_prediction', '')}」，实际结论为"
+                f"「{diff.get('actual_prediction', '')}」，可能存在未覆盖的边界。"
+            ),
+            "note": "本地知识库验证（程序化生成，需专家补全）",
+            "by": "verification",
+        })
+
+    return {
+        "total": total,
+        "pass": pass_count,
+        "fail": fail_count,
+        "partial": partial_count,
+        "pass_rate": pass_rate,
+        "mismatches": mismatches,
+        "suggestions": suggestions[:10],
+    }
+
+
+def verification_report_to_markdown(report: dict) -> str:
+    """将验证报告渲染为 Markdown。"""
+    lines = [
+        "# Agent-Skill 本地知识库验证报告",
+        "",
+        f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        f"- 用例总数：{report['total']}",
+        f"- **通过率：{report['pass_rate'] * 100:.1f}%**（{report['pass']}/{report['total']}）",
+        f"- 失败：{report['fail']}，部分通过：{report['partial']}",
+        "",
+        "## 不一致用例",
+        "",
+    ]
+    if not report["mismatches"]:
+        lines.append("> 所有用例均通过。")
+        lines.append("")
+    else:
+        for m in report["mismatches"]:
+            diff = m.get("diff") or {}
+            lines.append(f"### 用例 {m.get('case_id', '?')}")
+            lines.append(f"- **实际结论**：{diff.get('actual_prediction', '')}")
+            lines.append(f"- **期望结论**：{diff.get('expected_prediction', '')}")
+            lines.append(f"- 推理：{diff.get('actual_reasoning', '')[:200]}")
             lines.append("")
     return "\n".join(lines)

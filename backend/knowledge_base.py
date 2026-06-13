@@ -102,6 +102,43 @@ CREATE TABLE IF NOT EXISTS kb_validation_runs (
   judge_model TEXT DEFAULT '',
   ran_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS kb_verification_cases (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  case_uid TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  input_json TEXT NOT NULL,
+  expected_output_json TEXT DEFAULT '{}',
+  tags TEXT DEFAULT '',
+  source TEXT DEFAULT 'manual',
+  skill_id TEXT DEFAULT '',
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS kb_verification_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_uid TEXT UNIQUE NOT NULL,
+  case_id INTEGER DEFAULT 0,
+  skill_id TEXT DEFAULT '',
+  skill_version TEXT DEFAULT '',
+  result_status TEXT DEFAULT '',
+  actual_output_json TEXT DEFAULT '{}',
+  diff_json TEXT DEFAULT '{}',
+  score REAL DEFAULT 0,
+  judge_model TEXT DEFAULT '',
+  created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS kb_verification_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  rule_type TEXT DEFAULT 'structure',
+  rule_json TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  enabled INTEGER DEFAULT 1
+);
 """
 
 _STOPWORDS = {"的", "了", "在", "是", "和", "与", "或", "及", "对", "等", "需", "应", "时"}
@@ -528,6 +565,278 @@ def list_releases(skill_slug: str = "", limit: int = 20) -> list[dict]:
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+# ─── 验证知识库（用于验证 agent-skill）────────────────────────────────
+
+def _new_verification_case_uid() -> str:
+    return f"VC-{uuid.uuid4().hex[:8]}"
+
+
+def _new_verification_run_uid() -> str:
+    return f"VR-{uuid.uuid4().hex[:8]}"
+
+
+def add_verification_case(
+    name: str,
+    input_data: dict,  # 写入 input_json；list/get 返回字段为 input，供前端消费
+    *,
+    description: str = "",
+    expected_output: dict | None = None,
+    tags: str = "",
+    source: str = "manual",
+    skill_id: str = "",
+) -> str:
+    if not str(name or "").strip():
+        raise ValueError("测试用例名称不能为空")
+    if not isinstance(input_data, dict):
+        raise ValueError("input 必须是 dict")
+    init_db()
+    case_uid = _new_verification_case_uid()
+    now = _now()
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO kb_verification_cases (case_uid, name, description, input_json, expected_output_json,"
+            " tags, source, skill_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (case_uid, name, description,
+             json.dumps(input_data, ensure_ascii=False),
+             json.dumps(expected_output or {}, ensure_ascii=False),
+             tags, source, skill_id, now, now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return case_uid
+
+
+def update_verification_case(case_uid: str, **fields) -> bool:
+    allowed = {"name", "description", "input_json", "expected_output_json", "tags", "source", "skill_id"}
+    updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
+    if not updates:
+        return False
+    if "input_json" in updates and not isinstance(updates["input_json"], (dict, list, str)):
+        updates["input_json"] = dict(updates["input_json"])
+    if "expected_output_json" in updates and not isinstance(updates["expected_output_json"], (dict, list, str)):
+        updates["expected_output_json"] = dict(updates["expected_output_json"])
+    for k in ("input_json", "expected_output_json"):
+        if k in updates and isinstance(updates[k], (dict, list)):
+            updates[k] = json.dumps(updates[k], ensure_ascii=False)
+    init_db()
+    conn = get_db()
+    try:
+        set_clause = ", ".join(f"{k}=?" for k in updates)
+        params = list(updates.values()) + [_now(), case_uid]
+        cur = conn.execute(f"UPDATE kb_verification_cases SET {set_clause}, updated_at=? WHERE case_uid=?", params)
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_verification_case(case_uid: str) -> bool:
+    init_db()
+    conn = get_db()
+    try:
+        # 级联删除关联运行记录
+        case = conn.execute("SELECT id FROM kb_verification_cases WHERE case_uid=?", (case_uid,)).fetchone()
+        if case:
+            conn.execute("DELETE FROM kb_verification_runs WHERE case_id=?", (case["id"],))
+        cur = conn.execute("DELETE FROM kb_verification_cases WHERE case_uid=?", (case_uid,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def list_verification_cases(
+    *,
+    skill_id: str = "",
+    source: str = "",
+    tags: str = "",
+    limit: int = 100,
+) -> list[dict]:
+    init_db()
+    conn = get_db()
+    try:
+        sql = "SELECT * FROM kb_verification_cases WHERE 1=1"
+        params: list = []
+        if skill_id:
+            sql += " AND skill_id = ?"
+            params.append(skill_id)
+        if source:
+            sql += " AND source = ?"
+            params.append(source)
+        if tags:
+            sql += " AND tags LIKE ?"
+            params.append(f"%{tags}%")
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(int(limit))
+        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+    finally:
+        conn.close()
+    for r in rows:
+        for k in ("input_json", "expected_output_json"):
+            try:
+                r[k.replace("_json", "")] = json.loads(r.pop(k, "{}") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                r[k.replace("_json", "")] = {}
+    return rows
+
+
+def get_verification_case(case_uid: str) -> dict | None:
+    init_db()
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM kb_verification_cases WHERE case_uid=?", (case_uid,)).fetchone()
+        if not row:
+            return None
+        r = dict(row)
+    finally:
+        conn.close()
+    for k in ("input_json", "expected_output_json"):
+        try:
+            r[k.replace("_json", "")] = json.loads(r.pop(k, "{}") or "{}")
+        except (json.JSONDecodeError, TypeError):
+            r[k.replace("_json", "")] = {}
+    return r
+
+
+def add_verification_run(
+    case_id: int,
+    *,
+    skill_id: str = "",
+    skill_version: str = "",
+    result_status: str = "",
+    actual_output: dict | None = None,
+    diff: dict | None = None,
+    score: float = 0.0,
+    judge_model: str = "",
+) -> str:
+    init_db()
+    run_uid = _new_verification_run_uid()
+    now = _now()
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO kb_verification_runs (run_uid, case_id, skill_id, skill_version, result_status,"
+            " actual_output_json, diff_json, score, judge_model, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (run_uid, int(case_id), skill_id, skill_version, result_status,
+             json.dumps(actual_output or {}, ensure_ascii=False),
+             json.dumps(diff or {}, ensure_ascii=False),
+             float(score), judge_model, now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return run_uid
+
+
+def list_verification_runs(
+    *,
+    case_id: int = 0,
+    skill_id: str = "",
+    limit: int = 100,
+) -> list[dict]:
+    init_db()
+    conn = get_db()
+    try:
+        sql = "SELECT * FROM kb_verification_runs WHERE 1=1"
+        params: list = []
+        if case_id:
+            sql += " AND case_id = ?"
+            params.append(case_id)
+        if skill_id:
+            sql += " AND skill_id = ?"
+            params.append(skill_id)
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(int(limit))
+        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+    finally:
+        conn.close()
+    for r in rows:
+        for k in ("actual_output_json", "diff_json"):
+            try:
+                r[k.replace("_json", "")] = json.loads(r.pop(k, "{}") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                r[k.replace("_json", "")] = {}
+        r["status"] = r.get("result_status", "")
+    return rows
+
+
+def get_verification_run(run_uid: str) -> dict | None:
+    init_db()
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM kb_verification_runs WHERE run_uid=?", (run_uid,)).fetchone()
+        if not row:
+            return None
+        r = dict(row)
+    finally:
+        conn.close()
+    for k in ("actual_output_json", "diff_json"):
+        try:
+            r[k.replace("_json", "")] = json.loads(r.pop(k, "{}") or "{}")
+        except (json.JSONDecodeError, TypeError):
+            r[k.replace("_json", "")] = {}
+    r["status"] = r.get("result_status", "")
+    return r
+
+
+def add_verification_rule(
+    name: str,
+    rule: dict,
+    *,
+    rule_type: str = "structure",
+    description: str = "",
+    enabled: bool = True,
+) -> int:
+    if not str(name or "").strip():
+        raise ValueError("规则名称不能为空")
+    if not isinstance(rule, dict):
+        raise ValueError("rule 必须是 dict")
+    init_db()
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO kb_verification_rules (name, rule_type, rule_json, description, enabled)"
+            " VALUES (?,?,?,?,?)",
+            (name, rule_type, json.dumps(rule, ensure_ascii=False), description, 1 if enabled else 0),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def list_verification_rules(
+    *,
+    rule_type: str = "",
+    enabled_only: bool = False,
+    limit: int = 100,
+) -> list[dict]:
+    init_db()
+    conn = get_db()
+    try:
+        sql = "SELECT * FROM kb_verification_rules WHERE 1=1"
+        params: list = []
+        if rule_type:
+            sql += " AND rule_type = ?"
+            params.append(rule_type)
+        if enabled_only:
+            sql += " AND enabled = 1"
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(int(limit))
+        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+    finally:
+        conn.close()
+    for r in rows:
+        r["enabled"] = bool(r.get("enabled"))
+        try:
+            r["rule"] = json.loads(r.pop("rule_json", "{}") or "{}")
+        except (json.JSONDecodeError, TypeError):
+            r["rule"] = {}
+    return rows
 
 
 # ─── CLI ─────────────────────────────────────────────────────────
