@@ -572,8 +572,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                     <option value="">-- 选择 Skill --</option>
                   </select>
                 </div>
-                <button class="action-btn" id="s3-revise-btn" onclick="step3GeneratePreview()">
-                  <span class="action-icon">&#9881;</span> 发送并智能修订
+                <button type="button" class="btn btn--primary btn--md" id="s3-revise-btn" onclick="step3GeneratePreview()">
+                  <span class="btn__icon btn__icon--left" data-lucide="settings-2"></span>
+                  <span class="btn__text">发送并智能修订</span>
                 </button>
                 <div class="step-readiness info" id="s3-align-hint">若无意见可直接点击按钮，系统将按预萃稿直通生成对齐稿</div>
                 <div class="action-note">专家可多轮输入修订意见，模型会结合历史对话持续更新对齐建议。</div>
@@ -626,9 +627,16 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <div class="signal-review-body">
             <div id="s3-suggestion-list"></div>
             <div class="s2-result-actions" style="margin-top:10px;">
-              <button class="action-btn small-btn" id="s3-suggestion-apply" onclick="step3ApplySuggestions()">采纳勾选建议 → 生成新对齐稿</button>
-              <button class="action-btn small-btn secondary-btn" onclick="step3RejectSuggestions()">驳回勾选建议</button>
-              <button class="action-btn small-btn secondary-btn" onclick="loadStep3SuggestionPool()">刷新</button>
+              <button type="button" class="btn btn--primary btn--sm" id="s3-suggestion-apply" onclick="step3ApplySuggestions()">
+                <span class="btn__text">采纳勾选建议 → 生成新对齐稿</span>
+              </button>
+              <button type="button" class="btn btn--outline btn--sm" id="s3-suggestion-reject" onclick="step3RejectSuggestions()">
+                <span class="btn__text">驳回勾选建议</span>
+              </button>
+              <button type="button" class="btn btn--ghost btn--sm" id="s3-suggestion-refresh" onclick="loadStep3SuggestionPool()">
+                <span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span>
+                <span class="btn__text">刷新</span>
+              </button>
             </div>
           </div>
         </div>
@@ -643,17 +651,35 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
             </div>
             <div class="align-toolbar-center">
               <div class="align-filter-group">
-                <button class="align-filter-btn active" data-filter="all" onclick="alignFilterNotes('all')">全部</button>
-                <button class="align-filter-btn" data-filter="modify" onclick="alignFilterNotes('modify')">修改</button>
-                <button class="align-filter-btn" data-filter="add" onclick="alignFilterNotes('add')">新增</button>
-                <button class="align-filter-btn" data-filter="delete" onclick="alignFilterNotes('delete')">删除</button>
-                <button class="align-filter-btn" data-filter="supplement" onclick="alignFilterNotes('supplement')">补充</button>
+                <button type="button" class="align-filter-btn btn btn--ghost btn--sm active" data-filter="all" onclick="alignFilterNotes('all')">
+                  <span class="btn__text">全部</span>
+                </button>
+                <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="modify" onclick="alignFilterNotes('modify')">
+                  <span class="btn__text">修改</span>
+                </button>
+                <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="add" onclick="alignFilterNotes('add')">
+                  <span class="btn__text">新增</span>
+                </button>
+                <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="delete" onclick="alignFilterNotes('delete')">
+                  <span class="btn__text">删除</span>
+                </button>
+                <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="supplement" onclick="alignFilterNotes('supplement')">
+                  <span class="btn__text">补充</span>
+                </button>
               </div>
             </div>
             <div class="align-toolbar-right">
-              <button class="align-batch-btn align-batch-accept" onclick="alignBatchAcceptAll()">全部采纳</button>
-              <button class="align-batch-btn align-batch-reject" onclick="alignBatchRejectAll()">全部驳回</button>
-              <button class="align-batch-btn" onclick="step3BackToInput()">返回修改</button>
+              <button type="button" class="align-batch-btn align-batch-accept btn btn--outline btn--sm" onclick="alignBatchAcceptAll()">
+                <span class="btn__icon btn__icon--left" data-lucide="check"></span>
+                <span class="btn__text">全部采纳</span>
+              </button>
+              <button type="button" class="align-batch-btn align-batch-reject btn btn--outline btn--sm" onclick="alignBatchRejectAll()">
+                <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+                <span class="btn__text">全部驳回</span>
+              </button>
+              <button type="button" class="align-batch-btn btn btn--ghost btn--sm" onclick="step3BackToInput()">
+                <span class="btn__text">返回修改</span>
+              </button>
             </div>
           </div>
 
@@ -669,11 +695,13 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               <span class="align-stat-item align-stat-edited"><span class="align-stat-dot dot-edited"></span>已编辑 <strong id="s3-edited-count">0</strong></span>
             </div>
             <div class="align-bottom-actions">
-              <button class="action-btn edit-btn" onclick="editStep3Revision()">
-                <span class="action-icon">&#9998;</span> 在线编辑底稿
+              <button type="button" class="edit-btn btn btn--outline btn--md" onclick="editStep3Revision()">
+                <span class="btn__icon btn__icon--left" data-lucide="pencil"></span>
+                <span class="btn__text">在线编辑底稿</span>
               </button>
-              <button class="action-btn" id="s3-apply-btn" onclick="step3ApplyNotes()">
-                <span class="action-icon">&#10003;</span> 确认并生成对齐稿
+              <button type="button" class="btn btn--primary btn--md" id="s3-apply-btn" onclick="step3ApplyNotes()">
+                <span class="btn__icon btn__icon--left" data-lucide="check"></span>
+                <span class="btn__text">确认并生成对齐稿</span>
               </button>
             </div>
           </div>

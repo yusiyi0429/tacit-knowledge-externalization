@@ -885,17 +885,20 @@ function updateStep3AlignModeHint() {
   const btn = document.getElementById('s3-revise-btn');
   if (!btn) return;
   if (!text.trim() && !hasMaterial) {
-    btn.innerHTML = '<span class="action-icon">&#10003;</span> 无意见直通生成对齐稿';
+    btn.innerHTML = renderBtn({ variant: 'primary', size: 'md', icon: 'check', text: '无意见直通生成对齐稿' });
     renderStepReadiness('s3-align-hint', '未填写意见：将直接按预萃稿生成对齐稿（无修订）', 'info');
+    refreshIcons();
     return;
   }
   if (step3LooksLikeNoOpinion(text) && !hasMaterial) {
-    btn.innerHTML = '<span class="action-icon">&#10003;</span> 按当前稿生成对齐稿';
+    btn.innerHTML = renderBtn({ variant: 'primary', size: 'md', icon: 'check', text: '按当前稿生成对齐稿' });
     renderStepReadiness('s3-align-hint', '检测到“无修订”表达：将自动确认当前稿为对齐稿', 'info');
+    refreshIcons();
     return;
   }
-  btn.innerHTML = '<span class="action-icon">&#9881;</span> 发送并智能修订';
+  btn.innerHTML = renderBtn({ variant: 'primary', size: 'md', icon: 'settings-2', text: '发送并智能修订' });
   renderStepReadiness('s3-align-hint', '已检测到专家意见/材料：将按意见生成修订建议', 'ok');
+  refreshIcons();
 }
 
 function setupFormAutoSave() {
@@ -2677,7 +2680,7 @@ async function step3GeneratePreview() {
   btn._locked = true;
   btn.disabled = true;
   btn.classList.add('loading');
-  btn.innerHTML = '<span class="action-icon">&#9203;</span> 处理中...';
+  btn.innerHTML = '<span class="btn__text">处理中...</span>';
   clearTimeout(_formSaveTimer);
   renderLoading('s3-output');
 
@@ -2746,6 +2749,7 @@ async function step3GeneratePreview() {
   } finally {
     btn.disabled = false;
     updateStep3AlignModeHint();
+    refreshIcons();
   }
 }
 
@@ -3010,8 +3014,9 @@ async function step3ApplyNotes() {
   if (acceptedIds.length === 0) { alert('请至少采纳一条对齐建议'); return; }
 
   const btn = document.getElementById('s3-apply-btn');
+  const origBtnHtml = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="action-icon">&#9203;</span> 生成中...';
+  btn.innerHTML = '<span class="btn__text">生成中...</span>';
 
   try {
     const resp = await fetch(API_BASE + '/api/step3/apply_notes', {
@@ -3032,7 +3037,8 @@ async function step3ApplyNotes() {
     alert('生成对齐稿出错: ' + e.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<span class="action-icon">&#10003;</span> 确认并生成对齐稿';
+    btn.innerHTML = origBtnHtml;
+    refreshIcons();
   }
 }
 

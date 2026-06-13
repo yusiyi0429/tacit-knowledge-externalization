@@ -1962,20 +1962,11 @@ a { color: var(--red); text-decoration: none; }
 .align-toolbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 .align-filter-group { display: flex; gap: 4px; }
-.align-filter-btn {
-  padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);
-  background: transparent; color: var(--text-secondary); font-size: 12px;
-  cursor: pointer; transition: all 0.2s; font-family: var(--font-cn);
-}
-.align-filter-btn:hover { border-color: var(--red-light); color: var(--red); }
+.align-filter-btn { }
+.align-filter-btn:hover { color: var(--red); }
 .align-filter-btn.active { background: var(--red); color: #fff; border-color: var(--red); }
 
-.align-batch-btn {
-  padding: 5px 14px; border-radius: var(--radius); border: 1px solid var(--border);
-  background: #fff; font-size: 12px; cursor: pointer; transition: all 0.2s;
-  font-family: var(--font-cn); color: var(--text-secondary);
-}
-.align-batch-btn:hover { border-color: var(--red-light); color: var(--red); }
+.align-batch-btn { }
 .align-batch-accept { color: var(--green); border-color: var(--green); }
 .align-batch-accept:hover { background: var(--green); color: #fff; }
 .align-batch-reject { color: var(--error); border-color: var(--error); }
