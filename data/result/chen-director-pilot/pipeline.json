@@ -9,7 +9,7 @@
     "2": "done",
     "3": "done",
     "4": "done",
-    "5": "pending"
+    "5": "done"
   },
   "source_kb_entry_uids": [
     "KB-gen-4d8f227a",
@@ -92,6 +92,15 @@
     "step4_input_kind": "ir",
     "step4_quality_score": 24.8,
     "step4_quality_grade": "D",
-    "step4_knowledge_count": 12
+    "step4_knowledge_count": 12,
+    "step5_replay_file": "validation_replay_40f11f18.md",
+    "step5_replay_url": "/downloads/validation_replay_40f11f18.md",
+    "step5_result_file": "validation_result_40f11f18.json",
+    "step5_result_url": "/downloads/validation_result_40f11f18.json",
+    "step5_suggestions_file": "revision_suggestions_40f11f18.json",
+    "step5_suggestions_url": "/downloads/revision_suggestions_40f11f18.json",
+    "step5_hit_rate": 0.0,
+    "step5_case_source": "upload",
+    "step5_run_id": "40f11f18"
   }
 }
