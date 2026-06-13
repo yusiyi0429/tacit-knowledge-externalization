@@ -3,12 +3,12 @@
   "name": "总监带队访谈/会议纪要方法论",
   "expert": "陈总监",
   "description": "基于陈总监多篇会议纪要，沉淀总监带队访谈与会议纪要方法论",
-  "current_step": 4,
+  "current_step": 5,
   "step_status": {
     "1": "done",
     "2": "done",
     "3": "done",
-    "4": "active",
+    "4": "done",
     "5": "pending"
   },
   "source_kb_entry_uids": [
@@ -77,6 +77,21 @@
     "step3_aligned_file": "skill_draft_7a9f1ab3_v2_748e93.json",
     "step3_aligned_md_file": "SKILL_aligned_42e41be0.md",
     "step3_aligned_version": 2,
-    "step3_align_mode": "pass_through"
+    "step3_align_mode": "pass_through",
+    "step4_skill_file": "SKILL_6fa4c584.md",
+    "step4_skill_download_url": "/downloads/SKILL_6fa4c584.md",
+    "step4_cot_file": "COT_bf3e2023.md",
+    "step4_cot_download_url": "/downloads/COT_bf3e2023.md",
+    "step4_qa_file": "QA_3afa52e4.json",
+    "step4_qa_download_url": "/downloads/QA_3afa52e4.json",
+    "step4_qa_md_file": "QA_d2af9cfc.md",
+    "step4_qa_md_download_url": "/downloads/QA_d2af9cfc.md",
+    "step4_manifest_file": "openclaw_32943b4f.json",
+    "step4_manifest_url": "/downloads/openclaw_32943b4f.json",
+    "step4_published_version": 2,
+    "step4_input_kind": "ir",
+    "step4_quality_score": 24.8,
+    "step4_quality_grade": "D",
+    "step4_knowledge_count": 12
   }
 }
