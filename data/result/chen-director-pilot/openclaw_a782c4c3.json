@@ -1,0 +1,49 @@
+{
+  "schema": "agentskills.io/manifest/v1",
+  "name": "default-knowledge-extraction",
+  "display_name": "通用知识萃取结构",
+  "description": "通用知识萃取结构 专家经验 Skill（22 条知识）",
+  "version": "v2",
+  "entry": "SKILL.md",
+  "generator": "tacit-knowledge-pipeline",
+  "compatible": [
+    "openclaw",
+    "hermes",
+    "claude-code",
+    "cursor",
+    "codex",
+    "windsurf"
+  ],
+  "metadata": {
+    "openclaw": {
+      "tags": [
+        "判断规则",
+        "操作流程",
+        "反模式",
+        "AI投入与新功能验证",
+        "AI闭环与数据壁垒",
+        "私人银行数字化流程"
+      ],
+      "emoji": "📋",
+      "requires": {
+        "bins": []
+      }
+    },
+    "hermes": {
+      "tags": [
+        "判断规则",
+        "操作流程",
+        "反模式",
+        "AI投入与新功能验证",
+        "AI闭环与数据壁垒",
+        "私人银行数字化流程"
+      ],
+      "related_skills": [],
+      "requires_toolsets": []
+    },
+    "tacit_knowledge": {
+      "knowledge_count": 22,
+      "generated_at": "2026-06-13T15:10:30"
+    }
+  }
+}

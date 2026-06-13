@@ -12,6 +12,35 @@ let _step2InputMode = 'doc'; // 'doc' | 'case'
 let _step2ActiveSkill = 'knowledge-extraction'; // 当前选中的 Skill
 let _alignTacitAnnotations = {}; // { noteId: { question, answer } } — Step3 修订经验批注缓存
 
+/* ===== Lucide icons helper ===== */
+function refreshIcons() {
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+}
+
+/* ===== Button markup helper ===== */
+function renderBtn(opts) {
+  opts = opts || {};
+  const variant = opts.variant || 'primary';
+  const size = opts.size || 'md';
+  const classes = ['btn', 'btn--' + variant, 'btn--' + size];
+  if (opts.cls) classes.push(opts.cls);
+  const iconHtml = opts.icon ? '<span class="btn__icon btn__icon--' + (opts.iconPosition || 'left') + '" data-lucide="' + escapeHtml(opts.icon) + '"></span>' : '';
+  const textHtml = opts.text ? '<span class="btn__text">' + escapeHtml(opts.text) + '</span>' : '';
+  const idAttr = opts.id ? ' id="' + opts.id + '"' : '';
+  const typeAttr = opts.type !== false ? ' type="' + (opts.type || 'button') + '"' : '';
+  const attrs = opts.attrs ? ' ' + opts.attrs : '';
+  return '<button' + typeAttr + ' class="' + classes.join(' ') + '"' + idAttr + attrs + '>' + iconHtml + textHtml + '</button>';
+}
+
+function renderBtnChildren(opts) {
+  opts = opts || {};
+  const iconHtml = opts.icon ? '<span class="btn__icon btn__icon--' + (opts.iconPosition || 'left') + '" data-lucide="' + escapeHtml(opts.icon) + '"></span>' : '';
+  const textHtml = opts.text ? '<span class="btn__text">' + escapeHtml(opts.text) + '</span>' : '';
+  return iconHtml + textHtml;
+}
+
 /* ===== Step2 Skill 卡片选择 ===== */
 function selectStep2Skill(skillId) {
   _step2ActiveSkill = skillId;
@@ -256,8 +285,9 @@ function step1AddKnowledgeColumn(name, idx) {
   div.id = 's1-k-col-' + i;
   div.innerHTML =
     '<input type="text" class="s1-k-col-input" placeholder="如：具体方法、判断逻辑" value="' + escapeHtml(name || '') + '">' +
-    '<button type="button" class="s1-k-col-remove" onclick="step1RemoveKnowledgeColumn(' + i + ')" title="删除">✕</button>';
+    '<button type="button" class="btn btn--ghost btn--sm s1-k-col-remove" onclick="step1RemoveKnowledgeColumn(' + i + ')" title="删除"><span class="btn__icon" data-lucide="x"></span></button>';
   container.appendChild(div);
+  refreshIcons();
 }
 
 function step1RemoveKnowledgeColumn(idx) {
@@ -620,8 +650,9 @@ function addStep2TextRow() {
   row.className = 's2-text-input-row';
   row.innerHTML = '<input class="s2-text-input-label" placeholder="来源标注（如：制度文件A）">'
     + '<textarea class="s2-text-input-content" rows="2" placeholder="粘贴文档内容..."></textarea>'
-    + '<button type="button" class="s2-text-input-remove" onclick="this.parentElement.remove();updateStep2Readiness()" title="移除">×</button>';
+    + renderBtn({ variant: 'ghost', size: 'sm', icon: 'x', cls: 's2-text-input-remove', attrs: 'onclick="this.parentElement.remove();updateStep2Readiness()" title="移除"' });
   container.appendChild(row);
+  refreshIcons();
 }
 
 /* ===== Step3 信号审核面板 ===== */
@@ -639,7 +670,12 @@ function toggleSignalPanel() {
 function switchStep2Mode(mode) {
   _step2InputMode = mode;
   var tabs = document.querySelectorAll('.s2-mode-tab');
-  tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.mode === mode); });
+  tabs.forEach(function (t) {
+    var isActive = t.dataset.mode === mode;
+    t.classList.toggle('active', isActive);
+    t.classList.toggle('btn--primary', isActive);
+    t.classList.toggle('btn--ghost', !isActive);
+  });
   var panelDoc = document.getElementById('s2-panel-doc');
   var panelCase = document.getElementById('s2-panel-case');
   if (panelDoc) panelDoc.classList.toggle('hidden', mode !== 'doc');
@@ -757,9 +793,9 @@ function step2Execute() {
         html += '<div class="signal-review-panel" style="margin-top:12px;display:block;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
         html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">&#129518; Skill 草稿 v' + (result.skill_draft_version || 1) + '（初版，待专家对齐）</div>';
         html += '<div class="s2-result-actions">';
-        if (result.skill_draft_md_file) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(result.skill_draft_md_file) + '\',\'Skill 草稿预览 (v' + (result.skill_draft_version || 1) + ')\')">预览 Skill 草稿</button>';
-        if (result.skill_draft_md_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.skill_draft_md_url + '" download>下载草稿 Markdown</a>';
-        if (result.skill_draft_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.skill_draft_url + '" download>下载草稿 JSON (IR)</a>';
+        if (result.skill_draft_md_file) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.skill_draft_md_file) + '\',\'Skill 草稿预览 (v' + (result.skill_draft_version || 1) + ')\')">预览 Skill 草稿</button>';
+        if (result.skill_draft_md_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.skill_draft_md_url + '" download>下载草稿 Markdown</a>';
+        if (result.skill_draft_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.skill_draft_url + '" download>下载草稿 JSON (IR)</a>';
         html += '</div></div>';
       }
 
@@ -780,13 +816,13 @@ function step2Execute() {
       var step2Fmt = document.getElementById('s2-output-format')?.value || 'excel';
       var mdFlow = step2Fmt === 'markdown';
       // Markdown group
-      if (mdFlow && mdFile) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
-      if (!mdFlow && mdFile) html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
-      if (mdUrl) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
+      if (mdFlow && mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
+      if (!mdFlow && mdFile) html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
+      if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
       // Excel group
-      if (!mdFlow && dlName) html += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-      if (mdFlow && dlName) html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-      if (dlUrl) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + dlUrl + '" download>下载 Excel</a>';
+      if (!mdFlow && dlName) html += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+      if (mdFlow && dlName) html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+      if (dlUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + dlUrl + '" download>下载 Excel</a>';
       html += '</div>';
       html += '</div>';
 
@@ -802,6 +838,7 @@ function step2Execute() {
       btn._locked = false;
       btn.innerHTML = origBtnHtml;
       btn.classList.remove('loading');
+      refreshIcons();
     });
 }
 
@@ -856,17 +893,20 @@ function updateStep3AlignModeHint() {
   const btn = document.getElementById('s3-revise-btn');
   if (!btn) return;
   if (!text.trim() && !hasMaterial) {
-    btn.innerHTML = '<span class="action-icon">&#10003;</span> 无意见直通生成对齐稿';
+    btn.innerHTML = renderBtnChildren({ icon: 'check', text: '无意见直通生成对齐稿' });
     renderStepReadiness('s3-align-hint', '未填写意见：将直接按预萃稿生成对齐稿（无修订）', 'info');
+    refreshIcons();
     return;
   }
   if (step3LooksLikeNoOpinion(text) && !hasMaterial) {
-    btn.innerHTML = '<span class="action-icon">&#10003;</span> 按当前稿生成对齐稿';
+    btn.innerHTML = renderBtnChildren({ icon: 'check', text: '按当前稿生成对齐稿' });
     renderStepReadiness('s3-align-hint', '检测到“无修订”表达：将自动确认当前稿为对齐稿', 'info');
+    refreshIcons();
     return;
   }
-  btn.innerHTML = '<span class="action-icon">&#9881;</span> 发送并智能修订';
+  btn.innerHTML = renderBtnChildren({ icon: 'settings-2', text: '发送并智能修订' });
   renderStepReadiness('s3-align-hint', '已检测到专家意见/材料：将按意见生成修订建议', 'ok');
+  refreshIcons();
 }
 
 function setupFormAutoSave() {
@@ -922,6 +962,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadStep1SchemaAndTemplates();
   setupFormAutoSave();
   loadModels();
+  refreshIcons();
   // 初始化列宽拖动调节
   if (App.initResizableColumns) { setTimeout(App.initResizableColumns, 300); }
 });
@@ -1617,8 +1658,9 @@ function showAddModelForm() {
   editingModelName = null;
   const titleEl = document.getElementById('model-form-title');
   const saveBtn = document.getElementById('model-form-save-btn');
+  const saveBtnText = saveBtn ? saveBtn.querySelector('.btn__text') : null;
   if (titleEl) titleEl.textContent = '添加自定义模型';
-  if (saveBtn) saveBtn.textContent = '添加';
+  if (saveBtnText) saveBtnText.textContent = '添加';
   document.getElementById('new-model-name').readOnly = false;
   ['new-model-name','new-model-model','new-model-url','new-model-apikey','new-model-desc','new-model-tx-code','new-model-sec-node'].forEach(id => {
     const el = document.getElementById(id);
@@ -1648,7 +1690,9 @@ async function editModel(name) {
     const m = data.model;
     editingModelName = name;
     document.getElementById('model-form-title').textContent = m.is_preset ? '编辑预设模型' : '编辑自定义模型';
-    document.getElementById('model-form-save-btn').textContent = '保存';
+    const editSaveBtn = document.getElementById('model-form-save-btn');
+    const editSaveBtnText = editSaveBtn ? editSaveBtn.querySelector('.btn__text') : null;
+    if (editSaveBtnText) editSaveBtnText.textContent = '保存';
     document.getElementById('new-model-name').value = m.name || '';
     document.getElementById('new-model-name').readOnly = true;
     document.getElementById('new-model-model').value = m.model || '';
@@ -1704,11 +1748,11 @@ function renderModelList() {
     html += '<div class="model-card-url">' + escapeHtml(m.url) + '</div>';
     html += '<div class="model-card-key">Key: ' + escapeHtml(m.api_key || m.api_key_masked || '') + '</div>';
     html += '<div class="model-card-actions">';
-    html += '<button type="button" class="mini-btn" data-action="edit" data-model-index="' + idx + '">编辑</button>';
-    html += '<button type="button" class="mini-btn" data-action="test" data-model-index="' + idx + '">测试连接</button>';
-    html += '<button type="button" class="mini-btn" data-action="stream" data-model-index="' + idx + '">流式测试</button>';
+    html += renderBtn({ variant: 'outline', size: 'sm', icon: 'pencil', text: '编辑', cls: 'model-card-btn', attrs: 'data-action="edit" data-model-index="' + idx + '"' });
+    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: '测试连接', cls: 'model-card-btn', attrs: 'data-action="test" data-model-index="' + idx + '"' });
+    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: '流式测试', cls: 'model-card-btn', attrs: 'data-action="stream" data-model-index="' + idx + '"' });
     if (!m.is_preset) {
-      html += '<button type="button" class="mini-btn danger" data-action="delete" data-model-index="' + idx + '">删除</button>';
+      html += renderBtn({ variant: 'danger', size: 'sm', icon: 'trash-2', text: '删除', cls: 'model-card-btn', attrs: 'data-action="delete" data-model-index="' + idx + '"' });
     }
     html += '</div>';
     html += '<div class="model-card-status" id="model-status-' + idx + '"></div>';
@@ -1716,6 +1760,7 @@ function renderModelList() {
     html += '</div>';
   });
   container.innerHTML = html;
+  refreshIcons();
 }
 
 function initModelListEvents() {
@@ -1814,7 +1859,8 @@ async function testModelStream(name, modelIndex, btnEl) {
   }
   if (btnEl) {
     btnEl.disabled = true;
-    btnEl.textContent = '流式中...';
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '流式中...' });
+    refreshIcons();
   }
   setModelTestStatus(statusEl, 'testing', '流式连接 ' + name + ' ...');
   let fullText = '';
@@ -1859,7 +1905,8 @@ async function testModelStream(name, modelIndex, btnEl) {
   }
   if (btnEl) {
     btnEl.disabled = false;
-    btnEl.textContent = '流式测试';
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '流式测试' });
+    refreshIcons();
   }
 }
 
@@ -1867,8 +1914,8 @@ async function testModel(name, modelIndex, btnEl) {
   const statusEl = document.getElementById('model-status-' + modelIndex);
   if (btnEl) {
     btnEl.disabled = true;
-    btnEl.classList.add('testing');
-    btnEl.textContent = '测试中...';
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '测试中...' });
+    refreshIcons();
   }
   setModelTestStatus(statusEl, 'testing', '正在连接 ' + name + ' ...');
   try {
@@ -1883,8 +1930,8 @@ async function testModel(name, modelIndex, btnEl) {
   }
   if (btnEl) {
     btnEl.disabled = false;
-    btnEl.classList.remove('testing');
-    btnEl.textContent = '测试连接';
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '测试连接' });
+    refreshIcons();
   }
 }
 
@@ -1979,10 +2026,11 @@ function step1AddSubScenario() {
   div.id = 's1-sub-' + idx;
   div.innerHTML = '<div class="s1-sub-row">' +
     '<input type="text" class="s1-sub-name" placeholder="子场景名称" data-idx="' + idx + '">' +
-    '<button class="s1-sub-remove" onclick="step1RemoveSubScenario(' + idx + ')">✕</button>' +
+    '<button type="button" class="btn btn--ghost btn--sm s1-sub-remove" onclick="step1RemoveSubScenario(' + idx + ')"><span class="btn__icon" data-lucide="x"></span></button>' +
     '</div>' +
     '<textarea class="s1-sub-content" rows="2" placeholder="子场景内容描述" data-idx="' + idx + '"></textarea>';
   container.appendChild(div);
+  refreshIcons();
 }
 
 function step1RemoveSubScenario(idx) {
@@ -2102,15 +2150,15 @@ async function step1Generate() {
       const step1MdFile = result.markdown_file || '';
       // Markdown group
       if (mdFlow && step1MdFile) {
-        html += `<button class="action-btn small-btn" onclick="previewStep4File('${escapeHtml(step1MdFile)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>`;
+        html += `<button class="btn btn--primary btn--sm" onclick="previewStep4File('${escapeHtml(step1MdFile)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>`;
       }
       if (result.download_url) {
         const dlLabel = mdFlow ? '下载 Markdown 骨架' : '下载 Excel 骨架';
-        html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>' + dlLabel + '</a>';
+        html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>' + dlLabel + '</a>';
       }
       // Excel group
       if (!mdFlow && result.excel_download_url) {
-        html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + (result.excel_file || result.file_name) + '\')">预览 Excel</button>';
+        html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + (result.excel_file || result.file_name) + '\')">预览 Excel</button>';
       }
       html += '</div>';
       html += '</div>';
@@ -2150,15 +2198,15 @@ function restoreStep1Output() {
   html += '<div class="s1-result-actions">';
   // Markdown group
   if (mdFlow && mdFile) {
-    html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step1 骨架 Markdown 预览\')">预览/编辑 Markdown</button>';
+    html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step1 骨架 Markdown 预览\')">预览/编辑 Markdown</button>';
   }
   if (sd.step1_download_url) {
     const dlLabel = mdFlow ? '下载 Markdown 骨架' : '下载 Excel 骨架';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + sd.step1_download_url + '" download>' + dlLabel + '</a>';
+    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step1_download_url + '" download>' + dlLabel + '</a>';
   }
   // Excel group
   if (!mdFlow && sd.step1_download_url) {
-    html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(outputFile) + '\')">预览 Excel</button>';
+    html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(outputFile) + '\')">预览 Excel</button>';
   }
   html += '</div></div>';
   renderOutput('s1-output', html);
@@ -2236,10 +2284,10 @@ function renderStep2PrevOutputCard(data) {
       </div>
       ${fieldsHtml}
       <div class="s2-result-actions" style="margin-top:8px;">
-        ${data.markdown_file ? `<button class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>` : ''}
-        ${data.markdown_download_url ? `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>` : ''}
-        ${data.download_url ? `<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>` : ''}
-        ${data.download_url ? `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.download_url}" download>下载 Excel</a>` : ''}
+        ${data.markdown_file ? `<button class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>` : ''}
+        ${data.markdown_download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>` : ''}
+        ${data.download_url ? `<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>` : ''}
+        ${data.download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.download_url}" download>下载 Excel</a>` : ''}
       </div>
     </div>
   `;
@@ -2350,13 +2398,14 @@ function showTacitFollowup(noteEl, noteId, actionType) {
     '<div class="tacit-followup-label">💡 ' + escapeHtml(question) + '</div>' +
     '<textarea id="tacit-answer-' + safeNoteId + '" placeholder="简要记录您的修订经验与判断依据..."></textarea>' +
     '<div class="tacit-followup-actions">' +
-      '<button class="tacit-followup-skip" onclick="dismissTacitFollowup(this)">跳过</button>' +
-      '<button class="tacit-followup-save" data-note-id="' + safeNoteId + '" data-action-type="' + safeActionType + '" data-question="' + safeQuestion + '">保存经验批注</button>' +
+      '<button type="button" class="btn btn--ghost btn--sm tacit-followup-skip" onclick="dismissTacitFollowup(this)"><span class="btn__text">跳过</span></button>' +
+      '<button type="button" class="btn btn--primary btn--sm tacit-followup-save" data-note-id="' + safeNoteId + '" data-action-type="' + safeActionType + '" data-question="' + safeQuestion + '"><span class="btn__text">保存经验批注</span></button>' +
     '</div>';
   card.querySelector('.tacit-followup-save').addEventListener('click', function() {
     saveTacitAnnotation(this.dataset.noteId, this.dataset.actionType, this.dataset.question);
   });
   noteEl.appendChild(card);
+  refreshIcons();
 }
 
 function dismissTacitFollowup(btn) {
@@ -2425,17 +2474,17 @@ async function loadStep3PrevOutput() {
         let actionBtns = '';
         // Markdown group
         if (data.markdown_file) {
-          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览/编辑 Markdown</button>`;
+          actionBtns += `<button type="button" class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览/编辑 Markdown</button>`;
         }
         if (data.markdown_download_url) {
-          actionBtns += `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>`;
+          actionBtns += `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>`;
         }
         // Excel group
         if (data.download_url && !mdFlow) {
-          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>`;
+          actionBtns += `<button type="button" class="btn btn--outline btn--sm" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>`;
         }
         if (data.download_url) {
-          actionBtns += `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.download_url}" download>下载 Excel</a>`;
+          actionBtns += `<a class="btn btn--outline btn--sm" href="${API_BASE + data.download_url}" download>下载 Excel</a>`;
         }
         var actionsEl = document.getElementById('s3-prev-actions');
         if (actionsEl) actionsEl.innerHTML = actionBtns;
@@ -2647,7 +2696,7 @@ async function step3GeneratePreview() {
   btn._locked = true;
   btn.disabled = true;
   btn.classList.add('loading');
-  btn.innerHTML = '<span class="action-icon">&#9203;</span> 处理中...';
+  btn.innerHTML = '<span class="btn__text">处理中...</span>';
   clearTimeout(_formSaveTimer);
   renderLoading('s3-output');
 
@@ -2716,6 +2765,7 @@ async function step3GeneratePreview() {
   } finally {
     btn.disabled = false;
     updateStep3AlignModeHint();
+    refreshIcons();
   }
 }
 
@@ -2762,10 +2812,10 @@ function renderAlignNotesList() {
 
     // Action buttons
     html += `<div class="align-note-actions">`;
-    html += `<button class="align-note-btn align-note-btn-accept ${state === 'accepted' || state === 'edited' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'accepted')">采纳</button>`;
-    html += `<button class="align-note-btn align-note-btn-reject ${state === 'rejected' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'rejected')">驳回</button>`;
+    html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-accept ${state === 'accepted' || state === 'edited' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'accepted')"><span class="btn__text">采纳</span></button>`;
+    html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-reject ${state === 'rejected' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'rejected')"><span class="btn__text">驳回</span></button>`;
     if (n.action !== 'delete') {
-      html += `<button class="align-note-btn align-note-btn-edit" onclick="alignToggleEdit(${n.id})">编辑</button>`;
+      html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-edit" onclick="alignToggleEdit(${n.id})"><span class="btn__text">编辑</span></button>`;
     }
     html += `</div>`;
 
@@ -2773,7 +2823,7 @@ function renderAlignNotesList() {
     if (n.action !== 'delete') {
       html += `<div class="align-inline-editor" id="align-editor-${n.id}">`;
       html += `<textarea class="align-inline-textarea" id="align-textarea-${n.id}" placeholder="修改后的内容">${escapeHtml(editedVal || n.new_value || '')}</textarea>`;
-      html += `<button class="align-inline-save" onclick="alignSaveEdit(${n.id})">保存修改</button>`;
+      html += `<button type="button" class="btn btn--primary btn--sm align-inline-save" onclick="alignSaveEdit(${n.id})"><span class="btn__icon btn__icon--left" data-lucide="check"></span><span class="btn__text">保存修改</span></button>`;
       html += `</div>`;
     }
 
@@ -2784,6 +2834,7 @@ function renderAlignNotesList() {
     html = '<div style="text-align:center;padding:40px;color:var(--text-muted);">无匹配的对齐建议</div>';
   }
   container.innerHTML = html;
+  refreshIcons();
 }
 
 function alignSetState(id, state) {
@@ -2949,12 +3000,12 @@ async function showStep3AlignComplete(result, options) {
   }
   html += '<div class="align-result-actions">';
   // Markdown group
-  if (mdFlow && mdName) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-  if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="action-btn small-btn secondary-btn" download>下载 Markdown</a>';
+  if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
+  if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>下载 Markdown</a>';
   // Excel group
-  if (!mdFlow && dlName) html += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-  if (dlUrl) html += '<a href="' + escapeHtml(dlUrl) + '" class="action-btn small-btn secondary-btn" download>下载 Excel</a>';
-  html += '<button class="action-btn small-btn secondary-btn" onclick="step3BackToInput()">重新对齐</button>';
+  if (!mdFlow && dlName) html += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+  if (dlUrl) html += '<a href="' + escapeHtml(dlUrl) + '" class="btn btn--outline btn--sm" download>下载 Excel</a>';
+  html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">重新对齐</button>';
   html += '</div>';
   document.getElementById('s3-result-card').innerHTML = html;
   updateStepProgress();
@@ -2980,8 +3031,9 @@ async function step3ApplyNotes() {
   if (acceptedIds.length === 0) { alert('请至少采纳一条对齐建议'); return; }
 
   const btn = document.getElementById('s3-apply-btn');
+  const origBtnHtml = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="action-icon">&#9203;</span> 生成中...';
+  btn.innerHTML = '<span class="btn__text">生成中...</span>';
 
   try {
     const resp = await fetch(API_BASE + '/api/step3/apply_notes', {
@@ -3002,7 +3054,8 @@ async function step3ApplyNotes() {
     alert('生成对齐稿出错: ' + e.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<span class="action-icon">&#10003;</span> 确认并生成对齐稿';
+    btn.innerHTML = origBtnHtml;
+    refreshIcons();
   }
 }
 
@@ -3067,13 +3120,13 @@ async function loadStep4PrevOutput() {
         const mdUrl = mdName ? ('/downloads/' + mdName) : '';
         const excelUrl = data.download_url || '';
         // Markdown group
-        if (mdFlow && mdName) btns += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-        if (!mdFlow && mdName) btns += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-        if (mdUrl) btns += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
+        if (mdFlow && mdName) btns += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
+        if (!mdFlow && mdName) btns += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
+        if (mdUrl) btns += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
         // Excel group
-        if (!mdFlow && excelName) btns += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
-        if (mdFlow && excelName) btns += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
-        if (excelUrl) btns += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + excelUrl + '" download>下载 Excel</a>';
+        if (!mdFlow && excelName) btns += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
+        if (mdFlow && excelName) btns += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
+        if (excelUrl) btns += '<a class="btn btn--outline btn--sm" href="' + API_BASE + excelUrl + '" download>下载 Excel</a>';
         actionsEl.innerHTML = btns;
       }
     } else {
@@ -3100,11 +3153,11 @@ function renderStep4ArtifactCard(key, title, desc, countLabel, downloads, previe
   html += '<div class="s4-artifact-actions">';
   (downloads || []).forEach(d => {
     if (d.url) {
-      html += '<a class="action-btn small-btn secondary-btn" href="' + escapeHtml(API_BASE + d.url) + '" download>' + escapeHtml(d.label) + '</a>';
+      html += '<a class="btn btn--outline btn--sm" href="' + escapeHtml(API_BASE + d.url) + '" download>' + escapeHtml(d.label) + '</a>';
     }
   });
   if (previewFn) {
-    html += '<button type="button" class="action-btn small-btn secondary-btn" onclick="' + previewFn + '">&#128065; 预览</button>';
+    html += '<button type="button" class="btn btn--outline btn--sm" onclick="' + previewFn + '">&#128065; 预览</button>';
   }
   html += '</div></div>';
   return html;
@@ -3113,9 +3166,11 @@ function renderStep4ArtifactCard(key, title, desc, countLabel, downloads, previe
 async function step4FreshnessAudit() {
   var btn = document.getElementById('s4-freshness-btn');
   if (!btn || btn._locked || !currentPipeline) return;
+  var origBtnHtml = btn.innerHTML;
   btn._locked = true;
   btn.disabled = true;
-  btn.innerHTML = '🔄 审计中...';
+  btn.classList.add('loading');
+  btn.innerHTML = '<span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span><span class="btn__text">审计中...</span>';
   var fd = new FormData();
   fd.append('skill_id', 'knowledge-freshness-audit');
   fd.append('pipeline_id', currentPipeline.id);
@@ -3134,8 +3189,8 @@ async function step4FreshnessAudit() {
         (result.stale_indicators && result.stale_indicators.length ?
           '<div style="margin-top:8px">' + result.stale_indicators.map(function(s){return '<div style="font-size:12px;color:#8b6914;margin:2px 0">⚠️ '+escapeHtml(s)+'</div>';}).join('') + '</div>' : '') +
         '<div class="s2-result-actions" style="margin-top:12px">' +
-        '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(result.report_name || '') + '\',\'保鲜度审计报告\')">&#128065; 预览报告</button>' +
-        (dl ? '<a class="action-btn small-btn secondary-btn" href="'+API_BASE+dl+'" download>下载报告</a>' : '') +
+        '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.report_name || '') + '\',\'保鲜度审计报告\')">&#128065; 预览报告</button>' +
+        (dl ? '<a class="btn btn--outline btn--sm" href="'+API_BASE+dl+'" download>下载报告</a>' : '') +
         '</div>' +
         '</div>';
     } else {
@@ -3146,7 +3201,9 @@ async function step4FreshnessAudit() {
   } finally {
     btn._locked = false;
     btn.disabled = false;
-    btn.innerHTML = '🔄 知识保鲜度审计';
+    btn.classList.remove('loading');
+    btn.innerHTML = origBtnHtml;
+    refreshIcons();
   }
 }
 
@@ -3173,8 +3230,8 @@ async function step4GenerateCOT() {
     var html = '<div class="s2-result-success"><div class="s2-result-header">思维链 (COT) 已生成</div>';
     html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
     html += '<div class="s2-result-actions">';
-    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.filename) + '\',\'COT\')">预览/编辑 Markdown</button>';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 Markdown</a>';
+    html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.filename) + '\',\'COT\')">预览/编辑 Markdown</button>';
+    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>下载 Markdown</a>';
     html += '</div></div>';
     document.getElementById('s4-output-cot').style.display = 'block';
     document.getElementById('s4-output-cot').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>思维链 (COT)</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
@@ -3184,6 +3241,7 @@ async function step4GenerateCOT() {
   } finally {
     btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
     btn.classList.remove('loading');
+    refreshIcons();
   }
 }
 
@@ -3210,9 +3268,9 @@ async function step4GenerateQA() {
     html += '<div class="s2-result-meta">共 <strong>' + (result.qa_count || 0) + '</strong> 个问答对</div>';
     html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
     html += '<div class="s2-result-actions">';
-    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.md_filename || '') + '\',\'QA\')">预览/编辑 Markdown</button>';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.md_download_url + '" download>下载 Markdown</a>';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 JSON</a>';
+    html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.md_filename || '') + '\',\'QA\')">预览/编辑 Markdown</button>';
+    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.md_download_url + '" download>下载 Markdown</a>';
+    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>下载 JSON</a>';
     html += '</div></div>';
     document.getElementById('s4-output-qa').style.display = 'block';
     document.getElementById('s4-output-qa').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>QA 对</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
@@ -3222,6 +3280,7 @@ async function step4GenerateQA() {
   } finally {
     btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
     btn.classList.remove('loading');
+    refreshIcons();
   }
 }
 
@@ -3253,8 +3312,8 @@ async function step4GenerateExecSkill() {
     html += '</div>';
     html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
     html += '<div class="s2-result-actions">';
-    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.skill_filename) + '\',\'Agent Skill\')">预览/编辑 Markdown</button>';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 SKILL.md</a>';
+    html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.skill_filename) + '\',\'Agent Skill\')">预览/编辑 Markdown</button>';
+    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>下载 SKILL.md</a>';
     html += '</div></div>';
     document.getElementById('s4-output-skill').style.display = 'block';
     document.getElementById('s4-output-skill').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>可执行 Agent Skill</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
@@ -3264,6 +3323,7 @@ async function step4GenerateExecSkill() {
   } finally {
     btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
     btn.classList.remove('loading');
+    refreshIcons();
   }
 }
 
@@ -3337,7 +3397,7 @@ async function step4Quality() {
 
       if (result.download_url) {
         html += '<div class="s4-actions">';
-        html += '<a class="action-btn small-btn" href="' + API_BASE + result.download_url + '" download>&#11015; 下载质量报告</a>';
+        html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + result.download_url + '" download>&#11015; 下载质量报告</a>';
         html += '</div>';
       }
       html += '</div>';
@@ -3404,8 +3464,9 @@ function copyMarkdownContent() {
     const btn = document.querySelector('.md-btn-copy');
     if (btn) {
       const orig = btn.innerHTML;
-      btn.innerHTML = '&#10003; 已复制';
-      setTimeout(() => { btn.innerHTML = orig; }, 1500);
+      btn.innerHTML = renderBtnChildren({ icon: 'check', text: '已复制' });
+      refreshIcons();
+      setTimeout(() => { btn.innerHTML = orig; refreshIcons(); }, 1500);
     }
   });
 }
@@ -3416,7 +3477,7 @@ async function saveMarkdownContent() {
   const content = document.getElementById('markdown-editor-content').value;
   const saveBtn = document.getElementById('md-editor-save-btn');
 
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '&#9203; 保存中...'; }
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存中...' }); refreshIcons(); }
 
   try {
     const resp = await fetch(API_BASE + '/api/files/save', {
@@ -3426,16 +3487,16 @@ async function saveMarkdownContent() {
     });
     const data = await resp.json();
     if (data.status === 'ok') {
-      if (saveBtn) { saveBtn.innerHTML = '&#10003; 已保存'; }
+      if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'check', text: '已保存' }); refreshIcons(); }
       showToast('文件已保存');
-      setTimeout(() => { if (saveBtn) saveBtn.innerHTML = '&#128190; 保存'; }, 2000);
+      setTimeout(() => { if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); } }, 2000);
     } else {
       alert('保存失败: ' + (data.error || '未知错误'));
-      if (saveBtn) saveBtn.innerHTML = '&#128190; 保存';
+      if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); }
     }
   } catch (e) {
     alert('保存失败: ' + e.message);
-    if (saveBtn) saveBtn.innerHTML = '&#128190; 保存';
+    if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); }
   } finally {
     if (saveBtn) saveBtn.disabled = false;
   }
@@ -3485,10 +3546,10 @@ async function loadPipelineOverview() {
     html += '<div class="overview-banner-title">隐性知识显性化 · 五步法萃取流水线</div>';
     html += '<div class="overview-banner-desc">将领域专家的隐性经验系统性显性化为 AI 可加载的结构化知识，通过五步法流水线，从场景定义到智能转化，层层递进、步步可追溯。</div>';
     html += '</div>';
-    html += '<div class="overview-banner-action" onclick="showNewPipelineForm()">';
-    html += '<span class="banner-action-icon">+</span>';
-    html += '<span>新建流水线</span>';
-    html += '</div>';
+    html += '<button type="button" class="btn btn--light btn--lg" onclick="showNewPipelineForm()">';
+    html += '<span class="btn__icon btn__icon--left" data-lucide="plus"></span>';
+    html += '<span class="btn__text">新建流水线</span>';
+    html += '</button>';
     html += '</div>';
     html += '</div>';
 
@@ -3537,8 +3598,8 @@ async function loadPipelineOverview() {
     html += '</div>';
     html += '<div class="form-group"><label>业务领域</label><input type="text" id="np-domain" placeholder="如：信贷、风控、营销（默认同场景名称）"></div>';
     html += '<div class="form-actions">';
-    html += '<button class="action-btn secondary small" onclick="hideNewPipelineForm()">取消</button>';
-    html += '<button class="action-btn small" onclick="createPipeline()">创建并开始</button>';
+    html += '<button type="button" class="btn btn--secondary btn--md" onclick="hideNewPipelineForm()"><span class="btn__text">取消</span></button>';
+    html += '<button type="button" class="btn btn--primary btn--md" onclick="createPipeline()"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">创建并开始</span></button>';
     html += '</div>';
     html += '</div>';
 
@@ -3563,6 +3624,7 @@ async function loadPipelineOverview() {
 
     html += '</div>';
     container.innerHTML = html;
+    refreshIcons();
   } catch (e) {
     container.innerHTML = '<div class="pipeline-overview"><div class="error-list"><div class="error-item">加载失败: ' + escapeHtml(e.message) + '</div></div></div>';
   }
@@ -3615,9 +3677,9 @@ function renderPipelineItem(p) {
   html += '</div>';
   html += '<div class="pipeline-item-right">';
   if (!isComplete) {
-    html += '<span class="pipeline-item-continue">继续 &#8250;</span>';
+    html += '<button type="button" class="btn btn--outline btn--sm"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">继续</span></button>';
   }
-  html += '<button class="pipeline-delete-btn" onclick="event.stopPropagation();deletePipeline(\'' + p.id + '\', this)" title="删除">&#10005;</button>';
+  html += '<button type="button" class="btn btn--ghost btn--sm" onclick="event.stopPropagation();deletePipeline(\'' + p.id + '\', this)" title="删除"><span class="btn__icon btn__icon--left" data-lucide="trash-2"></span><span class="btn__text">删除</span></button>';
   html += '</div>';
   html += '</div>';
   html += '<div class="pipeline-item-meta">';
@@ -3958,7 +4020,9 @@ async function saveExcelEditor() {
   }
 
   const saveBtn = document.getElementById('excel-editor-save-btn');
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '保存中...'; }
+  const saveBtnText = saveBtn ? saveBtn.querySelector('.btn__text') : null;
+  if (saveBtn) { saveBtn.disabled = true; }
+  if (saveBtnText) { saveBtnText.textContent = '保存中...'; }
 
   try {
     const resp = await fetch(API_BASE + '/api/excel/save', {
@@ -4058,7 +4122,8 @@ async function saveExcelEditor() {
   } catch (e) {
     alert('保存失败: ' + e.message);
   } finally {
-    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '保存'; }
+    if (saveBtn) { saveBtn.disabled = false; }
+    if (saveBtnText) { saveBtnText.textContent = '保存'; }
   }
 }
 
@@ -4118,7 +4183,8 @@ async function runValidateReplay() {
   var model = document.getElementById('s4-validate-model')?.value || resolveModelName('s4-model');
   if (!model) { showToast('请选择模型', 'error'); return; }
 
-  btn.disabled = true; btn.textContent = '校验中...';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn__icon btn__icon--left" data-lucide="loader-2"></span><span class="btn__text">校验中...</span>';
   resultEl.innerHTML = '<div class="loading"><div class="spinner"></div>正在用知识库判断 ' + cases.length + ' 个案例...</div>';
 
   try {
@@ -4151,7 +4217,9 @@ async function runValidateReplay() {
   } catch (e) {
     resultEl.innerHTML = '<div style="color:var(--error);font-size:12px;margin-top:8px">网络错误: ' + escapeHtml(e.message) + '</div>';
   }
-  btn.disabled = false; btn.textContent = '执行校验';
+  btn.disabled = false;
+  btn.innerHTML = '<span class="btn__icon btn__icon--left" data-lucide="zap"></span><span class="btn__text">执行校验</span>';
+  refreshIcons();
 }
 
 /* ===== Step4: 一键编译交付包（确定性主路径）===== */
@@ -4188,11 +4256,11 @@ async function step4Compile() {
       html += '</div>';
     }
     html += '<div class="s2-result-actions" style="margin-top:8px;">';
-    if (data.download_url) html += '<a class="action-btn small-btn" href="' + API_BASE + data.download_url + '" download>下载 SKILL.md 终版</a>';
-    if (data.cot_download_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + data.cot_download_url + '" download>下载思维链</a>';
-    if (data.qa_download_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + data.qa_download_url + '" download>下载 QA 对</a>';
-    if (data.openclaw_manifest_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + data.openclaw_manifest_url + '" download>下载 manifest</a>';
-    if (data.can_publish) html += '<button class="action-btn small-btn" onclick="step4PublishToKb()">发布到知识库</button>';
+    if (data.download_url) html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + data.download_url + '" download>下载 SKILL.md 终版</a>';
+    if (data.cot_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.cot_download_url + '" download>下载思维链</a>';
+    if (data.qa_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.qa_download_url + '" download>下载 QA 对</a>';
+    if (data.openclaw_manifest_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.openclaw_manifest_url + '" download>下载 manifest</a>';
+    if (data.can_publish) html += '<button class="btn btn--primary btn--sm" onclick="step4PublishToKb()">发布到知识库</button>';
     html += '</div></div>';
     if (panel) panel.innerHTML = html;
     showToast('交付包编译完成');
@@ -4332,13 +4400,16 @@ async function step5RunReplay() {
         if (s.new_value) html += '<br><span style="font-size:11px;">' + escapeHtml(String(s.new_value).slice(0, 160)) + '</span>';
         html += '</div>';
       });
-      html += '<button class="action-btn" style="margin-top:10px;" onclick="step5PushFeedback()">&#128260; 回流到知识对齐（建议池）</button>';
+      html += '<button type="button" class="btn btn--outline btn--md" style="margin-top:10px;" onclick="step5PushFeedback()">'
+        + '<span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span>'
+        + '<span class="btn__text">回流到知识对齐（建议池）</span></button>';
       html += '<div class="file-hint" style="margin-top:4px;">建议不会自动应用——回流后请到第 3 步建议池逐条裁决</div>';
     } else if (data.mismatch_count === 0) {
       html += '<div style="margin-top:10px;color:#16a34a;">所有案例判断与专家结论一致，无需回流。</div>';
     }
     html += '</div>';
     renderOutput('s5-output', html);
+    refreshIcons();
     loadStep5Context();
     try { await markStepDone(5); } catch (e) { /* ignore */ }
   } catch (e) {

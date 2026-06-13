@@ -29,41 +29,52 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
   <nav class="app-nav">
     <div class="nav-brand" id="nav-brand">隐性知识显性化 · 五步法</div>
     <div class="nav-steps" id="nav-steps">
-      <button class="nav-back-btn" onclick="goBackToOverview()" title="返回总览">
-        <span class="back-arrow">‹</span> 返回
+      <button class="btn btn--ghost btn--sm" onclick="goBackToOverview()" title="返回总览">
+        <span class="btn__icon btn__icon--left" data-lucide="chevron-left"></span>
+        <span class="btn__text">返回</span>
       </button>
       <div class="step-track">
-        <button class="step-btn" data-step="1"><span class="btn-num">01</span>场景锚定</button>
+        <button class="step-btn" data-step="1">
+          <span class="btn__text"><span class="btn-num">01</span>场景锚定</span>
+        </button>
         <span class="step-connector"></span>
-        <button class="step-btn" data-step="2"><span class="btn-num">02</span>知识萃取</button>
+        <button class="step-btn" data-step="2">
+          <span class="btn__text"><span class="btn-num">02</span>知识萃取</span>
+        </button>
         <span class="step-connector"></span>
-        <button class="step-btn" data-step="3"><span class="btn-num">03</span>知识对齐</button>
+        <button class="step-btn" data-step="3">
+          <span class="btn__text"><span class="btn-num">03</span>知识对齐</span>
+        </button>
         <span class="step-connector"></span>
-        <button class="step-btn" data-step="4"><span class="btn-num">04</span>智能转化</button>
+        <button class="step-btn" data-step="4">
+          <span class="btn__text"><span class="btn-num">04</span>智能转化</span>
+        </button>
         <span class="step-connector"></span>
-        <button class="step-btn" data-step="5"><span class="btn-num">05</span>验证回放</button>
+        <button class="step-btn" data-step="5">
+          <span class="btn__text"><span class="btn-num">05</span>验证回放</span>
+        </button>
       </div>
       <span class="auto-save-indicator" id="auto-save-indicator">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
         <span id="auto-save-text"></span>
       </span>
-      <button class="nav-action-btn" id="save-pipeline-btn" onclick="saveCurrentPipeline()" title="保存当前流水线">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        保存
+      <button class="btn btn--ghost btn--sm" id="save-pipeline-btn" onclick="saveCurrentPipeline()" title="保存当前流水线">
+        <span class="btn__icon btn__icon--left" data-lucide="save"></span>
+        <span class="btn__text">保存</span>
       </button>
-      <button class="nav-action-btn nav-action-btn-danger" id="clear-pipeline-btn" onclick="clearCurrentPipeline()" title="清空当前流水线">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        清空
+      <button class="btn btn--danger btn--sm" id="clear-pipeline-btn" onclick="clearCurrentPipeline()" title="清空当前流水线">
+        <span class="btn__icon btn__icon--left" data-lucide="trash-2"></span>
+        <span class="btn__text">清空</span>
       </button>
     </div>
     <div class="nav-actions">
-      <button class="nav-config-btn" id="skill-nav-btn" onclick="openSkillPanel()" title="Skill配置">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        Skill配置
+      <button class="btn btn--ghost btn--sm" id="skill-nav-btn" onclick="openSkillPanel()" title="Skill配置">
+        <span class="btn__icon btn__icon--left" data-lucide="sparkles"></span>
+        <span class="btn__text">Skill配置</span>
       </button>
-      <button class="nav-config-btn" id="model-nav-btn" onclick="openModelPanel()" title="模型配置">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        模型配置
+      <button class="btn btn--ghost btn--sm" id="model-nav-btn" onclick="openModelPanel()" title="模型配置">
+        <span class="btn__icon btn__icon--left" data-lucide="settings"></span>
+        <span class="btn__text">模型配置</span>
       </button>
       <div class="nav-status" id="server-status">
         <span class="status-dot"></span>检测中...
@@ -75,7 +86,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
   <div class="skill-panel" id="skill-panel">
     <div class="skill-panel-header">
       <h3>Skill 配置</h3>
-      <button class="skill-panel-close" onclick="closeSkillPanel()">&times;</button>
+      <button type="button" class="btn btn--ghost btn--sm skill-panel-close" onclick="closeSkillPanel()" title="关闭">
+        <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+      </button>
     </div>
     <div class="skill-panel-body" id="skill-panel-body">
       <!-- rendered by JS -->
@@ -86,13 +99,18 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
   <div class="model-panel" id="model-panel">
     <div class="model-panel-header">
       <h3>LLM 模型配置</h3>
-      <button class="model-panel-close" onclick="closeModelPanel()">&times;</button>
+      <button type="button" class="btn btn--ghost btn--sm model-panel-close" onclick="closeModelPanel()" title="关闭">
+        <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+      </button>
     </div>
     <div class="model-panel-body">
       <div class="model-section">
         <div class="model-section-header">
           <span>已配置模型</span>
-          <button class="action-btn small" onclick="showAddModelForm()">+ 添加模型</button>
+          <button type="button" class="btn btn--outline btn--sm" onclick="showAddModelForm()">
+            <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
+            <span class="btn__text">添加模型</span>
+          </button>
         </div>
         <div id="model-list"></div>
       </div>
@@ -154,8 +172,12 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <input type="text" id="new-model-desc" placeholder="模型能力简述">
         </div>
         <div class="form-actions">
-          <button class="action-btn secondary small" onclick="hideAddModelForm()">取消</button>
-          <button class="action-btn small" id="model-form-save-btn" onclick="saveModel()">添加</button>
+          <button type="button" class="btn btn--secondary btn--sm" onclick="hideAddModelForm()">
+            <span class="btn__text">取消</span>
+          </button>
+          <button type="button" class="btn btn--primary btn--sm" id="model-form-save-btn" onclick="saveModel()">
+            <span class="btn__text">添加</span>
+          </button>
         </div>
       </div>
     </div>
@@ -201,7 +223,10 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               <div class="form-group">
                 <label>子场景</label>
                 <div id="s1-sub-scenarios"></div>
-                <button class="s1-add-sub-btn" onclick="step1AddSubScenario()">+ 添加子场景</button>
+                <button type="button" class="s1-add-sub-btn btn btn--outline btn--sm" onclick="step1AddSubScenario()">
+                  <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
+                  <span class="btn__text">添加子场景</span>
+                </button>
               </div>
             </div>
           </div>
@@ -212,8 +237,13 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>知识列（可自定义）</label>
                 <div id="s1-knowledge-columns" class="s1-knowledge-columns"></div>
                 <div class="s1-k-col-actions">
-                  <button type="button" class="s1-add-sub-btn" onclick="step1AddKnowledgeColumn()">+ 添加列</button>
-                  <button type="button" class="s1-k-col-reset" onclick="step1ResetKnowledgeColumns()">恢复默认列</button>
+                  <button type="button" class="s1-add-sub-btn btn btn--outline btn--sm" onclick="step1AddKnowledgeColumn()">
+                    <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
+                    <span class="btn__text">添加列</span>
+                  </button>
+                  <button type="button" class="s1-k-col-reset btn btn--ghost btn--sm" onclick="step1ResetKnowledgeColumns()">
+                    <span class="btn__text">恢复默认列</span>
+                  </button>
                 </div>
                 <div class="file-hint">锚定四列（场景/场景说明/子场景/子场景说明）固定，此处仅配置知识列</div>
               </div>
@@ -243,8 +273,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 </div>
                 <div class="file-hint">上传/选用 Excel 后，将按文件表头为准，自定义知识列仅作记录</div>
               </details>
-              <button class="action-btn" id="s1-generate" onclick="step1Generate()">
-                <span class="action-icon">&#9654;</span> 生成场景骨架
+              <button type="button" class="btn btn--primary btn--md" id="s1-generate" onclick="step1Generate()">
+                <span class="btn__icon btn__icon--left" data-lucide="play"></span>
+                <span class="btn__text">生成场景骨架</span>
               </button>
               <div class="action-note">自由定义知识列与输出格式；后续步骤仍使用配套 Excel 继续流水线</div>
             </div>
@@ -288,8 +319,14 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
 
               <!-- 输入模式切换 -->
               <div class="s2-mode-tabs" id="s2-mode-tabs">
-                <button class="s2-mode-tab active" data-mode="doc" onclick="switchStep2Mode('doc')">📄 文档萃取</button>
-                <button class="s2-mode-tab" data-mode="case" onclick="switchStep2Mode('case')">📋 案例复盘</button>
+                <button type="button" class="s2-mode-tab btn btn--primary btn--sm active" data-mode="doc" onclick="switchStep2Mode('doc')">
+                  <span class="btn__icon btn__icon--left" data-lucide="file-text"></span>
+                  <span class="btn__text">文档萃取</span>
+                </button>
+                <button type="button" class="s2-mode-tab btn btn--ghost btn--sm" data-mode="case" onclick="switchStep2Mode('case')">
+                  <span class="btn__icon btn__icon--left" data-lucide="clipboard-list"></span>
+                  <span class="btn__text">案例复盘</span>
+                </button>
               </div>
 
               <!-- 模式一：文档萃取 -->
@@ -306,10 +343,16 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                     <div class="s2-text-input-row">
                       <input class="s2-text-input-label" placeholder="来源标注（如：制度文件A）">
                       <textarea class="s2-text-input-content" rows="2" placeholder="粘贴文档内容..."></textarea>
-                      <button type="button" class="s2-text-input-remove" onclick="this.parentElement.remove();updateStep2Readiness()" title="移除">×</button>
+                      <button type="button" class="s2-text-input-remove btn btn--ghost btn--sm" onclick="this.parentElement.remove();updateStep2Readiness()" title="移除">
+                        <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+                        <span class="btn__text" style="display:none">移除</span>
+                      </button>
                     </div>
                   </div>
-                  <button type="button" class="s1-add-sub-btn" onclick="addStep2TextRow()" style="margin-top:4px">+ 添加更多文本来源</button>
+                  <button type="button" class="s1-add-sub-btn btn btn--outline btn--sm" onclick="addStep2TextRow()" style="margin-top:4px">
+                    <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
+                    <span class="btn__text">添加更多文本来源</span>
+                  </button>
                 </div>
                 <div class="form-group">
                   <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
@@ -359,19 +402,19 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>选择能力</label>
                 <div class="s2-skill-cards" id="s2-skill-cards">
                   <div class="s2-skill-card active" data-skill="knowledge-extraction" onclick="selectStep2Skill('knowledge-extraction')">
-                    <span class="s2-skill-card-icon">🔍</span>
+                    <span class="s2-skill-card-icon" data-lucide="search"></span>
                     <span class="s2-skill-card-name">知识萃取</span>
                     <span class="s2-skill-card-desc">文档→结构化知识</span>
                     <span class="s2-skill-card-hint">制度文件、操作手册、案例复盘</span>
                   </div>
                   <div class="s2-skill-card" data-skill="knowledge-pattern-mining" onclick="selectStep2Skill('knowledge-pattern-mining')">
-                    <span class="s2-skill-card-icon">🔬</span>
+                    <span class="s2-skill-card-icon" data-lucide="microscope"></span>
                     <span class="s2-skill-card-name">模式发现</span>
                     <span class="s2-skill-card-desc">跨案例交叉分析</span>
                     <span class="s2-skill-card-hint">≥2 个相关案例的对比分析</span>
                   </div>
                   <div class="s2-skill-card" data-skill="knowledge-gap-analysis" onclick="selectStep2Skill('knowledge-gap-analysis')">
-                    <span class="s2-skill-card-icon">🎯</span>
+                    <span class="s2-skill-card-icon" data-lucide="target"></span>
                     <span class="s2-skill-card-name">盲区检测</span>
                     <span class="s2-skill-card-desc">Schema覆盖率</span>
                     <span class="s2-skill-card-hint">已萃取后检查知识覆盖空白</span>
@@ -404,7 +447,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <div class="s2-pattern-filelist hidden" id="s2-pattern-filelist">
                   <div class="s2-pattern-filelist-header">
                     <span class="s2-pattern-filelist-count" id="s2-pattern-filecount">0 个文件</span>
-                    <button type="button" class="s2-pattern-filelist-clear" onclick="clearPatternFiles()">清空</button>
+                    <button type="button" class="s2-pattern-filelist-clear btn btn--ghost btn--sm" onclick="clearPatternFiles()">
+                      <span class="btn__text">清空</span>
+                    </button>
                   </div>
                   <div class="s2-pattern-filelist-items" id="s2-pattern-fileitems"></div>
                   <div class="s2-pattern-filelist-status" id="s2-pattern-filestatus"></div>
@@ -440,8 +485,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>选择模型</label>
                 <select id="s2-model"></select>
               </div>
-              <button class="action-btn" id="s2-skill-extract" onclick="step2Execute()">
-                <span class="action-icon">&#9654;</span> <span id="s2-btn-text">执行知识萃取</span>
+              <button type="button" class="btn btn--primary btn--md" id="s2-skill-extract" onclick="step2Execute()">
+                <span class="btn__icon btn__icon--left" data-lucide="play"></span>
+                <span class="btn__text" id="s2-btn-text">执行知识萃取</span>
               </button>
               <div class="step-readiness info" id="s2-readiness">请补全 Skill、模型与文档输入后执行</div>
               <div class="action-note">选择能力后点击执行，自动提取结构化知识</div>
@@ -537,8 +583,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                     <option value="">-- 选择 Skill --</option>
                   </select>
                 </div>
-                <button class="action-btn" id="s3-revise-btn" onclick="step3GeneratePreview()">
-                  <span class="action-icon">&#9881;</span> 发送并智能修订
+                <button type="button" class="btn btn--primary btn--md" id="s3-revise-btn" onclick="step3GeneratePreview()">
+                  <span class="btn__icon btn__icon--left" data-lucide="settings-2"></span>
+                  <span class="btn__text">发送并智能修订</span>
                 </button>
                 <div class="step-readiness info" id="s3-align-hint">若无意见可直接点击按钮，系统将按预萃稿直通生成对齐稿</div>
                 <div class="action-note">专家可多轮输入修订意见，模型会结合历史对话持续更新对齐建议。</div>
@@ -591,9 +638,18 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <div class="signal-review-body">
             <div id="s3-suggestion-list"></div>
             <div class="s2-result-actions" style="margin-top:10px;">
-              <button class="action-btn small-btn" id="s3-suggestion-apply" onclick="step3ApplySuggestions()">采纳勾选建议 → 生成新对齐稿</button>
-              <button class="action-btn small-btn secondary-btn" onclick="step3RejectSuggestions()">驳回勾选建议</button>
-              <button class="action-btn small-btn secondary-btn" onclick="loadStep3SuggestionPool()">刷新</button>
+              <button type="button" class="btn btn--primary btn--sm" id="s3-suggestion-apply" onclick="step3ApplySuggestions()">
+                <span class="btn__icon btn__icon--left" data-lucide="check"></span>
+                <span class="btn__text">采纳勾选建议 → 生成新对齐稿</span>
+              </button>
+              <button type="button" class="btn btn--outline btn--sm" id="s3-suggestion-reject" onclick="step3RejectSuggestions()">
+                <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+                <span class="btn__text">驳回勾选建议</span>
+              </button>
+              <button type="button" class="btn btn--ghost btn--sm" id="s3-suggestion-refresh" onclick="loadStep3SuggestionPool()">
+                <span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span>
+                <span class="btn__text">刷新</span>
+              </button>
             </div>
           </div>
         </div>
@@ -608,17 +664,35 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
             </div>
             <div class="align-toolbar-center">
               <div class="align-filter-group">
-                <button class="align-filter-btn active" data-filter="all" onclick="alignFilterNotes('all')">全部</button>
-                <button class="align-filter-btn" data-filter="modify" onclick="alignFilterNotes('modify')">修改</button>
-                <button class="align-filter-btn" data-filter="add" onclick="alignFilterNotes('add')">新增</button>
-                <button class="align-filter-btn" data-filter="delete" onclick="alignFilterNotes('delete')">删除</button>
-                <button class="align-filter-btn" data-filter="supplement" onclick="alignFilterNotes('supplement')">补充</button>
+                <button type="button" class="align-filter-btn btn btn--ghost btn--sm active" data-filter="all" onclick="alignFilterNotes('all')">
+                  <span class="btn__text">全部</span>
+                </button>
+                <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="modify" onclick="alignFilterNotes('modify')">
+                  <span class="btn__text">修改</span>
+                </button>
+                <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="add" onclick="alignFilterNotes('add')">
+                  <span class="btn__text">新增</span>
+                </button>
+                <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="delete" onclick="alignFilterNotes('delete')">
+                  <span class="btn__text">删除</span>
+                </button>
+                <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="supplement" onclick="alignFilterNotes('supplement')">
+                  <span class="btn__text">补充</span>
+                </button>
               </div>
             </div>
             <div class="align-toolbar-right">
-              <button class="align-batch-btn align-batch-accept" onclick="alignBatchAcceptAll()">全部采纳</button>
-              <button class="align-batch-btn align-batch-reject" onclick="alignBatchRejectAll()">全部驳回</button>
-              <button class="align-batch-btn" onclick="step3BackToInput()">返回修改</button>
+              <button type="button" class="align-batch-btn align-batch-accept btn btn--outline btn--sm" onclick="alignBatchAcceptAll()">
+                <span class="btn__icon btn__icon--left" data-lucide="check"></span>
+                <span class="btn__text">全部采纳</span>
+              </button>
+              <button type="button" class="align-batch-btn align-batch-reject btn btn--outline btn--sm" onclick="alignBatchRejectAll()">
+                <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+                <span class="btn__text">全部驳回</span>
+              </button>
+              <button type="button" class="align-batch-btn btn btn--ghost btn--sm" onclick="step3BackToInput()">
+                <span class="btn__text">返回修改</span>
+              </button>
             </div>
           </div>
 
@@ -634,11 +708,13 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               <span class="align-stat-item align-stat-edited"><span class="align-stat-dot dot-edited"></span>已编辑 <strong id="s3-edited-count">0</strong></span>
             </div>
             <div class="align-bottom-actions">
-              <button class="action-btn edit-btn" onclick="editStep3Revision()">
-                <span class="action-icon">&#9998;</span> 在线编辑底稿
+              <button type="button" class="edit-btn btn btn--outline btn--md" onclick="editStep3Revision()">
+                <span class="btn__icon btn__icon--left" data-lucide="pencil"></span>
+                <span class="btn__text">在线编辑底稿</span>
               </button>
-              <button class="action-btn" id="s3-apply-btn" onclick="step3ApplyNotes()">
-                <span class="action-icon">&#10003;</span> 确认并生成对齐稿
+              <button type="button" class="btn btn--primary btn--md" id="s3-apply-btn" onclick="step3ApplyNotes()">
+                <span class="btn__icon btn__icon--left" data-lucide="check"></span>
+                <span class="btn__text">确认并生成对齐稿</span>
               </button>
             </div>
           </div>
@@ -696,39 +772,45 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               </div>
 
               <div style="display:flex;flex-direction:column;gap:8px;">
-                <button class="action-btn" id="s4-compile-btn" onclick="step4Compile()">
-                  <span class="action-icon">&#9889;</span> 一键编译交付包（确定性）
+                <button type="button" class="btn btn--primary btn--md" id="s4-compile-btn" onclick="step4Compile()">
+                  <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
+                  <span class="btn__text">一键编译交付包（确定性）</span>
                 </button>
                 <div class="action-note">从对齐版 Skill 草稿（IR）确定性生成 SKILL.md 终版 + 思维链 + QA，不经 LLM 二次发挥</div>
 
-                <button class="action-btn" id="s4-cot-btn" onclick="step4GenerateCOT()" style="margin-top:4px;">
-                  <span class="action-icon">&#128161;</span> 生成思维链 (COT)
+                <button type="button" class="btn btn--primary btn--md" id="s4-cot-btn" onclick="step4GenerateCOT()" style="margin-top:4px;">
+                  <span class="btn__icon btn__icon--left" data-lucide="lightbulb"></span>
+                  <span class="btn__text">生成思维链 (COT)</span>
                 </button>
                 <div class="action-note">LLM 根据知识条目生成分步骤推理链条，供 Agent 决策时调用</div>
 
-                <button class="action-btn" id="s4-qa-btn" onclick="step4GenerateQA()" style="margin-top:4px;">
-                  <span class="action-icon">&#128172;</span> 生成 QA 对
+                <button type="button" class="btn btn--primary btn--md" id="s4-qa-btn" onclick="step4GenerateQA()" style="margin-top:4px;">
+                  <span class="btn__icon btn__icon--left" data-lucide="message-circle"></span>
+                  <span class="btn__text">生成 QA 对</span>
                 </button>
                 <div class="action-note">LLM 将知识条目转化为 QA 对，用于 RAG 检索或 few-shot 示例</div>
 
-                <button class="action-btn" id="s4-exec-skill-btn" onclick="step4GenerateExecSkill()" style="margin-top:4px;">
-                  <span class="action-icon">&#129302;</span> 生成可执行 Agent Skill
+                <button type="button" class="btn btn--primary btn--md" id="s4-exec-skill-btn" onclick="step4GenerateExecSkill()" style="margin-top:4px;">
+                  <span class="btn__icon btn__icon--left" data-lucide="bot"></span>
+                  <span class="btn__text">生成可执行 Agent Skill</span>
                 </button>
                 <div class="action-note">结合 golden 知识库，LLM 生成含 SQL 匹配引擎 + 决策链的可部署 Skill</div>
               </div>
 
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
                 <div class="file-hint" style="margin-bottom:6px">&#128203; 知识库健康检查</div>
-                <button class="action-btn small-btn secondary-btn" id="s4-freshness-btn" onclick="step4FreshnessAudit()" style="width:100%;justify-content:center;">
-                  &#128260; 知识保鲜度审计
+                <button type="button" class="btn btn--outline btn--md" id="s4-freshness-btn" onclick="step4FreshnessAudit()" style="width:100%;">
+                  <span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span>
+                  <span class="btn__text">知识保鲜度审计</span>
                 </button>
                 <div class="file-hint" style="margin-top:4px">检测知识时效性、置信度衰减和被案例突破的规则</div>
               </div>
 
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
                 <div class="file-hint" style="margin-bottom:6px">&#128270; 显性化校验</div>
-                <button class="action-btn small-btn secondary-btn" id="s4-validate-btn" onclick="openValidatePanel()" style="width:100%;justify-content:center;">
-                  &#9889; 显性化校验回放
+                <button type="button" class="btn btn--outline btn--md" id="s4-validate-btn" onclick="openValidatePanel()" style="width:100%;">
+                  <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
+                  <span class="btn__text">显性化校验回放</span>
                 </button>
                 <div class="file-hint" style="margin-top:4px">上传历史案例，用知识库判断，与专家结论比对命中率</div>
                 <div class="validate-section hidden" id="s4-validate-panel">
@@ -738,7 +820,10 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   <div class="form-group" style="margin-top:8px;">
                     <select id="s4-validate-model"></select>
                   </div>
-                  <button class="action-btn small" id="s4-validate-run-btn" onclick="runValidateReplay()">执行校验</button>
+                  <button type="button" class="btn btn--outline btn--sm" id="s4-validate-run-btn" onclick="runValidateReplay()">
+                    <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
+                    <span class="btn__text">执行校验</span>
+                  </button>
                   <div id="s4-validate-result"></div>
                 </div>
               </div>
@@ -834,14 +919,16 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>判官模型（建议与萃取模型分离，避免自评偏置）</label>
                 <select id="s5-model"></select>
               </div>
-              <button class="action-btn" id="s5-replay-btn" onclick="step5RunReplay()">
-                <span class="action-icon">&#9889;</span> 执行决策回放
+              <button type="button" class="btn btn--primary btn--md" id="s5-replay-btn" onclick="step5RunReplay()">
+                <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
+                <span class="btn__text">执行决策回放</span>
               </button>
               <div class="action-note">用 SKILL 终版逐案判断，与专家结论比对命中率；分歧自动生成 entry 级修订建议</div>
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
                 <div class="file-hint" style="margin-bottom:6px">&#127942; Golden 基准验证</div>
-                <button class="action-btn small-btn secondary-btn" id="s5-golden-btn" onclick="step5GoldenVerify()" style="width:100%;justify-content:center;">
-                  对比黄金条目（P/R/F1）
+                <button type="button" class="btn btn--outline btn--md" id="s5-golden-btn" onclick="step5GoldenVerify()" style="width:100%;">
+                  <span class="btn__icon btn__icon--left" data-lucide="award"></span>
+                  <span class="btn__text">对比黄金条目（P/R/F1）</span>
                 </button>
                 <div class="file-hint" style="margin-top:4px">衡量萃取结果与人工精标基准的接近程度</div>
               </div>
@@ -871,8 +958,12 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <span id="excel-editor-step-label">在线编辑</span>
       </div>
       <div class="excel-editor-actions">
-        <button class="excel-btn excel-btn-save" id="excel-editor-save-btn" onclick="saveExcelEditor()">保存</button>
-        <button class="excel-btn excel-btn-close" onclick="closeExcelEditor()">关闭</button>
+        <button type="button" class="btn btn--primary btn--sm excel-btn-save" id="excel-editor-save-btn" onclick="saveExcelEditor()">
+          <span class="btn__text">保存</span>
+        </button>
+        <button type="button" class="btn btn--ghost btn--sm excel-btn-close" onclick="closeExcelEditor()">
+          <span class="btn__text">关闭</span>
+        </button>
       </div>
     </div>
     <div class="excel-editor-body" id="excel-editor-content">
@@ -890,10 +981,22 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <span id="markdown-editor-title">SKILL.md 预览编辑</span>
       </div>
       <div class="md-editor-actions">
-        <button class="md-btn md-btn-save" id="md-editor-save-btn" onclick="saveMarkdownContent()">&#128190; 保存</button>
-        <button class="md-btn md-btn-download" id="md-editor-download-btn" onclick="downloadMarkdownContent()">&#11015; 下载</button>
-        <button class="md-btn md-btn-copy" onclick="copyMarkdownContent()">&#128203; 复制</button>
-        <button class="md-btn md-btn-close" onclick="closeMarkdownEditor()">&times; 关闭</button>
+        <button type="button" class="btn btn--primary btn--sm md-btn-save" id="md-editor-save-btn" onclick="saveMarkdownContent()">
+          <span class="btn__icon btn__icon--left" data-lucide="save"></span>
+          <span class="btn__text">保存</span>
+        </button>
+        <button type="button" class="btn btn--outline btn--sm md-btn-download" id="md-editor-download-btn" onclick="downloadMarkdownContent()">
+          <span class="btn__icon btn__icon--left" data-lucide="download"></span>
+          <span class="btn__text">下载</span>
+        </button>
+        <button type="button" class="btn btn--outline btn--sm md-btn-copy" onclick="copyMarkdownContent()">
+          <span class="btn__icon btn__icon--left" data-lucide="copy"></span>
+          <span class="btn__text">复制</span>
+        </button>
+        <button type="button" class="btn btn--ghost btn--sm md-btn-close" onclick="closeMarkdownEditor()">
+          <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+          <span class="btn__text">关闭</span>
+        </button>
       </div>
     </div>
     <div class="md-editor-body">
@@ -912,6 +1015,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
 <script src="vendor/jquery/jquery.min.js"></script>
 <script src="vendor/luckysheet/plugins/js/plugin.js"></script>
 <script src="vendor/luckysheet/luckysheet.umd.js"></script>
+<script src="vendor/lucide/lucide.min.js"></script>
 <script src="js/state.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/excel-luckysheet.js"></script>
