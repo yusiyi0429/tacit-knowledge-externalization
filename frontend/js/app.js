@@ -793,9 +793,9 @@ function step2Execute() {
         html += '<div class="signal-review-panel" style="margin-top:12px;display:block;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
         html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">&#129518; Skill 草稿 v' + (result.skill_draft_version || 1) + '（初版，待专家对齐）</div>';
         html += '<div class="s2-result-actions">';
-        if (result.skill_draft_md_file) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(result.skill_draft_md_file) + '\',\'Skill 草稿预览 (v' + (result.skill_draft_version || 1) + ')\')">预览 Skill 草稿</button>';
-        if (result.skill_draft_md_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.skill_draft_md_url + '" download>下载草稿 Markdown</a>';
-        if (result.skill_draft_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.skill_draft_url + '" download>下载草稿 JSON (IR)</a>';
+        if (result.skill_draft_md_file) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.skill_draft_md_file) + '\',\'Skill 草稿预览 (v' + (result.skill_draft_version || 1) + ')\')">预览 Skill 草稿</button>';
+        if (result.skill_draft_md_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.skill_draft_md_url + '" download>下载草稿 Markdown</a>';
+        if (result.skill_draft_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.skill_draft_url + '" download>下载草稿 JSON (IR)</a>';
         html += '</div></div>';
       }
 
@@ -816,13 +816,13 @@ function step2Execute() {
       var step2Fmt = document.getElementById('s2-output-format')?.value || 'excel';
       var mdFlow = step2Fmt === 'markdown';
       // Markdown group
-      if (mdFlow && mdFile) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
-      if (!mdFlow && mdFile) html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
-      if (mdUrl) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
+      if (mdFlow && mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
+      if (!mdFlow && mdFile) html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
+      if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
       // Excel group
-      if (!mdFlow && dlName) html += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-      if (mdFlow && dlName) html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-      if (dlUrl) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + dlUrl + '" download>下载 Excel</a>';
+      if (!mdFlow && dlName) html += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+      if (mdFlow && dlName) html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+      if (dlUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + dlUrl + '" download>下载 Excel</a>';
       html += '</div>';
       html += '</div>';
 
@@ -2150,15 +2150,15 @@ async function step1Generate() {
       const step1MdFile = result.markdown_file || '';
       // Markdown group
       if (mdFlow && step1MdFile) {
-        html += `<button class="action-btn small-btn" onclick="previewStep4File('${escapeHtml(step1MdFile)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>`;
+        html += `<button class="btn btn--primary btn--sm" onclick="previewStep4File('${escapeHtml(step1MdFile)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>`;
       }
       if (result.download_url) {
         const dlLabel = mdFlow ? '下载 Markdown 骨架' : '下载 Excel 骨架';
-        html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>' + dlLabel + '</a>';
+        html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>' + dlLabel + '</a>';
       }
       // Excel group
       if (!mdFlow && result.excel_download_url) {
-        html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + (result.excel_file || result.file_name) + '\')">预览 Excel</button>';
+        html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + (result.excel_file || result.file_name) + '\')">预览 Excel</button>';
       }
       html += '</div>';
       html += '</div>';
@@ -2198,15 +2198,15 @@ function restoreStep1Output() {
   html += '<div class="s1-result-actions">';
   // Markdown group
   if (mdFlow && mdFile) {
-    html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step1 骨架 Markdown 预览\')">预览/编辑 Markdown</button>';
+    html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step1 骨架 Markdown 预览\')">预览/编辑 Markdown</button>';
   }
   if (sd.step1_download_url) {
     const dlLabel = mdFlow ? '下载 Markdown 骨架' : '下载 Excel 骨架';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + sd.step1_download_url + '" download>' + dlLabel + '</a>';
+    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step1_download_url + '" download>' + dlLabel + '</a>';
   }
   // Excel group
   if (!mdFlow && sd.step1_download_url) {
-    html += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(outputFile) + '\')">预览 Excel</button>';
+    html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(outputFile) + '\')">预览 Excel</button>';
   }
   html += '</div></div>';
   renderOutput('s1-output', html);
@@ -2284,10 +2284,10 @@ function renderStep2PrevOutputCard(data) {
       </div>
       ${fieldsHtml}
       <div class="s2-result-actions" style="margin-top:8px;">
-        ${data.markdown_file ? `<button class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>` : ''}
-        ${data.markdown_download_url ? `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>` : ''}
-        ${data.download_url ? `<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>` : ''}
-        ${data.download_url ? `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.download_url}" download>下载 Excel</a>` : ''}
+        ${data.markdown_file ? `<button class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>` : ''}
+        ${data.markdown_download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>` : ''}
+        ${data.download_url ? `<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>` : ''}
+        ${data.download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.download_url}" download>下载 Excel</a>` : ''}
       </div>
     </div>
   `;
@@ -2473,17 +2473,17 @@ async function loadStep3PrevOutput() {
         let actionBtns = '';
         // Markdown group
         if (data.markdown_file) {
-          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览/编辑 Markdown</button>`;
+          actionBtns += `<button type="button" class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览/编辑 Markdown</button>`;
         }
         if (data.markdown_download_url) {
-          actionBtns += `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>`;
+          actionBtns += `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>`;
         }
         // Excel group
         if (data.download_url && !mdFlow) {
-          actionBtns += `<button type="button" class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>`;
+          actionBtns += `<button type="button" class="btn btn--outline btn--sm" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>`;
         }
         if (data.download_url) {
-          actionBtns += `<a class="action-btn small-btn secondary-btn" href="${API_BASE + data.download_url}" download>下载 Excel</a>`;
+          actionBtns += `<a class="btn btn--outline btn--sm" href="${API_BASE + data.download_url}" download>下载 Excel</a>`;
         }
         var actionsEl = document.getElementById('s3-prev-actions');
         if (actionsEl) actionsEl.innerHTML = actionBtns;
@@ -2998,12 +2998,12 @@ async function showStep3AlignComplete(result, options) {
   }
   html += '<div class="align-result-actions">';
   // Markdown group
-  if (mdFlow && mdName) html += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-  if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="action-btn small-btn secondary-btn" download>下载 Markdown</a>';
+  if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
+  if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>下载 Markdown</a>';
   // Excel group
-  if (!mdFlow && dlName) html += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-  if (dlUrl) html += '<a href="' + escapeHtml(dlUrl) + '" class="action-btn small-btn secondary-btn" download>下载 Excel</a>';
-  html += '<button class="action-btn small-btn secondary-btn" onclick="step3BackToInput()">重新对齐</button>';
+  if (!mdFlow && dlName) html += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+  if (dlUrl) html += '<a href="' + escapeHtml(dlUrl) + '" class="btn btn--outline btn--sm" download>下载 Excel</a>';
+  html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">重新对齐</button>';
   html += '</div>';
   document.getElementById('s3-result-card').innerHTML = html;
   updateStepProgress();
@@ -3118,13 +3118,13 @@ async function loadStep4PrevOutput() {
         const mdUrl = mdName ? ('/downloads/' + mdName) : '';
         const excelUrl = data.download_url || '';
         // Markdown group
-        if (mdFlow && mdName) btns += '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-        if (!mdFlow && mdName) btns += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-        if (mdUrl) btns += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
+        if (mdFlow && mdName) btns += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
+        if (!mdFlow && mdName) btns += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
+        if (mdUrl) btns += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
         // Excel group
-        if (!mdFlow && excelName) btns += '<button class="action-btn small-btn" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
-        if (mdFlow && excelName) btns += '<button class="action-btn small-btn secondary-btn" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
-        if (excelUrl) btns += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + excelUrl + '" download>下载 Excel</a>';
+        if (!mdFlow && excelName) btns += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
+        if (mdFlow && excelName) btns += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
+        if (excelUrl) btns += '<a class="btn btn--outline btn--sm" href="' + API_BASE + excelUrl + '" download>下载 Excel</a>';
         actionsEl.innerHTML = btns;
       }
     } else {
@@ -3151,11 +3151,11 @@ function renderStep4ArtifactCard(key, title, desc, countLabel, downloads, previe
   html += '<div class="s4-artifact-actions">';
   (downloads || []).forEach(d => {
     if (d.url) {
-      html += '<a class="action-btn small-btn secondary-btn" href="' + escapeHtml(API_BASE + d.url) + '" download>' + escapeHtml(d.label) + '</a>';
+      html += '<a class="btn btn--outline btn--sm" href="' + escapeHtml(API_BASE + d.url) + '" download>' + escapeHtml(d.label) + '</a>';
     }
   });
   if (previewFn) {
-    html += '<button type="button" class="action-btn small-btn secondary-btn" onclick="' + previewFn + '">&#128065; 预览</button>';
+    html += '<button type="button" class="btn btn--outline btn--sm" onclick="' + previewFn + '">&#128065; 预览</button>';
   }
   html += '</div></div>';
   return html;
@@ -3187,8 +3187,8 @@ async function step4FreshnessAudit() {
         (result.stale_indicators && result.stale_indicators.length ?
           '<div style="margin-top:8px">' + result.stale_indicators.map(function(s){return '<div style="font-size:12px;color:#8b6914;margin:2px 0">⚠️ '+escapeHtml(s)+'</div>';}).join('') + '</div>' : '') +
         '<div class="s2-result-actions" style="margin-top:12px">' +
-        '<button class="action-btn small-btn" onclick="previewStep4File(\'' + escapeHtml(result.report_name || '') + '\',\'保鲜度审计报告\')">&#128065; 预览报告</button>' +
-        (dl ? '<a class="action-btn small-btn secondary-btn" href="'+API_BASE+dl+'" download>下载报告</a>' : '') +
+        '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.report_name || '') + '\',\'保鲜度审计报告\')">&#128065; 预览报告</button>' +
+        (dl ? '<a class="btn btn--outline btn--sm" href="'+API_BASE+dl+'" download>下载报告</a>' : '') +
         '</div>' +
         '</div>';
     } else {
@@ -3228,8 +3228,8 @@ async function step4GenerateCOT() {
     var html = '<div class="s2-result-success"><div class="s2-result-header">思维链 (COT) 已生成</div>';
     html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
     html += '<div class="s2-result-actions">';
-    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.filename) + '\',\'COT\')">预览/编辑 Markdown</button>';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 Markdown</a>';
+    html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.filename) + '\',\'COT\')">预览/编辑 Markdown</button>';
+    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>下载 Markdown</a>';
     html += '</div></div>';
     document.getElementById('s4-output-cot').style.display = 'block';
     document.getElementById('s4-output-cot').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>思维链 (COT)</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
@@ -3266,9 +3266,9 @@ async function step4GenerateQA() {
     html += '<div class="s2-result-meta">共 <strong>' + (result.qa_count || 0) + '</strong> 个问答对</div>';
     html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
     html += '<div class="s2-result-actions">';
-    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.md_filename || '') + '\',\'QA\')">预览/编辑 Markdown</button>';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.md_download_url + '" download>下载 Markdown</a>';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 JSON</a>';
+    html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.md_filename || '') + '\',\'QA\')">预览/编辑 Markdown</button>';
+    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.md_download_url + '" download>下载 Markdown</a>';
+    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>下载 JSON</a>';
     html += '</div></div>';
     document.getElementById('s4-output-qa').style.display = 'block';
     document.getElementById('s4-output-qa').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>QA 对</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
@@ -3310,8 +3310,8 @@ async function step4GenerateExecSkill() {
     html += '</div>';
     html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
     html += '<div class="s2-result-actions">';
-    html += '<button class="action-btn small-btn secondary-btn" onclick="previewStep4File(\'' + escapeHtml(result.skill_filename) + '\',\'Agent Skill\')">预览/编辑 Markdown</button>';
-    html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + result.download_url + '" download>下载 SKILL.md</a>';
+    html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.skill_filename) + '\',\'Agent Skill\')">预览/编辑 Markdown</button>';
+    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>下载 SKILL.md</a>';
     html += '</div></div>';
     document.getElementById('s4-output-skill').style.display = 'block';
     document.getElementById('s4-output-skill').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>可执行 Agent Skill</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
@@ -3395,7 +3395,7 @@ async function step4Quality() {
 
       if (result.download_url) {
         html += '<div class="s4-actions">';
-        html += '<a class="action-btn small-btn" href="' + API_BASE + result.download_url + '" download>&#11015; 下载质量报告</a>';
+        html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + result.download_url + '" download>&#11015; 下载质量报告</a>';
         html += '</div>';
       }
       html += '</div>';
@@ -4254,11 +4254,11 @@ async function step4Compile() {
       html += '</div>';
     }
     html += '<div class="s2-result-actions" style="margin-top:8px;">';
-    if (data.download_url) html += '<a class="action-btn small-btn" href="' + API_BASE + data.download_url + '" download>下载 SKILL.md 终版</a>';
-    if (data.cot_download_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + data.cot_download_url + '" download>下载思维链</a>';
-    if (data.qa_download_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + data.qa_download_url + '" download>下载 QA 对</a>';
-    if (data.openclaw_manifest_url) html += '<a class="action-btn small-btn secondary-btn" href="' + API_BASE + data.openclaw_manifest_url + '" download>下载 manifest</a>';
-    if (data.can_publish) html += '<button class="action-btn small-btn" onclick="step4PublishToKb()">发布到知识库</button>';
+    if (data.download_url) html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + data.download_url + '" download>下载 SKILL.md 终版</a>';
+    if (data.cot_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.cot_download_url + '" download>下载思维链</a>';
+    if (data.qa_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.qa_download_url + '" download>下载 QA 对</a>';
+    if (data.openclaw_manifest_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.openclaw_manifest_url + '" download>下载 manifest</a>';
+    if (data.can_publish) html += '<button class="btn btn--primary btn--sm" onclick="step4PublishToKb()">发布到知识库</button>';
     html += '</div></div>';
     if (panel) panel.innerHTML = html;
     showToast('交付包编译完成');
