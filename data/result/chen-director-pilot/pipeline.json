@@ -6,12 +6,15 @@
   "current_step": 2,
   "step_status": {
     "1": "done",
-    "2": "active",
+    "2": "done",
     "3": "pending",
     "4": "pending",
     "5": "pending"
   },
-  "source_kb_entry_uids": ["KB-gen-4d8f227a", "KB-gen-b742d553"],
+  "source_kb_entry_uids": [
+    "KB-gen-4d8f227a",
+    "KB-gen-b742d553"
+  ],
   "step_data": {
     "step1_output_file": "step1-template.xlsx",
     "step1_download_url": "/downloads/template_4c97455c.xlsx",
@@ -39,10 +42,33 @@
     ],
     "step1_sub_scenario_count": 4,
     "step1_sub_scenarios": [
-      {"name": "会议前准备", "description": "明确访谈/会议目标、参会人、议题清单"},
-      {"name": "会议中记录", "description": "结构化记录关键观点、案例、决策与待办"},
-      {"name": "会议后提炼", "description": "从纪要中萃取方法论、监管洞察与可复用框架"},
-      {"name": "知识转化", "description": "将提炼内容转化为 SKILL.md / QA / COT"}
-    ]
+      {
+        "name": "会议前准备",
+        "description": "明确访谈/会议目标、参会人、议题清单"
+      },
+      {
+        "name": "会议中记录",
+        "description": "结构化记录关键观点、案例、决策与待办"
+      },
+      {
+        "name": "会议后提炼",
+        "description": "从纪要中萃取方法论、监管洞察与可复用框架"
+      },
+      {
+        "name": "知识转化",
+        "description": "将提炼内容转化为 SKILL.md / QA / COT"
+      }
+    ],
+    "step2_output_file": "preextract_478cea4d.xlsx",
+    "step2_download_url": "/downloads/preextract_478cea4d.xlsx",
+    "step2_draft_file": "skill_draft_7a9f1ab3_v1_069c29.json",
+    "step2_draft_url": "/downloads/skill_draft_7a9f1ab3_v1_069c29.json",
+    "step2_draft_version": 1,
+    "step2_draft_md_file": "SKILL_draft_40206bbc.md",
+    "step2_draft_md_url": "/downloads/SKILL_draft_40206bbc.md",
+    "step2_extracted_count": 12,
+    "step2_source_count": 1,
+    "step2_dedup_count": 0,
+    "step2_source_file": "总监在新员工培训中的会议纪要.md"
   }
 }
