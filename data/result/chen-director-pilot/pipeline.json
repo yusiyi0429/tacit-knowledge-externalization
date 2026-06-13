@@ -1,0 +1,10 @@
+{
+  "pipeline_id": "chen-director-pilot",
+  "name": "总监带队访谈/会议纪要方法论",
+  "expert": "陈总监",
+  "description": "基于陈总监多篇会议纪要，沉淀总监带队访谈与会议纪要方法论",
+  "current_step": 0,
+  "step_status": "ready",
+  "source_kb_entry_uids": ["KB-gen-4d8f227a", "KB-gen-b742d553"],
+  "step_data": {}
+}
