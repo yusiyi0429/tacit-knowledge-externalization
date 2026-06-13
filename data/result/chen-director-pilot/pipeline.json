@@ -3,12 +3,12 @@
   "name": "总监带队访谈/会议纪要方法论",
   "expert": "陈总监",
   "description": "基于陈总监多篇会议纪要，沉淀总监带队访谈与会议纪要方法论",
-  "current_step": 2,
+  "current_step": 4,
   "step_status": {
     "1": "done",
     "2": "done",
-    "3": "pending",
-    "4": "pending",
+    "3": "done",
+    "4": "active",
     "5": "pending"
   },
   "source_kb_entry_uids": [
@@ -69,6 +69,14 @@
     "step2_extracted_count": 12,
     "step2_source_count": 1,
     "step2_dedup_count": 0,
-    "step2_source_file": "总监在新员工培训中的会议纪要.md"
+    "step2_source_file": "总监在新员工培训中的会议纪要.md",
+    "step3_final_file": "final_7a9f1ab3_144821.xlsx",
+    "step3_final_md_file": "final_7a9f1ab3_144821.md",
+    "step3_final_count": 0,
+    "step3_final_style": "标准修订",
+    "step3_aligned_file": "skill_draft_7a9f1ab3_v2_748e93.json",
+    "step3_aligned_md_file": "SKILL_aligned_42e41be0.md",
+    "step3_aligned_version": 2,
+    "step3_align_mode": "pass_through"
   }
 }
