@@ -1507,18 +1507,40 @@ function renderVerificationCases() {
   let html = '';
   verificationCases.forEach(function (c) {
     const inputSummary = (c.input && c.input.title) ? escapeHtml(c.input.title) : '';
+    const inputJson = JSON.stringify(c.input || {}, null, 2);
+    const expectedJson = JSON.stringify(c.expected_output || {}, null, 2);
     html += '<div class="verify-case-item" data-uid="' + escapeHtml(c.case_uid) + '">';
+    html += '<div class="verify-case-header" onclick="toggleVerifyCaseDetail(\'' + escapeHtml(c.case_uid) + '\')">';
     html += '<div class="verify-case-title">' + escapeHtml(c.name) + '</div>';
     html += '<div class="verify-case-meta">' + escapeHtml(c.source || 'manual') + (inputSummary ? ' · ' + inputSummary : '') + '</div>';
+    html += '</div>';
     html += '<div class="verify-case-actions">';
-    html += '<button type="button" class="btn btn--outline btn--sm" onclick="runSingleVerificationCase(\'' + escapeHtml(c.case_uid) + '\')">';
+    html += '<button type="button" class="btn btn--outline btn--sm" onclick="event.stopPropagation(); runSingleVerificationCase(\'' + escapeHtml(c.case_uid) + '\')">';
     html += '<span class="btn__icon btn__icon--left" data-lucide="play"></span><span class="btn__text">运行</span></button>';
-    html += '<button type="button" class="btn btn--ghost btn--sm" onclick="deleteVerificationCase(\'' + escapeHtml(c.case_uid) + '\')">';
+    html += '<button type="button" class="btn btn--ghost btn--sm" onclick="event.stopPropagation(); toggleVerifyCaseDetail(\'' + escapeHtml(c.case_uid) + '\')">';
+    html += '<span class="btn__icon btn__icon--left" data-lucide="info"></span><span class="btn__text">详情</span></button>';
+    html += '<button type="button" class="btn btn--ghost btn--sm" onclick="event.stopPropagation(); deleteVerificationCase(\'' + escapeHtml(c.case_uid) + '\')">';
     html += '<span class="btn__text">删除</span></button>';
-    html += '</div></div>';
+    html += '</div>';
+    html += '<div class="verify-case-detail hidden" id="verify-case-detail-' + escapeHtml(c.case_uid) + '">';
+    if (c.description) {
+      html += '<div class="verify-detail-section"><div class="verify-detail-label">用例说明</div><div class="verify-detail-desc">' + escapeHtml(c.description) + '</div></div>';
+    }
+    html += '<div class="verify-detail-section"><div class="verify-detail-label">输入 (input)</div><pre class="verify-detail-code">' + escapeHtml(inputJson) + '</pre></div>';
+    html += '<div class="verify-detail-section"><div class="verify-detail-label">期望输出 (expected_output)</div><pre class="verify-detail-code">' + escapeHtml(expectedJson) + '</pre></div>';
+    html += '</div>';
+    html += '</div>';
   });
   container.innerHTML = html;
   if (typeof refreshIcons === 'function') refreshIcons(container);
+}
+
+function toggleVerifyCaseDetail(caseUid) {
+  const detail = document.getElementById('verify-case-detail-' + caseUid);
+  if (!detail) return;
+  detail.classList.toggle('hidden');
+  const item = detail.closest('.verify-case-item');
+  if (item) item.classList.toggle('expanded', !detail.classList.contains('hidden'));
 }
 
 function refreshVerifyModelSelect() {
