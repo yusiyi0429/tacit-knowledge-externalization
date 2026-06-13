@@ -285,7 +285,7 @@ function step1AddKnowledgeColumn(name, idx) {
   div.id = 's1-k-col-' + i;
   div.innerHTML =
     '<input type="text" class="s1-k-col-input" placeholder="如：具体方法、判断逻辑" value="' + escapeHtml(name || '') + '">' +
-    '<button type="button" class="s1-k-col-remove" onclick="step1RemoveKnowledgeColumn(' + i + ')" title="删除">✕</button>';
+    '<button type="button" class="btn btn--ghost btn--sm s1-k-col-remove" onclick="step1RemoveKnowledgeColumn(' + i + ')" title="删除"><span class="btn__icon" data-lucide="x"></span></button>';
   container.appendChild(div);
   refreshIcons();
 }
@@ -2026,7 +2026,7 @@ function step1AddSubScenario() {
   div.id = 's1-sub-' + idx;
   div.innerHTML = '<div class="s1-sub-row">' +
     '<input type="text" class="s1-sub-name" placeholder="子场景名称" data-idx="' + idx + '">' +
-    '<button class="s1-sub-remove" onclick="step1RemoveSubScenario(' + idx + ')">✕</button>' +
+    '<button type="button" class="btn btn--ghost btn--sm s1-sub-remove" onclick="step1RemoveSubScenario(' + idx + ')"><span class="btn__icon" data-lucide="x"></span></button>' +
     '</div>' +
     '<textarea class="s1-sub-content" rows="2" placeholder="子场景内容描述" data-idx="' + idx + '"></textarea>';
   container.appendChild(div);
@@ -2398,13 +2398,14 @@ function showTacitFollowup(noteEl, noteId, actionType) {
     '<div class="tacit-followup-label">💡 ' + escapeHtml(question) + '</div>' +
     '<textarea id="tacit-answer-' + safeNoteId + '" placeholder="简要记录您的修订经验与判断依据..."></textarea>' +
     '<div class="tacit-followup-actions">' +
-      '<button class="tacit-followup-skip" onclick="dismissTacitFollowup(this)">跳过</button>' +
-      '<button class="tacit-followup-save" data-note-id="' + safeNoteId + '" data-action-type="' + safeActionType + '" data-question="' + safeQuestion + '">保存经验批注</button>' +
+      '<button type="button" class="btn btn--ghost btn--sm tacit-followup-skip" onclick="dismissTacitFollowup(this)"><span class="btn__text">跳过</span></button>' +
+      '<button type="button" class="btn btn--primary btn--sm tacit-followup-save" data-note-id="' + safeNoteId + '" data-action-type="' + safeActionType + '" data-question="' + safeQuestion + '"><span class="btn__text">保存经验批注</span></button>' +
     '</div>';
   card.querySelector('.tacit-followup-save').addEventListener('click', function() {
     saveTacitAnnotation(this.dataset.noteId, this.dataset.actionType, this.dataset.question);
   });
   noteEl.appendChild(card);
+  refreshIcons();
 }
 
 function dismissTacitFollowup(btn) {
@@ -2811,10 +2812,10 @@ function renderAlignNotesList() {
 
     // Action buttons
     html += `<div class="align-note-actions">`;
-    html += `<button class="align-note-btn align-note-btn-accept ${state === 'accepted' || state === 'edited' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'accepted')">采纳</button>`;
-    html += `<button class="align-note-btn align-note-btn-reject ${state === 'rejected' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'rejected')">驳回</button>`;
+    html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-accept ${state === 'accepted' || state === 'edited' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'accepted')"><span class="btn__text">采纳</span></button>`;
+    html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-reject ${state === 'rejected' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'rejected')"><span class="btn__text">驳回</span></button>`;
     if (n.action !== 'delete') {
-      html += `<button class="align-note-btn align-note-btn-edit" onclick="alignToggleEdit(${n.id})">编辑</button>`;
+      html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-edit" onclick="alignToggleEdit(${n.id})"><span class="btn__text">编辑</span></button>`;
     }
     html += `</div>`;
 
@@ -2822,7 +2823,7 @@ function renderAlignNotesList() {
     if (n.action !== 'delete') {
       html += `<div class="align-inline-editor" id="align-editor-${n.id}">`;
       html += `<textarea class="align-inline-textarea" id="align-textarea-${n.id}" placeholder="修改后的内容">${escapeHtml(editedVal || n.new_value || '')}</textarea>`;
-      html += `<button class="align-inline-save" onclick="alignSaveEdit(${n.id})">保存修改</button>`;
+      html += `<button type="button" class="btn btn--primary btn--sm align-inline-save" onclick="alignSaveEdit(${n.id})"><span class="btn__icon btn__icon--left" data-lucide="check"></span><span class="btn__text">保存修改</span></button>`;
       html += `</div>`;
     }
 
@@ -2833,6 +2834,7 @@ function renderAlignNotesList() {
     html = '<div style="text-align:center;padding:40px;color:var(--text-muted);">无匹配的对齐建议</div>';
   }
   container.innerHTML = html;
+  refreshIcons();
 }
 
 function alignSetState(id, state) {
