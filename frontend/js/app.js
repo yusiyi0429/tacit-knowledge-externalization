@@ -34,6 +34,13 @@ function renderBtn(opts) {
   return '<button' + typeAttr + ' class="' + classes.join(' ') + '"' + idAttr + attrs + '>' + iconHtml + textHtml + '</button>';
 }
 
+function renderBtnChildren(opts) {
+  opts = opts || {};
+  const iconHtml = opts.icon ? '<span class="btn__icon btn__icon--' + (opts.iconPosition || 'left') + '" data-lucide="' + escapeHtml(opts.icon) + '"></span>' : '';
+  const textHtml = opts.text ? '<span class="btn__text">' + escapeHtml(opts.text) + '</span>' : '';
+  return iconHtml + textHtml;
+}
+
 /* ===== Step2 Skill 卡片选择 ===== */
 function selectStep2Skill(skillId) {
   _step2ActiveSkill = skillId;
@@ -280,6 +287,7 @@ function step1AddKnowledgeColumn(name, idx) {
     '<input type="text" class="s1-k-col-input" placeholder="如：具体方法、判断逻辑" value="' + escapeHtml(name || '') + '">' +
     '<button type="button" class="s1-k-col-remove" onclick="step1RemoveKnowledgeColumn(' + i + ')" title="删除">✕</button>';
   container.appendChild(div);
+  refreshIcons();
 }
 
 function step1RemoveKnowledgeColumn(idx) {
@@ -885,18 +893,18 @@ function updateStep3AlignModeHint() {
   const btn = document.getElementById('s3-revise-btn');
   if (!btn) return;
   if (!text.trim() && !hasMaterial) {
-    btn.innerHTML = renderBtn({ variant: 'primary', size: 'md', icon: 'check', text: '无意见直通生成对齐稿' });
+    btn.innerHTML = renderBtnChildren({ icon: 'check', text: '无意见直通生成对齐稿' });
     renderStepReadiness('s3-align-hint', '未填写意见：将直接按预萃稿生成对齐稿（无修订）', 'info');
     refreshIcons();
     return;
   }
   if (step3LooksLikeNoOpinion(text) && !hasMaterial) {
-    btn.innerHTML = renderBtn({ variant: 'primary', size: 'md', icon: 'check', text: '按当前稿生成对齐稿' });
+    btn.innerHTML = renderBtnChildren({ icon: 'check', text: '按当前稿生成对齐稿' });
     renderStepReadiness('s3-align-hint', '检测到“无修订”表达：将自动确认当前稿为对齐稿', 'info');
     refreshIcons();
     return;
   }
-  btn.innerHTML = renderBtn({ variant: 'primary', size: 'md', icon: 'settings-2', text: '发送并智能修订' });
+  btn.innerHTML = renderBtnChildren({ icon: 'settings-2', text: '发送并智能修订' });
   renderStepReadiness('s3-align-hint', '已检测到专家意见/材料：将按意见生成修订建议', 'ok');
   refreshIcons();
 }
@@ -2016,6 +2024,7 @@ function step1AddSubScenario() {
     '</div>' +
     '<textarea class="s1-sub-content" rows="2" placeholder="子场景内容描述" data-idx="' + idx + '"></textarea>';
   container.appendChild(div);
+  refreshIcons();
 }
 
 function step1RemoveSubScenario(idx) {

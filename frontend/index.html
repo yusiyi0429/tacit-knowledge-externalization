@@ -391,19 +391,19 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>选择能力</label>
                 <div class="s2-skill-cards" id="s2-skill-cards">
                   <div class="s2-skill-card active" data-skill="knowledge-extraction" onclick="selectStep2Skill('knowledge-extraction')">
-                    <span class="s2-skill-card-icon">🔍</span>
+                    <span class="s2-skill-card-icon" data-lucide="search"></span>
                     <span class="s2-skill-card-name">知识萃取</span>
                     <span class="s2-skill-card-desc">文档→结构化知识</span>
                     <span class="s2-skill-card-hint">制度文件、操作手册、案例复盘</span>
                   </div>
                   <div class="s2-skill-card" data-skill="knowledge-pattern-mining" onclick="selectStep2Skill('knowledge-pattern-mining')">
-                    <span class="s2-skill-card-icon">🔬</span>
+                    <span class="s2-skill-card-icon" data-lucide="microscope"></span>
                     <span class="s2-skill-card-name">模式发现</span>
                     <span class="s2-skill-card-desc">跨案例交叉分析</span>
                     <span class="s2-skill-card-hint">≥2 个相关案例的对比分析</span>
                   </div>
                   <div class="s2-skill-card" data-skill="knowledge-gap-analysis" onclick="selectStep2Skill('knowledge-gap-analysis')">
-                    <span class="s2-skill-card-icon">🎯</span>
+                    <span class="s2-skill-card-icon" data-lucide="target"></span>
                     <span class="s2-skill-card-name">盲区检测</span>
                     <span class="s2-skill-card-desc">Schema覆盖率</span>
                     <span class="s2-skill-card-hint">已萃取后检查知识覆盖空白</span>
@@ -628,9 +628,11 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
             <div id="s3-suggestion-list"></div>
             <div class="s2-result-actions" style="margin-top:10px;">
               <button type="button" class="btn btn--primary btn--sm" id="s3-suggestion-apply" onclick="step3ApplySuggestions()">
+                <span class="btn__icon btn__icon--left" data-lucide="check"></span>
                 <span class="btn__text">采纳勾选建议 → 生成新对齐稿</span>
               </button>
               <button type="button" class="btn btn--outline btn--sm" id="s3-suggestion-reject" onclick="step3RejectSuggestions()">
+                <span class="btn__icon btn__icon--left" data-lucide="x"></span>
                 <span class="btn__text">驳回勾选建议</span>
               </button>
               <button type="button" class="btn btn--ghost btn--sm" id="s3-suggestion-refresh" onclick="loadStep3SuggestionPool()">
@@ -807,7 +809,8 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   <div class="form-group" style="margin-top:8px;">
                     <select id="s4-validate-model"></select>
                   </div>
-                  <button type="button" class="btn btn--primary btn--sm" id="s4-validate-run-btn" onclick="runValidateReplay()">
+                  <button type="button" class="btn btn--outline btn--sm" id="s4-validate-run-btn" onclick="runValidateReplay()">
+                    <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
                     <span class="btn__text">执行校验</span>
                   </button>
                   <div id="s4-validate-result"></div>
