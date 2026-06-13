@@ -2145,13 +2145,9 @@ a { color: var(--red); text-decoration: none; }
   border: 1px solid var(--border); overflow: hidden;
 }
 .s2-mode-tab {
-  flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 500;
-  background: #fff; border: none; cursor: pointer; transition: all 0.2s;
-  color: var(--text-secondary); font-family: var(--font-cn);
+  flex: 1; border-radius: 0;
 }
 .s2-mode-tab:not(:last-child) { border-right: 1px solid var(--border); }
-.s2-mode-tab.active { background: var(--red); color: #fff; }
-.s2-mode-tab:hover:not(.active) { background: #fef0f0; }
 .s2-mode-panel { }
 .s2-mode-panel.hidden { display: none !important; }
 
@@ -2304,10 +2300,8 @@ a { color: var(--red); text-decoration: none; }
   margin-bottom: 6px;
 }
 .s2-pattern-filelist-count { font-size: 12px; font-weight: 600; color: var(--text); }
-.s2-pattern-filelist-clear {
-  font-size: 11px; color: var(--text-muted); background: none; border: none;
-  cursor: pointer; text-decoration: underline;
-}
+.s2-pattern-filelist-clear { display: inline-flex; }
+.s2-pattern-filelist-clear:hover { color: var(--red); }
 .s2-pattern-filelist-items { display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
 .s2-pattern-fileitem {
   display: flex; align-items: center; gap: 6px; padding: 4px 8px;
@@ -2499,6 +2493,7 @@ a { color: var(--red); text-decoration: none; }
   background: #fff; border-radius: var(--radius); cursor: pointer;
   color: var(--text-muted); font-size: 16px; display: flex;
   align-items: center; justify-content: center; transition: all 0.2s;
+  padding: 0;
 }
 .s2-text-input-remove:hover { border-color: var(--error); color: var(--error); }
 

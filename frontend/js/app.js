@@ -642,8 +642,9 @@ function addStep2TextRow() {
   row.className = 's2-text-input-row';
   row.innerHTML = '<input class="s2-text-input-label" placeholder="来源标注（如：制度文件A）">'
     + '<textarea class="s2-text-input-content" rows="2" placeholder="粘贴文档内容..."></textarea>'
-    + '<button type="button" class="s2-text-input-remove" onclick="this.parentElement.remove();updateStep2Readiness()" title="移除">×</button>';
+    + renderBtn({ variant: 'ghost', size: 'sm', icon: 'x', cls: 's2-text-input-remove', attrs: 'onclick="this.parentElement.remove();updateStep2Readiness()" title="移除"' });
   container.appendChild(row);
+  refreshIcons();
 }
 
 /* ===== Step3 信号审核面板 ===== */
@@ -661,7 +662,12 @@ function toggleSignalPanel() {
 function switchStep2Mode(mode) {
   _step2InputMode = mode;
   var tabs = document.querySelectorAll('.s2-mode-tab');
-  tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.mode === mode); });
+  tabs.forEach(function (t) {
+    var isActive = t.dataset.mode === mode;
+    t.classList.toggle('active', isActive);
+    t.classList.toggle('btn--primary', isActive);
+    t.classList.toggle('btn--ghost', !isActive);
+  });
   var panelDoc = document.getElementById('s2-panel-doc');
   var panelCase = document.getElementById('s2-panel-case');
   if (panelDoc) panelDoc.classList.toggle('hidden', mode !== 'doc');
@@ -824,6 +830,7 @@ function step2Execute() {
       btn._locked = false;
       btn.innerHTML = origBtnHtml;
       btn.classList.remove('loading');
+      refreshIcons();
     });
 }
 

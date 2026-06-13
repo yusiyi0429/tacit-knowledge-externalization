@@ -308,8 +308,14 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
 
               <!-- 输入模式切换 -->
               <div class="s2-mode-tabs" id="s2-mode-tabs">
-                <button class="s2-mode-tab active" data-mode="doc" onclick="switchStep2Mode('doc')">📄 文档萃取</button>
-                <button class="s2-mode-tab" data-mode="case" onclick="switchStep2Mode('case')">📋 案例复盘</button>
+                <button type="button" class="s2-mode-tab btn btn--primary btn--sm active" data-mode="doc" onclick="switchStep2Mode('doc')">
+                  <span class="btn__icon btn__icon--left" data-lucide="file-text"></span>
+                  <span class="btn__text">文档萃取</span>
+                </button>
+                <button type="button" class="s2-mode-tab btn btn--ghost btn--sm" data-mode="case" onclick="switchStep2Mode('case')">
+                  <span class="btn__icon btn__icon--left" data-lucide="clipboard-list"></span>
+                  <span class="btn__text">案例复盘</span>
+                </button>
               </div>
 
               <!-- 模式一：文档萃取 -->
@@ -326,10 +332,16 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                     <div class="s2-text-input-row">
                       <input class="s2-text-input-label" placeholder="来源标注（如：制度文件A）">
                       <textarea class="s2-text-input-content" rows="2" placeholder="粘贴文档内容..."></textarea>
-                      <button type="button" class="s2-text-input-remove" onclick="this.parentElement.remove();updateStep2Readiness()" title="移除">×</button>
+                      <button type="button" class="s2-text-input-remove btn btn--ghost btn--sm" onclick="this.parentElement.remove();updateStep2Readiness()" title="移除">
+                        <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+                        <span class="btn__text" style="display:none">移除</span>
+                      </button>
                     </div>
                   </div>
-                  <button type="button" class="s1-add-sub-btn" onclick="addStep2TextRow()" style="margin-top:4px">+ 添加更多文本来源</button>
+                  <button type="button" class="s1-add-sub-btn btn btn--outline btn--sm" onclick="addStep2TextRow()" style="margin-top:4px">
+                    <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
+                    <span class="btn__text">添加更多文本来源</span>
+                  </button>
                 </div>
                 <div class="form-group">
                   <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
@@ -424,7 +436,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <div class="s2-pattern-filelist hidden" id="s2-pattern-filelist">
                   <div class="s2-pattern-filelist-header">
                     <span class="s2-pattern-filelist-count" id="s2-pattern-filecount">0 个文件</span>
-                    <button type="button" class="s2-pattern-filelist-clear" onclick="clearPatternFiles()">清空</button>
+                    <button type="button" class="s2-pattern-filelist-clear btn btn--ghost btn--sm" onclick="clearPatternFiles()">
+                      <span class="btn__text">清空</span>
+                    </button>
                   </div>
                   <div class="s2-pattern-filelist-items" id="s2-pattern-fileitems"></div>
                   <div class="s2-pattern-filelist-status" id="s2-pattern-filestatus"></div>
@@ -460,8 +474,9 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>选择模型</label>
                 <select id="s2-model"></select>
               </div>
-              <button class="action-btn" id="s2-skill-extract" onclick="step2Execute()">
-                <span class="action-icon">&#9654;</span> <span id="s2-btn-text">执行知识萃取</span>
+              <button type="button" class="btn btn--primary btn--md" id="s2-skill-extract" onclick="step2Execute()">
+                <span class="btn__icon btn__icon--left" data-lucide="play"></span>
+                <span class="btn__text" id="s2-btn-text">执行知识萃取</span>
               </button>
               <div class="step-readiness info" id="s2-readiness">请补全 Skill、模型与文档输入后执行</div>
               <div class="action-note">选择能力后点击执行，自动提取结构化知识</div>
