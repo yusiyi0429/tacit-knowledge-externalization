@@ -199,6 +199,23 @@ class TestApiStep3AlignIr:
         assert data["status"] == "error"
         assert "保存 IR 修订失败" in data["error"]
 
+    def test_align_ir_updates_aligned_version(self, app_client, tmp_path, monkeypatch):
+        import app_server
+
+        pipeline_id, ir_name = _make_pipeline_with_ir(app_server, tmp_path, version=4)
+        resp = app_client.post(
+            "/api/step3/align_ir",
+            data=json.dumps(
+                {"pipeline_id": pipeline_id, "entry_id": "KN-001", "field": "rule_ref", "new_value": "new_rule"}
+            ),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["status"] == "ok"
+
+        p = app_server._get_pipeline(pipeline_id)
+        assert p["step_data"]["step3_aligned_version"] == 4
+
 
 class TestApiStep3ConfirmAsIs:
     def test_confirm_as_is_ir_v2_bumps_version_and_urls(self, app_client, tmp_path):
@@ -231,3 +248,40 @@ class TestApiStep3ConfirmAsIs:
         assert aligned_ir["skill_meta"]["draft_version"] == 3
         assert aligned_ir["skill_meta"]["parent_version"] == 2
         assert aligned_ir["skill_meta"]["status"] == "aligned"
+
+    def test_confirm_as_is_prefers_aligned_file(self, app_client, tmp_path):
+        import app_server
+        import skill_ir
+
+        pipeline_id, draft_name = _make_pipeline_with_ir(app_server, tmp_path, version=1)
+        draft_path = app_server.locate_workspace_file(tmp_path, draft_name, pipeline_id=pipeline_id)
+        aligned_ir = skill_ir.load_ir(draft_path)
+        aligned_ir["skill_meta"]["draft_version"] = 5
+        aligned_ir["entries"][0]["fields"]["rule_ref"] = "aligned_rule"
+        aligned_name = skill_ir.save_ir(str(tmp_path), aligned_ir, pipeline_id=pipeline_id)
+
+        p = app_server._get_pipeline(pipeline_id)
+        p["step_data"]["step3_aligned_file"] = aligned_name
+        p["step_data"]["step2_draft_file"] = draft_name
+        app_server.save_pipelines([p])
+
+        resp = app_client.post(
+            "/api/step3/confirm_as_is",
+            data=json.dumps({"pipeline_id": pipeline_id}),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["status"] == "ok"
+
+        p = app_server._get_pipeline(pipeline_id)
+        sd = p["step_data"]
+        assert sd["step3_aligned_version"] == 6
+        assert sd["step3_aligned_file"] == data["aligned_file"]
+
+        aligned_ir_path = app_server.locate_workspace_file(
+            tmp_path, sd["step3_aligned_file"], pipeline_id=pipeline_id
+        )
+        aligned_ir = skill_ir.load_ir(aligned_ir_path)
+        assert aligned_ir["skill_meta"]["draft_version"] == 6
+        assert aligned_ir["skill_meta"]["parent_version"] == 5
+        assert aligned_ir["entries"][0]["fields"]["rule_ref"] == "aligned_rule"

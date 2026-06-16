@@ -139,6 +139,27 @@ CREATE TABLE IF NOT EXISTS kb_verification_rules (
   description TEXT DEFAULT '',
   enabled INTEGER DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS test_customers (
+    customer_id TEXT PRIMARY KEY,
+    name TEXT,
+    branch TEXT,
+    account_status TEXT,
+    tech_tag TEXT,
+    established_years INTEGER,
+    legal_age INTEGER,
+    credit_record TEXT,
+    other_bank_coop TEXT,
+    total_assets REAL,
+    deposit_balance REAL,
+    loan_applications INTEGER,
+    predicted_limit REAL,
+    expected_action TEXT,       -- 期望动作：营销/拒绝/条件通过/培育
+    expected_product TEXT,      -- 期望推荐产品
+    facts_json TEXT,            -- 其他事实字段 JSON
+    source TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 _STOPWORDS = {"的", "了", "在", "是", "和", "与", "或", "及", "对", "等", "需", "应", "时"}
@@ -153,6 +174,60 @@ def get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def list_test_customers(source: str | None = None, limit: int = 100) -> list[dict]:
+    init_db()
+    conn = get_db()
+    try:
+        if source:
+            rows = conn.execute("SELECT * FROM test_customers WHERE source = ? LIMIT ?", (source, limit)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM test_customers LIMIT ?", (limit,)).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def insert_test_customers(customers: list[dict]) -> int:
+    if not customers:
+        return 0
+    init_db()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        for c in customers:
+            cur.execute("""
+                INSERT OR REPLACE INTO test_customers (
+                    customer_id, name, branch, account_status, tech_tag,
+                    established_years, legal_age, credit_record, other_bank_coop,
+                    total_assets, deposit_balance, loan_applications, predicted_limit,
+                    expected_action, expected_product, facts_json, source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                c.get("customer_id"), c.get("name"), c.get("branch"), c.get("account_status"), c.get("tech_tag"),
+                c.get("established_years"), c.get("legal_age"), c.get("credit_record"), c.get("other_bank_coop"),
+                c.get("total_assets"), c.get("deposit_balance"), c.get("loan_applications"), c.get("predicted_limit"),
+                c.get("expected_action"), c.get("expected_product"), json.dumps(c.get("facts") or {}, ensure_ascii=False),
+                c.get("source", "manual"),
+            ))
+        conn.commit()
+        return len(customers)
+    finally:
+        conn.close()
+
+
+def delete_test_customers(source: str) -> int:
+    if not source:
+        raise ValueError("source is required")
+    init_db()
+    conn = get_db()
+    try:
+        cur = conn.execute("DELETE FROM test_customers WHERE source = ?", (source,))
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()
 
 
 def get_db_schema_text() -> str:

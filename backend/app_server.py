@@ -5877,6 +5877,7 @@ def api_step3_align_ir():
                     psd["step3_aligned_url"] = "/downloads/" + new_name
                     psd["step2_draft_file"] = new_name
                     psd["step2_draft_url"] = "/downloads/" + new_name
+                    psd["step3_aligned_version"] = ir["skill_meta"]["draft_version"]
                     break
             save_pipelines(pipelines)
     except Exception as e:
@@ -5902,7 +5903,7 @@ def api_step3_confirm_as_is():
         return jsonify({"status": "error", "error": "流水线不存在"})
 
     sd = pipeline.get("step_data") or {}
-    ir_name = sd.get("step2_draft_file", "")
+    ir_name = sd.get("step3_aligned_file") or sd.get("step2_draft_file", "")
 
     # IR v2 path
     if ir_name:
@@ -6792,6 +6793,45 @@ def api_kb_list_verification_rules():
             limit=int(request.args.get("limit", "100") or 100),
         )
         return jsonify({"status": "ok", "rules": rules, "total": len(rules)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
+@app.route("/api/kb/test_customers", methods=["GET"])
+def api_list_test_customers():
+    try:
+        source = request.args.get("source")
+        limit = int(request.args.get("limit", "100") or 100)
+        import knowledge_base as kb
+        customers = kb.list_test_customers(source=source, limit=limit)
+        return jsonify({"status": "ok", "customers": customers, "total": len(customers)})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
+@app.route("/api/kb/test_customers", methods=["POST"])
+def api_insert_test_customers():
+    try:
+        data = request.get_json(force=True) or {}
+        customers = data.get("customers", [])
+        if not isinstance(customers, list):
+            return jsonify({"status": "error", "error": "customers 必须是数组"})
+        import knowledge_base as kb
+        count = kb.insert_test_customers(customers)
+        return jsonify({"status": "ok", "created": count})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+
+@app.route("/api/kb/test_customers", methods=["DELETE"])
+def api_delete_test_customers():
+    try:
+        source = request.args.get("source")
+        if not source:
+            return jsonify({"status": "error", "error": "缺少 source 参数"})
+        import knowledge_base as kb
+        count = kb.delete_test_customers(source=source)
+        return jsonify({"status": "ok", "deleted": count})
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)})
 
