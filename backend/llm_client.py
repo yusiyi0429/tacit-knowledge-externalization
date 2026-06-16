@@ -203,6 +203,16 @@ def call_openai(
         "temperature": temperature if temperature is not None else model_cfg.get("temperature", 0.7),
         "max_tokens": max_tokens if max_tokens is not None else model_cfg.get("max_tokens", 4096),
     }
+    # Merge config-level extra parameters (e.g. thinking / reasoning_effort) into payload
+    _reserved_keys = {
+        "name", "api_type", "url", "api_key", "description",
+        "timeout", "temperature", "max_tokens", "model", "messages", "stream",
+        "is_preset", "is_custom",
+    }
+    for key, value in model_cfg.items():
+        if key not in _reserved_keys and key not in payload and value is not None:
+            payload[key] = value
+
     timeout = model_cfg.get("timeout", 300)
     if stream:
         resp = http_requests.post(url, json=payload, headers=headers, stream=True, timeout=timeout)
