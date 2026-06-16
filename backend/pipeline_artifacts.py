@@ -211,7 +211,7 @@ def resolve_knowledge_ir_path(
         raw = step_data.get(key, "")
         if not raw or not is_skill_draft_filename(str(raw)):
             continue
-        resolved = safe_workspace_path(workspace, str(raw), must_exist=True)
+        resolved = locate_workspace_file(workspace, str(raw))
         if resolved:
             return resolved, key
     return None, ""
@@ -241,7 +241,7 @@ def resolve_knowledge_workbook_path(
         raw = step_data.get(key, "")
         if not raw or not validator(str(raw)):
             continue
-        resolved = safe_workspace_path(workspace, str(raw), must_exist=True)
+        resolved = locate_workspace_file(workspace, str(raw))
         if resolved:
             return resolved, key
     return None, ""

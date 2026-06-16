@@ -35,11 +35,13 @@ from pipeline_artifacts import (
     basename_only,
     downstream_output_keys,
     keys_to_clear_from_step,
+    infer_file_step,
     is_download_allowed,
     is_step1_filename,
     is_step2_preextract_filename,
     is_step3_revision_filename,
     is_step3_final_filename,
+    locate_workspace_file,
     resolve_cache_file_path,
     resolve_client_excel_path,
     safe_workspace_path,
@@ -47,6 +49,7 @@ from pipeline_artifacts import (
     resolve_knowledge_workbook_path,
     resolve_knowledge_ir_path,
     is_skill_draft_filename,
+    workspace_path_for,
     PROTECTED_WORKSPACE_FILES,
 )
 from release_info import STEP2_EXCEL_BUILD, get_release_info
@@ -369,7 +372,8 @@ def _maybe_generate_markdown_artifact(pipeline_id: str, excel_name: str, *, md_p
         return "", ""
     stem_id = uuid.uuid4().hex[:8]
     md_name = f"{md_prefix}_{stem_id}.md"
-    md_path = WORKSPACE / md_name
+    md_path = workspace_path_for(WORKSPACE, pipeline_id, infer_file_step(md_name) or "step2", md_name)
+    md_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         _excel_to_markdown_file(excel_path, md_path, title=title)
         return md_name, f"/downloads/{md_name}"
@@ -1102,8 +1106,9 @@ def api_rollback_pipeline(pipeline_id, step):
             filename = str(sd.get(key, "")).strip()
             if not filename:
                 continue
-            file_path = WORKSPACE / os.path.basename(filename)
-            if file_path.exists():
+            from pipeline_artifacts import locate_workspace_file
+            file_path = locate_workspace_file(WORKSPACE, filename, pipeline_id=pipeline_id)
+            if file_path and file_path.exists():
                 try:
                     _trash_dir.mkdir(parents=True, exist_ok=True)
                     dest = _trash_dir / file_path.name
@@ -1248,7 +1253,9 @@ def api_step1_generate():
         if ext not in (".xlsx", ".xls"):
             return jsonify({"status": "error", "error": "模板仅支持 .xlsx / .xls 格式"})
         temp_name = f"upload_tpl_{uuid.uuid4().hex[:8]}{ext}"
-        template_path = str(WORKSPACE / temp_name)
+        template_path_obj = workspace_path_for(WORKSPACE, pipeline_id, infer_file_step(temp_name) or "uploads", temp_name)
+        template_path_obj.parent.mkdir(parents=True, exist_ok=True)
+        template_path = str(template_path_obj)
         upload.save(template_path)
         template_source = "upload"
         template_name = upload.filename
@@ -1270,7 +1277,9 @@ def api_step1_generate():
 
     uid = uuid.uuid4().hex[:8]
     output_name = f"template_{uid}.xlsx"
-    output_path = str(WORKSPACE / output_name)
+    output_path_obj = workspace_path_for(WORKSPACE, pipeline_id, "step1", output_name)
+    output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+    output_path = str(output_path_obj)
     primary_download_name = output_name
     primary_download_url = "/downloads/" + output_name
 
@@ -1282,7 +1291,8 @@ def api_step1_generate():
             knowledge_columns = knowledge_columns or []
             if output_format == "markdown":
                 md_name = f"template_{uid}.md"
-                md_path = WORKSPACE / md_name
+                md_path = workspace_path_for(WORKSPACE, pipeline_id, "step1", md_name)
+                md_path.parent.mkdir(parents=True, exist_ok=True)
                 _excel_to_markdown_file(output_path, md_path, title=f"场景锚定骨架 · {scenario_name}")
                 primary_download_name = md_name
                 primary_download_url = "/downloads/" + md_name
@@ -1298,7 +1308,9 @@ def api_step1_generate():
                     "error": "未找到 config/scenario-schema.yaml，无法生成骨架",
                 })
             md_name = f"template_{uid}.md"
-            md_path = str(WORKSPACE / md_name)
+            md_path_obj = workspace_path_for(WORKSPACE, pipeline_id, "step1", md_name)
+            md_path_obj.parent.mkdir(parents=True, exist_ok=True)
+            md_path = str(md_path_obj)
             generate_markdown_skeleton(
                 md_path,
                 scenario_name,
@@ -1449,8 +1461,10 @@ def api_step2_prev_output():
             "hint": "请先在「场景锚定」生成场景骨架（需已创建并进入流水线）",
         })
 
-    file_path = str(WORKSPACE / step1_file)
-    if not os.path.exists(file_path):
+    from pipeline_artifacts import locate_workspace_file
+    resolved = locate_workspace_file(WORKSPACE, step1_file, pipeline_id=pipeline_id)
+    file_path = str(resolved) if resolved else ""
+    if not file_path or not os.path.exists(file_path):
         return jsonify({
             "status": "ok",
             "has_output": False,
@@ -1558,7 +1572,10 @@ def api_step4_compile():
 
     from knowledge_delivery import excel_to_delivery_bundle, records_to_delivery_bundle
 
-    output_dir = str(WORKSPACE / f"delivery_{uuid.uuid4().hex[:8]}")
+    output_dir_name = f"delivery_{uuid.uuid4().hex[:8]}"
+    output_dir_obj = workspace_path_for(WORKSPACE, pipeline_id, "step4", output_dir_name)
+    output_dir_obj.mkdir(parents=True, exist_ok=True)
+    output_dir = str(output_dir_obj)
     config_path = str(SCHEMA_PATH) if SCHEMA_PATH.exists() else ""
 
     pipeline_ctx = {}
@@ -1657,7 +1674,8 @@ def api_step4_compile():
         if not src_path or not os.path.isfile(src_path):
             return None
         name = f"{prefix}_{uuid.uuid4().hex[:8]}{ext}"
-        dest = WORKSPACE / name
+        dest = workspace_path_for(WORKSPACE, pipeline_id, infer_file_step(name) or "step4", name)
+        dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, str(dest))
         info = {
             "file_name": name,
@@ -1859,7 +1877,8 @@ def api_step4_generate_executable_skill():
     # Save the generated Skill file
     slug = re.sub(r"[^a-zA-Z0-9一-鿿_-]", "_", pipeline.get("scenario", "") or pipeline.get("name", ""))[:30]
     skill_filename = f"SKILL_{slug}_{pipeline_id[:6]}.md"
-    skill_path = WORKSPACE / skill_filename
+    skill_path = workspace_path_for(WORKSPACE, pipeline_id, "step4", skill_filename)
+    skill_path.parent.mkdir(parents=True, exist_ok=True)
     skill_path.write_text(raw, encoding="utf-8")
 
     with _pipelines_lock:
@@ -1968,7 +1987,9 @@ def api_step4_generate_cot():
 
     slug = re.sub(r"[^a-zA-Z0-9一-鿿_-]", "_", pipeline.get("scenario", "") or pipeline.get("name", ""))[:20]
     filename = f"COT_{slug}_{pipeline_id[:6]}.md"
-    (WORKSPACE / filename).write_text(raw, encoding="utf-8")
+    cot_path = workspace_path_for(WORKSPACE, pipeline_id, "step4", filename)
+    cot_path.parent.mkdir(parents=True, exist_ok=True)
+    cot_path.write_text(raw, encoding="utf-8")
 
     with _pipelines_lock:
         pipelines = load_pipelines()
@@ -2041,14 +2062,18 @@ def api_step4_generate_qa():
 
     # Save JSON
     json_filename = f"QA_{slug}_{pipeline_id[:6]}.json"
-    (WORKSPACE / json_filename).write_text(json.dumps(qa_pairs, ensure_ascii=False, indent=2), encoding="utf-8")
+    qa_json_path = workspace_path_for(WORKSPACE, pipeline_id, "step4", json_filename)
+    qa_json_path.parent.mkdir(parents=True, exist_ok=True)
+    qa_json_path.write_text(json.dumps(qa_pairs, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # Save Markdown version
     md_lines = [f"# QA 对 · {pipeline.get('scenario', '') or pipeline.get('name', '')}\n"]
     for pair in qa_pairs[:30]:
         md_lines.append(f"## Q: {pair.get('q', '')}\n\n**A:** {pair.get('a', '')}\n\n---\n")
     md_filename = f"QA_{slug}_{pipeline_id[:6]}.md"
-    (WORKSPACE / md_filename).write_text("".join(md_lines), encoding="utf-8")
+    qa_md_path = workspace_path_for(WORKSPACE, pipeline_id, "step4", md_filename)
+    qa_md_path.parent.mkdir(parents=True, exist_ok=True)
+    qa_md_path.write_text("".join(md_lines), encoding="utf-8")
 
     with _pipelines_lock:
         pipelines = load_pipelines()
@@ -2116,7 +2141,9 @@ def api_step4_quality():
             if q.get("status") != "ok":
                 return jsonify(q)
             report_name = f"quality_report_{uuid.uuid4().hex[:8]}.md"
-            (WORKSPACE / report_name).write_text(q.get("report_markdown", ""), encoding="utf-8")
+            report_path = workspace_path_for(WORKSPACE, pipeline_id, "step4", report_name)
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(q.get("report_markdown", ""), encoding="utf-8")
             q.pop("report_markdown", None)
             q["download_url"] = "/downloads/" + report_name
             q["input_kind"] = "ir"
@@ -2142,7 +2169,9 @@ def api_step4_quality():
             })
 
     report_name = f"quality_report_{uuid.uuid4().hex[:8]}.md"
-    report_path = str(WORKSPACE / report_name)
+    report_path_obj = workspace_path_for(WORKSPACE, pipeline_id, "step4", report_name)
+    report_path_obj.parent.mkdir(parents=True, exist_ok=True)
+    report_path = str(report_path_obj)
 
     args = ["--input", input_path, "--output", report_path]
     if SCHEMA_PATH.exists():
@@ -2546,7 +2575,9 @@ def api_excel_save():
 
         # Save to a new file for download and overwrite the original
         save_name = f"edited_step{step}_{uuid.uuid4().hex[:8]}.xlsx"
-        save_path = str(WORKSPACE / save_name)
+        save_path_obj = workspace_path_for(WORKSPACE, pipeline_id, infer_file_step(save_name) or f"step{step}", save_name)
+        save_path_obj.parent.mkdir(parents=True, exist_ok=True)
+        save_path = str(save_path_obj)
         wb.save(save_path)
         wb.save(file_path)
 
@@ -2670,9 +2701,10 @@ def _resolve_step1_workbook_path(pipeline_id: str):
             if p["id"] == pipeline_id:
                 step1_file = p.get("step_data", {}).get("step1_output_file", "")
                 if step1_file:
-                    candidate = WORKSPACE / step1_file
-                    if candidate.exists():
-                        return candidate
+                    from pipeline_artifacts import locate_workspace_file
+                    resolved = locate_workspace_file(WORKSPACE, step1_file, pipeline_id=pipeline_id)
+                    if resolved:
+                        return resolved
                 break
     return None
 
@@ -2682,7 +2714,8 @@ def _write_step2_preextract_excel(pipeline_id: str, extracted_items: list, sub_s
 
     step1_path = _resolve_step1_workbook_path(pipeline_id)
     output_name = f"preextract_{uuid.uuid4().hex[:8]}.xlsx"
-    output_path = WORKSPACE / output_name
+    output_path = workspace_path_for(WORKSPACE, pipeline_id, "step2", output_name)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     meta = write_preextract_excel(
         step1_path=step1_path,
         output_path=output_path,
@@ -2787,7 +2820,9 @@ def _persist_step2_skill_draft(
                 config = load_scenario_config(str(SCHEMA_PATH))
             md_content = render_skill_md(ir, config)
             md_name = f"SKILL_draft_{uuid.uuid4().hex[:8]}.md"
-            (WORKSPACE / md_name).write_text(md_content, encoding="utf-8")
+            md_path = workspace_path_for(WORKSPACE, pipeline_id, "step2", md_name)
+            md_path.parent.mkdir(parents=True, exist_ok=True)
+            md_path.write_text(md_content, encoding="utf-8")
             md_url = f"/downloads/{md_name}"
         except Exception as e:
             _debug_log("E", "_persist_step2_skill_draft", "render_error", str(e)[-200:])
@@ -3493,7 +3528,8 @@ def _publish_final_from_source(
     import shutil
 
     output_name = f"final_{pipeline_id[:8]}_{datetime.now().strftime('%H%M%S')}.xlsx"
-    output_path = WORKSPACE / output_name
+    output_path = workspace_path_for(WORKSPACE, pipeline_id, "step3", output_name)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_file_path, str(output_path))
     # 始终生成 MD 预览（即使非 markdown 模式），确保对齐结果有预览可用
     md_name, md_url = _maybe_generate_markdown_artifact(
@@ -3505,7 +3541,8 @@ def _publish_final_from_source(
     if not md_name:
         # 非 markdown 模式也生成预览用 MD
         md_name = f"final_{pipeline_id[:8]}_{datetime.now().strftime('%H%M%S')}.md"
-        md_path = WORKSPACE / md_name
+        md_path = workspace_path_for(WORKSPACE, pipeline_id, "step3", md_name)
+        md_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             _excel_to_markdown_file(output_path, md_path, title=f"Step3 知识对齐 · {pipeline_id[:8]}")
             md_url = "/downloads/" + md_name
@@ -3563,8 +3600,8 @@ def _persist_step3_aligned_ir(
     try:
         from skill_ir import STATUS_ALIGNED, new_draft_from_workbook, render_skill_md, save_ir
 
-        final_path = safe_workspace_path(WORKSPACE, final_output_name, must_exist=True)
-        if not final_path:
+        final_path = locate_workspace_file(WORKSPACE, final_output_name, pipeline_id=pipeline_id)
+        if not final_path or not final_path.exists():
             return {}
 
         prev_version = 1
@@ -3606,7 +3643,9 @@ def _persist_step3_aligned_ir(
                 config = load_scenario_config(str(SCHEMA_PATH))
             md_content = render_skill_md(ir, config)
             md_name = f"SKILL_aligned_{uuid.uuid4().hex[:8]}.md"
-            (WORKSPACE / md_name).write_text(md_content, encoding="utf-8")
+            md_path = workspace_path_for(WORKSPACE, pipeline_id, "step3", md_name)
+            md_path.parent.mkdir(parents=True, exist_ok=True)
+            md_path.write_text(md_content, encoding="utf-8")
             md_url = f"/downloads/{md_name}"
         except Exception as e:
             _debug_log("E", "_persist_step3_aligned_ir", "render_error", str(e)[-200:])
@@ -3781,7 +3820,9 @@ def api_step3_apply_suggestions():
                     config = load_scenario_config(str(SCHEMA_PATH))
                 md_content = render_skill_md(new_ir, config)
                 md_name = f"SKILL_aligned_{uuid.uuid4().hex[:8]}.md"
-                (WORKSPACE / md_name).write_text(md_content, encoding="utf-8")
+                md_path = workspace_path_for(WORKSPACE, pipeline_id, "step3", md_name)
+                md_path.parent.mkdir(parents=True, exist_ok=True)
+                md_path.write_text(md_content, encoding="utf-8")
                 md_url = f"/downloads/{md_name}"
             except Exception:
                 md_name, md_url = "", ""
@@ -4302,7 +4343,8 @@ def _execute_pattern_mining():
 
         # 生成可下载的 Markdown 报告
         report_name = f"pattern_mining_{uuid.uuid4().hex[:8]}.md"
-        report_path = WORKSPACE / report_name
+        report_path = workspace_path_for(WORKSPACE, pipeline_id, infer_file_step(report_name) or "step4", report_name)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
         _write_pattern_mining_report(report_path, analysis, len(all_cases))
 
         # 持久化到 pipeline，供 Step3 修订上下文使用
@@ -4490,7 +4532,8 @@ def _execute_gap_analysis():
 
     # 生成 Markdown 报告
     report_name = f"gap_analysis_{uuid.uuid4().hex[:8]}.md"
-    report_path = WORKSPACE / report_name
+    report_path = workspace_path_for(WORKSPACE, pipeline_id, infer_file_step(report_name) or "step4", report_name)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         f"# 知识盲区检测报告",
         f"",
@@ -4564,6 +4607,7 @@ def _execute_freshness_audit():
     skill_id = request.form.get("skill_id", "knowledge-freshness-audit")
     info = SKILL_REGISTRY.get(skill_id, {})
     model_name = request.form.get("model", "")
+    pipeline_id = request.form.get("pipeline_id", "")
 
     golden_path = Path(__file__).resolve().parent.parent / "data" / "golden" / "golden_test.db"
     if not golden_path.exists():
@@ -4672,7 +4716,8 @@ def _execute_freshness_audit():
                 narrative = "（LLM 深度审计生成失败，请参考统计数据）"
 
     report_name = f"freshness_audit_{uuid.uuid4().hex[:8]}.md"
-    report_path = WORKSPACE / report_name
+    report_path = workspace_path_for(WORKSPACE, pipeline_id, infer_file_step(report_name) or "step4", report_name)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "# 知识保鲜度审计报告（golden 知识库）",
         "",
@@ -5115,7 +5160,9 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
         from datetime import datetime
 
         output_name = f"final_{pipeline_id[:8]}_{datetime.now().strftime('%H%M%S')}.xlsx"
-        output_path = os.path.join(WORKSPACE, output_name)
+        output_path_obj = workspace_path_for(WORKSPACE, pipeline_id, "step3", output_name)
+        output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+        output_path = str(output_path_obj)
 
         revision_count = process_workbook(source_file_path, expert_notes, output_path, layouts=layout_map)
         md_name, md_url = _maybe_generate_markdown_artifact(
@@ -5200,8 +5247,9 @@ def _load_align_expert_upload_text(
             pass
     if cached_file_name:
         try:
-            cached_path = WORKSPACE / os.path.basename(cached_file_name)
-            if cached_path.exists():
+            from pipeline_artifacts import locate_workspace_file
+            cached_path = locate_workspace_file(WORKSPACE, cached_file_name)
+            if cached_path and cached_path.exists():
                 text_parts.append(extract_text_from_path(str(cached_path)).strip())
         except Exception:
             pass
@@ -5870,7 +5918,8 @@ def api_validate_replay():
         report = generate_replay_report(comparison, cases, predictions)
 
         report_name = f"validation_replay_{uuid.uuid4().hex[:8]}.md"
-        report_path = WORKSPACE / report_name
+        report_path = workspace_path_for(WORKSPACE, pipeline_id, "step5", report_name)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(report, encoding="utf-8")
 
         return jsonify({
@@ -6049,9 +6098,13 @@ def api_step5_replay():
 
     run_id = uuid.uuid4().hex[:8]
     report_name = f"validation_replay_{run_id}.md"
-    (WORKSPACE / report_name).write_text(report, encoding="utf-8")
+    report_path = workspace_path_for(WORKSPACE, pipeline_id, "step5", report_name)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(report, encoding="utf-8")
 
     result_name = f"validation_result_{run_id}.json"
+    result_path = workspace_path_for(WORKSPACE, pipeline_id, "step5", result_name)
+    result_path.parent.mkdir(parents=True, exist_ok=True)
     result_payload = {
         "run_id": run_id,
         "pipeline_id": pipeline_id,
@@ -6062,7 +6115,7 @@ def api_step5_replay():
         "predictions": predictions,
         "ran_at": datetime.datetime.now().isoformat(timespec="seconds"),
     }
-    (WORKSPACE / result_name).write_text(
+    result_path.write_text(
         json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8",
     )
 
@@ -6093,7 +6146,9 @@ def api_step5_replay():
             )
             if suggestions:
                 suggestions_name = f"revision_suggestions_{run_id}.json"
-                (WORKSPACE / suggestions_name).write_text(
+                suggestions_path = workspace_path_for(WORKSPACE, pipeline_id, "step5", suggestions_name)
+                suggestions_path.parent.mkdir(parents=True, exist_ok=True)
+                suggestions_path.write_text(
                     json.dumps(suggestions, ensure_ascii=False, indent=2), encoding="utf-8",
                 )
 
@@ -6246,7 +6301,9 @@ def api_step5_golden_verify():
     try:
         report_md = golden_db.format_report(report)
         report_name = f"validation_golden_{uuid.uuid4().hex[:8]}.md"
-        (WORKSPACE / report_name).write_text(report_md, encoding="utf-8")
+        golden_report_path = workspace_path_for(WORKSPACE, pipeline_id, "step5", report_name)
+        golden_report_path.parent.mkdir(parents=True, exist_ok=True)
+        golden_report_path.write_text(report_md, encoding="utf-8")
         with _pipelines_lock:
             pipelines = load_pipelines()
             for p in pipelines:
@@ -7007,7 +7064,8 @@ def step2_extract_unified():
         try:
             from step2_preextract import write_preextract_excel
             output_name = f"preextract_{uuid.uuid4().hex[:8]}.xlsx"
-            output_path = WORKSPACE / output_name
+            output_path = workspace_path_for(WORKSPACE, pipeline_id, "step2", output_name)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             write_preextract_excel(
                 step1_path=step1_path,
                 output_path=output_path,
@@ -7028,7 +7086,8 @@ def step2_extract_unified():
                 excel_path = safe_workspace_path(WORKSPACE, output_name, must_exist=True)
                 if excel_path:
                     md_name = f"preextract_{uuid.uuid4().hex[:8]}.md"
-                    md_path = WORKSPACE / md_name
+                    md_path = workspace_path_for(WORKSPACE, pipeline_id, "step2", md_name)
+                    md_path.parent.mkdir(parents=True, exist_ok=True)
                     _excel_to_markdown_file(excel_path, md_path, title=f"Step2 知识萃取")
                     step2_md_name = md_name
                     step2_md_url = f"/downloads/{md_name}"
@@ -7096,7 +7155,8 @@ def step2_extract_unified():
     # 保存融合结果 JSON
     fusion_name = f"fusion_{uuid.uuid4().hex[:8]}.json"
     try:
-        fusion_path = WORKSPACE / fusion_name
+        fusion_path = workspace_path_for(WORKSPACE, pipeline_id, "step2", fusion_name)
+        fusion_path.parent.mkdir(parents=True, exist_ok=True)
         fusion_path.write_text(json.dumps(fused, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
         fusion_name = ""
@@ -7120,7 +7180,8 @@ def step2_extract_unified():
     signal_report_url = ""
     try:
         signal_report_name = f"signal_report_{uuid.uuid4().hex[:8]}.json"
-        signal_report_path = WORKSPACE / signal_report_name
+        signal_report_path = workspace_path_for(WORKSPACE, pipeline_id, "step2", signal_report_name)
+        signal_report_path.parent.mkdir(parents=True, exist_ok=True)
         signal_report_path.write_text(
             json.dumps(signal_report, ensure_ascii=False, indent=2), encoding="utf-8",
         )
@@ -7137,7 +7198,8 @@ def step2_extract_unified():
                 excel_path = safe_workspace_path(WORKSPACE, excel_file, must_exist=True)
                 if excel_path:
                     multi_md_name = f"preextract_{uuid.uuid4().hex[:8]}.md"
-                    md_path = WORKSPACE / multi_md_name
+                    md_path = workspace_path_for(WORKSPACE, pipeline_id, "step2", multi_md_name)
+                    md_path.parent.mkdir(parents=True, exist_ok=True)
                     _excel_to_markdown_file(excel_path, md_path, title=f"Step2 知识萃取")
                     multi_md_url = f"/downloads/{multi_md_name}"
             except Exception:
@@ -7251,7 +7313,8 @@ def step3_interview_start():
     # 保存到工作空间
     interview_name = f"interview_{method}_{uuid.uuid4().hex[:8]}.json"
     try:
-        interview_path = WORKSPACE / interview_name
+        interview_path = workspace_path_for(WORKSPACE, pipeline_id, "step2", interview_name)
+        interview_path.parent.mkdir(parents=True, exist_ok=True)
         interview_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
         interview_name = ""
