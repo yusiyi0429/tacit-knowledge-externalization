@@ -171,21 +171,21 @@ def _require_api_auth():
 EXTRACT_STYLE_RULES = {
     "标准萃取": {
         "temperature": 0.25,
-        "max_tokens": 4096,
+        "max_tokens": 102400,
         "min_items": 8,
         "max_items": 22,
         "prompt_hint": "平衡覆盖核心规则、流程与经验，优先可执行条目。",
     },
     "深度萃取": {
         "temperature": 0.35,
-        "max_tokens": 4096,
+        "max_tokens": 102400,
         "min_items": 12,
         "max_items": 40,
         "prompt_hint": "优先完整覆盖，尽量补全触发条件、判断逻辑、反模式与证据字段。",
     },
     "精简萃取": {
         "temperature": 0.15,
-        "max_tokens": 2048,
+        "max_tokens": 102400,
         "min_items": 5,
         "max_items": 10,
         "prompt_hint": "只保留高价值高置信条目，减少冗余与重复。",
