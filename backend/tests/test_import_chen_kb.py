@@ -1,5 +1,7 @@
 """Tests for import_chen_kb.py"""
 import sqlite3
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -11,7 +13,7 @@ BACKEND = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND))
 
 from tools.import_chen_kb import classify_domain, read_markdown, truncate_summary
-from knowledge_base import get_db
+from knowledge_base import get_db, init_db
 
 
 # ─── classify_domain tests ───────────────────────────────────────────────
@@ -197,13 +199,28 @@ def test_read_markdown_normalizes_line_endings(tmp_path):
 # ─── Integration test: KB entries exist after import ─────────────────────
 
 def test_kb_has_entries_after_import():
-    """验证导入脚本已在数据库中写入条目"""
+    """验证导入脚本已在数据库中写入条目。"""
+    init_db()
+    source_dir = Path("/mnt/c/Users/yusiyi/Desktop/我的工作空间/samples/陈总监知识汇集")
+    if not source_dir.exists():
+        pytest.skip(f"陈总监源目录不存在，跳过集成测试: {source_dir}")
+
     conn = get_db()
     try:
         rows = conn.execute(
             "SELECT COUNT(*) FROM kb_entries WHERE source_pipeline_id='chen-director-pilot'"
         ).fetchall()
         count = rows[0][0]
+        if count == 0:
+            # 未导入时自动运行一次导入脚本
+            subprocess.run(
+                [sys.executable, str(BACKEND / "tools" / "import_chen_kb.py")],
+                check=True,
+            )
+            rows = conn.execute(
+                "SELECT COUNT(*) FROM kb_entries WHERE source_pipeline_id='chen-director-pilot'"
+            ).fetchall()
+            count = rows[0][0]
         assert count >= 1, (
             f"Expected at least 1 entry with source_pipeline_id='chen-director-pilot', "
             f"got {count}. Run `python tools/import_chen_kb.py` first."

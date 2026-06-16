@@ -1480,6 +1480,7 @@ let verificationCases = [];
 async function loadVerificationPanel() {
   await Promise.all([loadVerificationCases(), loadModels(), loadPipelinesForVerify()]);
   refreshVerifyModelSelect();
+  setDefaultVerifySelection();
 }
 
 async function loadVerificationCases() {
@@ -1578,6 +1579,21 @@ async function loadPipelinesForVerify() {
   }
 }
 
+function setDefaultVerifySelection() {
+  const psel = document.getElementById('verify-pipeline-select');
+  if (psel && psel.options.length > 1) {
+    if (currentPipeline && Array.from(psel.options).some(function (o) { return o.value === currentPipeline.id; })) {
+      psel.value = currentPipeline.id;
+    } else {
+      psel.value = psel.options[1].value;
+    }
+  }
+  const msel = document.getElementById('verify-model-select');
+  if (msel && msel.options.length > 1 && !msel.value) {
+    msel.value = msel.options[1].value;
+  }
+}
+
 function showAddVerificationCaseForm() {
   const name = prompt('用例名称：');
   if (!name) return;
@@ -1645,8 +1661,8 @@ function getVerifyPipelineId() {
 async function runSingleVerificationCase(caseUid) {
   const model = getVerifyModelName();
   const pipelineId = getVerifyPipelineId();
-  if (!pipelineId && !currentPipeline) { showToast('请先选择流水线', 'warn'); return; }
-  showToast('正在运行用例...', 'info');
+  if (!pipelineId && !currentPipeline) { renderVerificationReport({error: '请先选择流水线或 SKILL 文件'}); return; }
+  renderVerificationReport({loading: true, message: '正在运行用例 ' + escapeHtml(caseUid) + '，请稍候...'});
   try {
     const resp = await fetch(API_BASE + '/api/validate/run_case', {
       method: 'POST',
@@ -1658,17 +1674,18 @@ async function runSingleVerificationCase(caseUid) {
       renderVerificationReport(data.result || {});
       showToast('运行完成', 'success');
     } else {
+      renderVerificationReport({error: data.error || '运行失败'});
       showToast(data.error || '运行失败', 'error');
     }
-  } catch (e) { showToast('运行失败', 'error'); }
+  } catch (e) { renderVerificationReport({error: '运行失败：' + String(e.message || e)}); showToast('运行失败', 'error'); }
 }
 
 async function runVerificationSuite() {
   const model = getVerifyModelName();
   const pipelineId = getVerifyPipelineId();
-  if (!pipelineId && !currentPipeline) { showToast('请先选择流水线', 'warn'); return; }
-  if (!verificationCases.length) { showToast('没有可运行的用例', 'warn'); return; }
-  showToast('正在批量运行...', 'info');
+  if (!pipelineId && !currentPipeline) { renderVerificationReport({error: '请先选择流水线或 SKILL 文件'}); return; }
+  if (!verificationCases.length) { renderVerificationReport({error: '没有可运行的用例，请先导入或新增'}); return; }
+  renderVerificationReport({loading: true, message: '正在批量运行 ' + verificationCases.length + ' 个用例，请稍候...'});
   try {
     const resp = await fetch(API_BASE + '/api/validate/run_suite', {
       method: 'POST',
@@ -1684,14 +1701,64 @@ async function runVerificationSuite() {
       renderVerificationReport(data.report || {});
       showToast('批量运行完成', 'success');
     } else {
+      renderVerificationReport({error: data.error || '运行失败'});
       showToast(data.error || '运行失败', 'error');
     }
-  } catch (e) { showToast('运行失败', 'error'); }
+  } catch (e) { renderVerificationReport({error: '运行失败：' + String(e.message || e)}); showToast('运行失败', 'error'); }
+}
+
+function _findVerificationCaseName(id) {
+  if (!verificationCases || !verificationCases.length || !id) return '';
+  const c = verificationCases.find(function (x) { return x.case_uid === id || String(x.id) === String(id); });
+  return c ? (c.name || c.case_uid || '') : '';
+}
+
+function _scrollVerificationReportIntoView() {
+  const container = document.getElementById('verification-report');
+  const panelBody = document.getElementById('verify-panel-body');
+  if (!container) return;
+  if (container.scrollIntoView) {
+    try { container.scrollIntoView({behavior: 'smooth', block: 'nearest'}); } catch (e) {}
+  }
+  if (panelBody) {
+    panelBody.scrollTop = panelBody.scrollHeight;
+  }
 }
 
 function renderVerificationReport(report) {
   const container = document.getElementById('verification-report');
   if (!container) return;
+  if (report && report.error) {
+    container.innerHTML = '<div class="verify-report-box" style="color:var(--error)"><h4>提示</h4><div>' + escapeHtml(report.error) + '</div></div>';
+    _scrollVerificationReportIntoView();
+    return;
+  }
+  if (report && report.loading) {
+    container.innerHTML = '<div class="verify-report-box"><h4>验证结果</h4><div>' + escapeHtml(report.message || '运行中...') + '</div></div>';
+    _scrollVerificationReportIntoView();
+    return;
+  }
+  // 单用例结果（接口返回的是 result 对象，不是 report 对象）
+  if (report && report.status && report.case_id !== undefined && report.total === undefined) {
+    const diff = report.diff || {};
+    let html = '<div class="verify-report-box">';
+    html += '<h4>单用例验证结果</h4>';
+    html += '<div>用例：' + escapeHtml(String(_findVerificationCaseName(report.case_id) || report.case_id)) + '</div>';
+    html += '<div>状态：<span class="verify-case-status ' + escapeHtml(report.status) + '">' + escapeHtml(report.status) + '</span></div>';
+    if (diff.expected_prediction !== undefined || diff.actual_prediction !== undefined) {
+      html += '<div style="margin-top:8px"><strong>结论对比</strong></div>';
+      html += '<div>期望：' + escapeHtml(String(diff.expected_prediction || '')) + '</div>';
+      html += '<div>实际：' + escapeHtml(String(diff.actual_prediction || '')) + '</div>';
+    }
+    if (report.actual_output && report.actual_output.reasoning) {
+      html += '<div style="margin-top:8px"><strong>推理过程</strong></div>';
+      html += '<pre class="verify-detail-code">' + escapeHtml(String(report.actual_output.reasoning)) + '</pre>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+    _scrollVerificationReportIntoView();
+    return;
+  }
   const total = report.total || 0;
   const pass = report.pass || 0;
   const rate = total ? ((pass / total) * 100).toFixed(1) : 0;
@@ -1703,12 +1770,16 @@ function renderVerificationReport(report) {
     html += '<ul>';
     report.mismatches.forEach(function (m) {
       const diff = m.diff || {};
-      html += '<li>' + escapeHtml(String(m.case_id || '?')) + ' — 期望：' + escapeHtml(String(diff.expected_prediction || '')) + '，实际：' + escapeHtml(String(diff.actual_prediction || '')) + '</li>';
+      const name = _findVerificationCaseName(m.case_id);
+      html += '<li>' + escapeHtml(String(name || m.case_id || '?')) + ' — 期望：' +
+              escapeHtml(String(diff.expected_prediction || '')) + '，实际：' +
+              escapeHtml(String(diff.actual_prediction || '')) + '</li>';
     });
     html += '</ul>';
   }
   html += '</div>';
   container.innerHTML = html;
+  _scrollVerificationReportIntoView();
 }
 
 let allSkills = [];

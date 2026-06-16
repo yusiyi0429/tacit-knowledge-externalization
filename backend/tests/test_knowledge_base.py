@@ -6,6 +6,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -17,6 +19,14 @@ import knowledge_base as kb  # noqa: E402
 kb.DB_PATH = Path(os.environ["KB_DB_PATH"])
 
 from skill_ir import new_draft  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_kb_db():
+    """每个测试前重置测试数据库，保证用例之间隔离。"""
+    kb.DB_PATH.unlink(missing_ok=True)
+    kb.init_db()
+    yield
 
 
 def ok(msg):
@@ -33,7 +43,7 @@ RECORDS_V1 = [
 ]
 
 
-def test_publish_and_search():
+def _publish_and_search():
     ir = new_draft(META, RECORDS_V1, pipeline_id="pipeA")
     result = kb.publish_entries(ir, pipeline_id="pipeA", by="tester")
     assert result["created"] == 2, result
@@ -49,7 +59,7 @@ def test_publish_and_search():
     return result
 
 
-def test_supersede(first):
+def _supersede(first):
     # 修订后的同义条目应 supersede 旧版本
     records_v2 = [
         {"知识分类": "判断规则", "子场景": "贷前尽调",
@@ -72,7 +82,7 @@ def test_supersede(first):
     return new_uid
 
 
-def test_import_records(first):
+def _import_records(first):
     records = kb.import_entries_as_records(first["entry_uids"][:1])
     assert len(records) == 1
     assert records[0]["_origin"] == "kb_import"
@@ -81,12 +91,32 @@ def test_import_records(first):
     ok("import_entries_as_records（继承源格式）")
 
 
-def test_deprecate(uid):
+def _deprecate(uid):
     assert kb.deprecate_entry(uid, note="政策失效", by="tester")
     assert not kb.deprecate_entry(uid)  # 二次失效返回 False
     active = kb.search_entries(domain="银行信贷", scenario="对公信贷尽调", query="负债率")
     assert all(e["entry_uid"] != uid for e in active)
     ok("deprecate_entry")
+
+
+def _validation_runs_and_releases():
+    kb.record_validation_run(
+        pipeline_id="pipeA", total_cases=5, hits=4, hit_rate=0.8,
+        mismatches=[{"case_id": "C1"}], judge_model="judge-x",
+    )
+    releases = kb.list_releases()
+    assert len(releases) == 2
+    assert releases[0]["version"] == 2
+    ok("record_validation_run / list_releases")
+
+
+def test_kb_lifecycle():
+    """完整生命周期：发布 → 查询 → 演化 → 导入 → 失效 → 验证回放。"""
+    first = _publish_and_search()
+    new_uid = _supersede(first)
+    _import_records(first)
+    _deprecate(new_uid)
+    _validation_runs_and_releases()
 
 
 def test_cases():
@@ -112,25 +142,11 @@ def test_cases():
     ok("add_case / list_cases（难度优先排序）")
 
 
-def test_validation_runs_and_releases():
-    kb.record_validation_run(
-        pipeline_id="pipeA", total_cases=5, hits=4, hit_rate=0.8,
-        mismatches=[{"case_id": "C1"}], judge_model="judge-x",
-    )
-    releases = kb.list_releases()
-    assert len(releases) == 2
-    assert releases[0]["version"] == 2
-    ok("record_validation_run / list_releases")
-
-
 def main():
+    """兼容旧的手动运行方式。"""
     kb.init_db()
-    first = test_publish_and_search()
-    new_uid = test_supersede(first)
-    test_import_records(first)
-    test_deprecate(new_uid)
+    test_kb_lifecycle()
     test_cases()
-    test_validation_runs_and_releases()
     print("All knowledge_base tests passed.")
     return 0
 
