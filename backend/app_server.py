@@ -767,17 +767,18 @@ def downloads(filename):
 def api_file_read():
     """Read a file from workspace and return its content as text."""
     file_name = request.args.get("file_name", "")
+    pipeline_id = request.args.get("pipeline_id", "").strip()
     if not file_name:
         return jsonify({"status": "error", "error": "缺少 file_name 参数"})
     # Security: prevent path traversal
     file_name = basename_only(file_name)
     if file_name in PROTECTED_WORKSPACE_FILES or not is_download_allowed(file_name):
         return jsonify({"status": "error", "error": "不允许读取该文件"})
-    file_path = safe_workspace_path(WORKSPACE, file_name, must_exist=True)
-    if not file_path:
+    resolved = locate_workspace_file(WORKSPACE, file_name, pipeline_id=pipeline_id or None)
+    if not resolved:
         return jsonify({"status": "error", "error": f"文件不存在: {file_name}"})
     try:
-        with open(str(file_path), "r", encoding="utf-8") as f:
+        with open(str(resolved), "r", encoding="utf-8") as f:
             content = f.read()
         return jsonify({"status": "ok", "content": content, "file_name": file_name})
     except Exception as e:
@@ -2488,8 +2489,10 @@ def api_excel_read():
         # Try JSON body or form data with file_name
         data = request.get_json(silent=True) or request.form.to_dict()
         file_name = data.get("file_name", "")
+        pipeline_id = (request.form.get("pipeline_id", "").strip()
+                       or (request.get_json(silent=True) or {}).get("pipeline_id", "").strip())
         if file_name:
-            resolved = safe_workspace_path(WORKSPACE, file_name, must_exist=True)
+            resolved = locate_workspace_file(WORKSPACE, file_name, pipeline_id=pipeline_id or None)
             if not resolved:
                 return jsonify({"status": "error", "error": f"文件不存在或路径非法: {file_name}"})
             input_path = str(resolved)

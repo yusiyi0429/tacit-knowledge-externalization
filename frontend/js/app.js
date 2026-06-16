@@ -1130,6 +1130,7 @@ function restoreStep4Output() {
   const panel = document.getElementById('s4-output-compile');
   if (!sd.step4_download_url || !panel) return;
 
+  // Compile 结果主面板
   let html = '<div class="s4-compile-result">';
   html += '<div class="s4-compile-header"><div class="s4-compile-icon">&#127919;</div><div class="s4-compile-title">交付包编译完成</div>';
   html += '<div class="s4-compile-subtitle">输入：Skill 草稿 v' + (sd.step4_published_version || '?') + '（IR） · 已生成交付物</div></div>';
@@ -1138,9 +1139,64 @@ function restoreStep4Output() {
   if (sd.step4_cot_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_cot_download_url + '" download>下载思维链</a>';
   if (sd.step4_qa_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_qa_download_url + '" download>下载 QA 对</a>';
   if (sd.step4_manifest_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_manifest_url + '" download>下载 manifest</a>';
+  if (sd.step4_skill_dir_zip_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_skill_dir_zip_url + '" download>下载 Skill 目录 zip</a>';
   html += '</div></div>';
   panel.style.display = 'block';
   panel.innerHTML = html;
+
+  // 同步更新右侧 Skill/COT/QA 独立面板，与后端产物一一对应
+  const skillPanel = document.getElementById('s4-output-skill');
+  const cotPanel = document.getElementById('s4-output-cot');
+  const qaPanel = document.getElementById('s4-output-qa');
+
+  if (skillPanel && sd.step4_skill_file) {
+    skillPanel.style.display = 'block';
+    skillPanel.innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>可执行 Agent Skill</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">一键编译生成</span></div>' +
+      '<div class="s2-result-success"><div class="s2-result-header">SKILL.md 终版</div>' +
+      '<div class="s2-result-meta">文件：' + escapeHtml(sd.step4_skill_file) + '</div>' +
+      '<div class="s2-result-actions">' +
+      '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(sd.step4_skill_file) + '\',\'SKILL.md 终版\')">&#128065; 预览</button>' +
+      '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_download_url + '" download>下载</a>' +
+      '</div></div></div>';
+  }
+  if (cotPanel && sd.step4_cot_file) {
+    cotPanel.style.display = 'block';
+    cotPanel.innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>思维链 (COT)</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">一键编译生成</span></div>' +
+      '<div class="s2-result-success"><div class="s2-result-header">思维链</div>' +
+      '<div class="s2-result-meta">文件：' + escapeHtml(sd.step4_cot_file) + '</div>' +
+      '<div class="s2-result-actions">' +
+      '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(sd.step4_cot_file) + '\',\'思维链 COT\')">&#128065; 预览</button>' +
+      '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_cot_download_url + '" download>下载</a>' +
+      '</div></div></div>';
+  }
+  if (qaPanel && sd.step4_qa_file) {
+    qaPanel.style.display = 'block';
+    qaPanel.innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>QA 对</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">一键编译生成</span></div>' +
+      '<div class="s2-result-success"><div class="s2-result-header">QA 对</div>' +
+      '<div class="s2-result-meta">文件：' + escapeHtml(sd.step4_qa_md_file || sd.step4_qa_file) + '</div>' +
+      '<div class="s2-result-actions">' +
+      '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(sd.step4_qa_md_file || sd.step4_qa_file) + '\',\'QA 对\')">&#128065; 预览</button>' +
+      '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_qa_download_url + '" download>下载</a>' +
+      '</div></div></div>';
+  }
+}
+
+function restoreStep5Output() {
+  if (!currentPipeline) return;
+  const sd = currentPipeline.step_data || {};
+  const out = document.getElementById('s5-output');
+  if (!out || !sd.step5_run_id || sd.step5_hit_rate == null) return;
+
+  const pct = Math.round(sd.step5_hit_rate * 100);
+  const passed = sd.step5_hit_rate >= (sd.step5_hit_threshold || 0.8);
+  const fillColor = passed ? '#16a34a' : (pct >= 60 ? '#f59e0b' : '#ef4444');
+  let html = '<div class="validate-result">';
+  html += '<h4>决策回放结果</h4>';
+  html += '<div style="font-size:24px;font-weight:700;color:' + fillColor + '">' + pct + '% 命中率 ' + (passed ? '✅ 达标' : '⚠️ 未达门槛') + '</div>';
+  if (sd.step5_replay_url) html += '<div style="margin-top:6px;"><a href="' + API_BASE + sd.step5_replay_url + '" target="_blank">查看完整回放报告</a></div>';
+  if (sd.step5_suggestions_url) html += '<div><a href="' + API_BASE + sd.step5_suggestions_url + '" target="_blank">查看修订建议</a></div>';
+  html += '</div>';
+  renderOutput('s5-output', html);
 }
 
 function switchPanel(step) {
@@ -1224,7 +1280,10 @@ function switchPanel(step) {
     if (currentPipeline?.step_status?.['4'] === 'done') restoreStep4Output();
   }
   if (step === 5 && currentPipeline) {
-    refreshCurrentPipeline().then(function () { loadStep5Context(); });
+    refreshCurrentPipeline().then(function () {
+      loadStep5Context();
+      if (currentPipeline?.step_status?.['5'] === 'done') restoreStep5Output();
+    });
   }
   refreshCachedUploadLabels(step);
 }
@@ -3764,7 +3823,9 @@ async function step4GenerateExecSkill() {
 	async function previewStep4File(fileName, title) {
   if (!fileName) { alert('暂无可预览文件'); return; }
   try {
-    const resp = await fetch(API_BASE + '/api/files/read?file_name=' + encodeURIComponent(fileName));
+    let url = API_BASE + '/api/files/read?file_name=' + encodeURIComponent(fileName);
+    if (currentPipeline?.id) url += '&pipeline_id=' + encodeURIComponent(currentPipeline.id);
+    const resp = await fetch(url);
     const data = await resp.json();
     if (data.status === 'ok') {
       openMarkdownEditor(fileName, data.content);
@@ -4695,6 +4756,8 @@ async function step4Compile() {
     if (data.can_publish) html += '<button class="btn btn--primary btn--sm" onclick="step4PublishToKb()">发布到知识库</button>';
     html += '</div></div>';
     if (panel) panel.innerHTML = html;
+    // 同步点亮右侧 Skill/COT/QA 面板，与后端产物一一对应
+    restoreStep4Output();
     showToast('交付包编译完成');
     try { await markStepDone(4); } catch (e) { /* ignore */ }
   } catch (e) {
