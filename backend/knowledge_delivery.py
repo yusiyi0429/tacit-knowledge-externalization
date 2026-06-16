@@ -12,10 +12,13 @@ import json
 import os
 import re
 from datetime import datetime
+from pathlib import Path
 
 from excel_to_skill import (
     _extract_trigger_keywords,
+    _format_data_logic_section,
     _generate_slug,
+    _split_tags,
     compute_quality_metrics,
     generate_skill_md,
     group_by_category,
@@ -23,6 +26,304 @@ from excel_to_skill import (
     read_excel_knowledge,
     validate_records,
 )
+
+
+def _extract_data_tags(records: list) -> list[str]:
+    """汇总所有记录中的数据标签。"""
+    tags = []
+    for r in records:
+        for src in (str(r.get("知识引用", "")), str(r.get("知识描述", ""))):
+            for m in re.finditer(r"涉及标签[：:]\s*([^\n]+)", src):
+                tags.extend(_split_tags(m.group(1)))
+    return list(dict.fromkeys(tags))
+
+
+def _extract_institution_refs(records: list) -> list[str]:
+    """汇总制度文件编号。"""
+    refs = []
+    for r in records:
+        text = str(r.get("知识引用", "")) + "\n" + str(r.get("规则引用", ""))
+        for m in re.finditer(r"建总(?:发|规章?)〔\d{4}〕\d+\s*号", text):
+            refs.append(m.group(0))
+    return list(dict.fromkeys(refs))
+
+
+def _write_references(
+    references_dir: str,
+    records: list,
+    qa_pairs: list,
+    version_info: dict,
+    pipeline_context: dict,
+    source_docs: list[str],
+    ir_path: str | None,
+) -> dict:
+    """填充 references/ 目录，返回写入的文件映射。"""
+    os.makedirs(references_dir, exist_ok=True)
+    written = {}
+
+    # 1. 原始知识文档
+    if source_docs:
+        for idx, src_path in enumerate(source_docs, 1):
+            src = Path(src_path)
+            if src.is_file():
+                dest = Path(references_dir) / f"source_document_{idx}{src.suffix}"
+                try:
+                    dest.write_bytes(src.read_bytes())
+                    written[f"source_document_{idx}"] = str(dest)
+                except Exception:
+                    pass
+
+    # 2. 数据标签清单 + 3. 伪 SQL + 制度依据，统一用 _format_data_logic_section 生成
+    logic_lines = _format_data_logic_section(records)
+    if logic_lines:
+        logic_md = Path(references_dir) / "data_logic.md"
+        logic_md.write_text("\n".join(logic_lines), encoding="utf-8")
+        written["data_logic"] = str(logic_md)
+
+    # 4. 验证用例 cases
+    try:
+        import knowledge_base as kb
+
+        domain = version_info.get("业务领域", "") or pipeline_context.get("domain", "")
+        scenario = version_info.get("场景名称", "") or pipeline_context.get("scenario", "")
+        cases = kb.list_cases(domain=domain, scenario=scenario, limit=100)
+        if cases:
+            cases_json = Path(references_dir) / "cases.json"
+            cases_json.write_text(
+                json.dumps({"schema": "tacit-knowledge.cases/v1", "count": len(cases), "cases": cases}, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            written["cases_json"] = str(cases_json)
+
+            cases_md = Path(references_dir) / "cases.md"
+            lines = ["# 验证用例", ""]
+            for c in cases:
+                lines.append(f"## {c.get('case_uid', '')}")
+                lines.append(f"- 场景：{c.get('domain', '')} / {c.get('scenario', '')}")
+                lines.append(f"- 描述：{c.get('description', '')}")
+                facts = c.get("facts") or {}
+                if facts:
+                    lines.append("- 事实：")
+                    for k, v in facts.items():
+                        lines.append(f"  - {k}: {v}")
+                lines.append(f"- 专家结论：{c.get('expert_conclusion', '')}")
+                if c.get("expert_reasoning"):
+                    lines.append(f"- 推理：{c.get('expert_reasoning')}")
+                lines.append("")
+            cases_md.write_text("\n".join(lines), encoding="utf-8")
+            written["cases_md"] = str(cases_md)
+    except Exception:
+        pass
+
+    # 5. QA 对
+    if qa_pairs:
+        qa_json = Path(references_dir) / "qa_pairs.json"
+        qa_json.write_text(
+            json.dumps(
+                {"schema": "tacit-knowledge.qa/v1", "count": len(qa_pairs), "items": qa_pairs},
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        written["qa_pairs_json"] = str(qa_json)
+
+    # 6. IR 快照
+    if ir_path and Path(ir_path).is_file():
+        try:
+            ir_data = json.loads(Path(ir_path).read_text(encoding="utf-8"))
+            ir_snapshot = Path(references_dir) / "ir_snapshot.json"
+            ir_snapshot.write_text(json.dumps(ir_data, ensure_ascii=False, indent=2), encoding="utf-8")
+            written["ir_snapshot"] = str(ir_snapshot)
+        except Exception:
+            pass
+
+    return written
+
+
+def _write_scripts(scripts_dir: str, skill_slug: str) -> dict:
+    """填充 scripts/ 目录，返回写入的文件映射。"""
+    os.makedirs(scripts_dir, exist_ok=True)
+    written = {}
+
+    # test_skill.py
+    test_script = Path(scripts_dir) / "test_skill.py"
+    test_script.write_text(
+        f'''#!/usr/bin/env python3
+"""验证 {skill_slug} Skill 的示例脚本。
+
+读取 references/cases.json，用 SKILL.md 作为上下文，调用 LLM 判官验证每条用例。
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+
+def load_skill_text(skill_dir: Path) -> str:
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.is_file():
+        raise FileNotFoundError(f"未找到 {{skill_md}}")
+    return skill_md.read_text(encoding="utf-8")
+
+
+def load_cases(skill_dir: Path) -> list:
+    cases_file = skill_dir / "references" / "cases.json"
+    if not cases_file.is_file():
+        return []
+    data = json.loads(cases_file.read_text(encoding="utf-8"))
+    return data.get("cases", [])
+
+
+def run_case(skill_text: str, case: dict, judge_fn=None) -> dict:
+    """默认 judge_fn 占位：实际接入时请替换为真实 LLM 调用。"""
+    # 这里只给出 prompt 模板，不绑定具体 LLM 客户端
+    facts = case.get("facts", {{}})
+    prompt = (
+        "你是一位银行信贷判官。请根据以下 Skill 知识库，对案例给出判断。\\n\\n"
+        f"===== Skill 知识库 =====\\n{{skill_text[:4000]}}\\n\\n"
+        f"===== 案例 =====\\n描述：{{case.get('description', '')}}\\n"
+        f"事实：{{json.dumps(facts, ensure_ascii=False)}}\\n\\n"
+        "请输出 JSON：{{\\\"prediction\\\": \\\"通过|拒绝|条件通过|无法判断\\\", \\\"reasoning\\\": \\\"...\\\"}}"
+    )
+    if judge_fn:
+        return judge_fn(prompt)
+    return {{"prediction": "（未接入 LLM，请提供 judge_fn）", "reasoning": "", "prompt": prompt}}
+
+
+def main(skill_dir: str):
+    root = Path(skill_dir)
+    skill_text = load_skill_text(root)
+    cases = load_cases(root)
+    print(f"加载 {{len(cases)}} 条验证用例")
+    results = []
+    for case in cases:
+        result = run_case(skill_text, case)
+        match = result.get("prediction", "") == case.get("expert_conclusion", "")
+        results.append({{"case": case, "result": result, "match": match}})
+        print(f"{{case.get('case_uid')}}: prediction={{result.get('prediction')}} expected={{case.get('expert_conclusion', '')[:20]}} match={{match}}")
+    hits = sum(1 for r in results if r["match"])
+    print(f"命中率：{{hits}}/{{len(results)}}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print(f"用法: python {{sys.argv[0]}} <skill_dir>")
+        sys.exit(1)
+    main(sys.argv[1])
+''',
+        encoding="utf-8",
+    )
+    written["test_skill_py"] = str(test_script)
+
+    # extract_sample.py
+    extract_script = Path(scripts_dir) / "extract_sample.py"
+    extract_script.write_text(
+        f'''#!/usr/bin/env python3
+"""示例：如何根据 {skill_slug} 的伪 SQL 从客户宽表取数。
+
+实际接入时请替换为真实数据库连接（SQLAlchemy、PySpark 等）。
+"""
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+
+def load_pseudo_sql(skill_dir: Path) -> list[str]:
+    """从 references/data_logic.md 中提取 ```sql 代码块。"""
+    md = skill_dir / "references" / "data_logic.md"
+    if not md.is_file():
+        return []
+    text = md.read_text(encoding="utf-8")
+    return re.findall(r"```sql\\n(.*?)\\n```", text, re.DOTALL)
+
+
+def main(skill_dir: str):
+    sql_blocks = load_pseudo_sql(Path(skill_dir))
+    print("本 Skill 建议的取数逻辑（伪 SQL）：")
+    for i, block in enumerate(sql_blocks, 1):
+        print(f"\\n--- 代码块 {{i}} ---")
+        print(block)
+    print("\\n提示：将 X 替换为业务阈值，字段名映射到实际数仓表后执行。")
+
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) < 2:
+        print(f"用法: python {{sys.argv[0]}} <skill_dir>")
+        sys.exit(1)
+    main(sys.argv[1])
+''',
+        encoding="utf-8",
+    )
+    written["extract_sample_py"] = str(extract_script)
+
+    return written
+
+
+def _write_assets(assets_dir: str, pipeline_context: dict, output_dir: str) -> dict:
+    """填充 assets/ 目录，返回写入的文件映射。"""
+    os.makedirs(assets_dir, exist_ok=True)
+    written = {}
+
+    mappings = [
+        ("step1_template", "step1_output_file", "step1"),
+        ("step2_preextract", "step2_output_file", "step2"),
+        ("step3_final", "step3_final_file", "step3"),
+    ]
+    pipeline_id = pipeline_context.get("pipeline_id", "")
+    # output_dir 形如 workspace/<pid>/step4/delivery_xxx，其上两级是 workspace 根目录
+    workspace = Path(output_dir).parent.parent
+    for name, key, step in mappings:
+        filename = pipeline_context.get(key, "")
+        if not filename:
+            continue
+        src = None
+        # 候选 1：pipeline_context 中显式指定的 output_dir（兼容 workspace 根目录）
+        if "output_dir" in pipeline_context:
+            candidate = Path(pipeline_context["output_dir"])
+            if pipeline_id:
+                candidate = candidate / pipeline_id / step / filename
+            else:
+                candidate = candidate / filename
+            if candidate.is_file():
+                src = candidate
+        # 候选 2：从当前 output_dir 推导的 workspace/<pid>/<step>
+        if src is None and pipeline_id:
+            candidate = workspace / pipeline_id / step / filename
+            if candidate.is_file():
+                src = candidate
+        # 候选 3：回退到 workspace 根目录（旧行为兼容）
+        if src is None:
+            candidate = workspace / filename
+            if candidate.is_file():
+                src = candidate
+        if src is not None:
+            dest = Path(assets_dir) / f"{name}{src.suffix}"
+            try:
+                dest.write_bytes(src.read_bytes())
+                written[name] = str(dest)
+            except Exception:
+                pass
+    return written
+
+
+def _zip_skill_directory(skill_dir: str, output_dir: str) -> str:
+    """把 skill 目录打包成 zip，返回 zip 文件路径。"""
+    import zipfile
+
+    skill_name = Path(skill_dir).name
+    zip_path = Path(output_dir) / f"{skill_name}.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, _dirs, files in os.walk(skill_dir):
+            for file in files:
+                file_path = Path(root) / file
+                arcname = str(file_path.relative_to(Path(skill_dir).parent))
+                zf.write(file_path, arcname)
+    return str(zip_path)
 
 
 def _slugify(name: str, config: dict | None = None, version_info: dict | None = None,
@@ -385,15 +686,22 @@ def _build_skill_directory(
     manifest: dict,
     skill_slug: str,
     output_dir: str,
+    *,
+    records: list | None = None,
+    qa_pairs: list | None = None,
+    version_info: dict | None = None,
+    pipeline_context: dict | None = None,
+    source_docs: list[str] | None = None,
+    ir_path: str | None = None,
 ) -> dict:
-    """创建 agentskills.io 标准 Skill 目录结构。
+    """创建 agentskills.io 标准 Skill 目录结构，并填充 references/scripts/assets。
 
     skill-name/
     ├── SKILL.md          # 必需 — 知识正文
     ├── manifest.json     # agentskills.io 清单
-    ├── scripts/          # 可执行脚本（目录占位）
-    ├── references/       # 详细参考文档（目录占位）
-    └── assets/           # 模板/静态资源（目录占位）
+    ├── scripts/          # 可执行脚本
+    ├── references/       # 详细参考文档
+    └── assets/           # 模板/静态资源
     """
     skill_dir = os.path.join(output_dir, skill_slug)
     os.makedirs(skill_dir, exist_ok=True)
@@ -408,19 +716,41 @@ def _build_skill_directory(
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
-    # 标准子目录（占位 .gitkeep）
-    for subdir in ("scripts", "references", "assets"):
-        d = os.path.join(skill_dir, subdir)
-        os.makedirs(d, exist_ok=True)
-        gitkeep = os.path.join(d, ".gitkeep")
-        if not os.path.exists(gitkeep):
+    records = records or []
+    qa_pairs = qa_pairs or []
+    version_info = version_info or {}
+    pipeline_context = pipeline_context or {}
+    source_docs = source_docs or []
+
+    # 标准子目录
+    scripts_dir = os.path.join(skill_dir, "scripts")
+    references_dir = os.path.join(skill_dir, "references")
+    assets_dir = os.path.join(skill_dir, "assets")
+
+    reference_files = _write_references(
+        references_dir, records, qa_pairs, version_info, pipeline_context, source_docs, ir_path
+    )
+    script_files = _write_scripts(scripts_dir, skill_slug)
+    asset_files = _write_assets(assets_dir, pipeline_context, output_dir)
+
+    # 如果子目录没有任何文件，补 .gitkeep 占位
+    for subdir in (scripts_dir, references_dir, assets_dir):
+        if not any(Path(subdir).iterdir()):
+            gitkeep = os.path.join(subdir, ".gitkeep")
             with open(gitkeep, "w", encoding="utf-8") as f:
                 f.write("")
+
+    # 打包 zip
+    zip_path = _zip_skill_directory(skill_dir, output_dir)
 
     return {
         "skill_dir": skill_dir,
         "skill_path": skill_path,
         "manifest_path": manifest_path,
+        "zip_path": zip_path,
+        "reference_files": reference_files,
+        "script_files": script_files,
+        "asset_files": asset_files,
     }
 
 
@@ -448,6 +778,8 @@ def excel_to_delivery_bundle(
         output_dir,
         formats=formats,
         source_name=os.path.splitext(os.path.basename(excel_path))[0],
+        pipeline_context=pipeline_context,
+        source_docs=[excel_path] if isinstance(excel_path, (str, os.PathLike)) else [],
     )
 
 
@@ -459,6 +791,9 @@ def records_to_delivery_bundle(
     *,
     formats=None,
     source_name: str = "",
+    pipeline_context: dict | None = None,
+    source_docs: list[str] | None = None,
+    ir_path: str | None = None,
 ) -> dict:
     """records 主入口：一次生成思维链 / QA / Skill(OpenClaw) 三类交付物。
 
@@ -483,6 +818,7 @@ def records_to_delivery_bundle(
     os.makedirs(output_dir, exist_ok=True)
     artifacts = {}
     skill_path = ""
+    qa_pairs: list = []
 
     if "cot" in fmt:
         cot_content = generate_cot_markdown(records, config, scenario_name, version_info)
@@ -529,9 +865,18 @@ def records_to_delivery_bundle(
         )
         skill_slug = openclaw_manifest.get("name", "knowledge-skill")
 
-        # 标准 agentskills.io 目录结构
+        # 标准 agentskills.io 目录结构（填充 references/scripts/assets + zip）
         dir_info = _build_skill_directory(
-            skill_content, openclaw_manifest, skill_slug, output_dir
+            skill_content,
+            openclaw_manifest,
+            skill_slug,
+            output_dir,
+            records=records,
+            qa_pairs=qa_pairs,
+            version_info=version_info,
+            pipeline_context=pipeline_context or {},
+            source_docs=source_docs,
+            ir_path=ir_path,
         )
         skill_path = dir_info["skill_path"]
 
@@ -553,6 +898,10 @@ def records_to_delivery_bundle(
             "skill_slug": skill_slug,
             "openclaw_compatible": True,
             "hermes_compatible": True,
+            "zip_path": dir_info.get("zip_path", ""),
+            "reference_files": dir_info.get("reference_files", {}),
+            "script_files": dir_info.get("script_files", {}),
+            "asset_files": dir_info.get("asset_files", {}),
         }
 
     return {

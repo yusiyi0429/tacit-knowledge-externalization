@@ -1584,6 +1584,7 @@ def api_step4_compile():
         sd = pipeline.get("step_data") or {}
         step1_form = sd.get("step1_form_data") or {}
         pipeline_ctx = {
+            "pipeline_id": pipeline_id,
             "scenario_name": pipeline.get("scenario") or step1_form.get("scenario_name", ""),
             "scenario_content": step1_form.get("scenario_content", ""),
             "sub_scenarios": step1_form.get("sub_scenarios") or [],
