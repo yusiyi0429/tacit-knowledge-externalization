@@ -53,10 +53,20 @@ def test_infer_file_step():
     assert pa.infer_file_step("pipelines.json") is None
 
 
+def test_workspace_dir_for():
+    assert pa.workspace_dir_for({"id": "abc123def456", "name": "对公普惠营销"}) == "对公普惠营销_abc123de"
+    assert pa.workspace_dir_for({"id": "abc123", "name": ""}) == "pipeline_abc123"
+    # 非法字符和长度处理
+    long_name = "A" * 100
+    assert len(pa.workspace_dir_for({"id": "x", "name": long_name}).split("_")[0]) <= 40
+    assert pa.workspace_dir_for({"id": "x", "name": "a/b:c?"}) == "a_b_c_x"
+
+
 def test_workspace_path_for_and_locate(tmp_path):
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
+    # 没有 pipelines.json 时 fallback 到 pipeline_id
     path = pa.workspace_path_for(workspace, "pid123", "step2", "preextract_abc.xlsx")
     assert path == workspace / "pid123" / "step2" / "preextract_abc.xlsx"
 
@@ -67,6 +77,20 @@ def test_workspace_path_for_and_locate(tmp_path):
     assert pa.locate_workspace_file(workspace, "preextract_abc.xlsx", pipeline_id="pid123") == path
     # Fallback search across all subdirectories.
     assert pa.locate_workspace_file(workspace, "preextract_abc.xlsx") == path
+
+    # 有 pipelines.json 时使用 name_id 目录
+    (workspace / "pipelines.json").write_text(
+        json.dumps([{"id": "pid123", "name": "测试流水线"}]),
+        encoding="utf-8",
+    )
+    expected_dir = "测试流水线_pid123"
+    named_path = pa.workspace_path_for(workspace, "pid123", "step2", "preextract_def.xlsx")
+    assert named_path == workspace / expected_dir / "step2" / "preextract_def.xlsx"
+
+    named_path.parent.mkdir(parents=True, exist_ok=True)
+    named_path.write_text("z")
+    assert pa.locate_workspace_file(workspace, "preextract_def.xlsx", pipeline_id="pid123") == named_path
+
     # Root fallback when no subdirectories match.
     root_file = workspace / "template_root.xlsx"
     root_file.write_text("y")
@@ -79,11 +103,15 @@ def test_organize_workspace(tmp_path):
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
+    pipeline_name = "测试流水线"
+    pipeline_dir = f"{pipeline_name}_pid123"
+
     # Protected files stay in root.
     (workspace / "pipelines.json").write_text(
         json.dumps([
             {
                 "id": "pid123",
+                "name": pipeline_name,
                 "step_data": {
                     "step2_output_file": "preextract_abc.xlsx",
                     "step2_interview_file": "/downloads/interview_abc.json",
@@ -120,13 +148,17 @@ def test_organize_workspace(tmp_path):
     assert result["skipped"] == 3  # protected files
 
     # Referenced files moved into pipeline/step subdirectories.
-    assert (workspace / "pid123" / "step1" / "template_abc.xlsx").is_file()
-    assert (workspace / "pid123" / "step2" / "preextract_abc.xlsx").is_file()
-    assert (workspace / "pid123" / "step2" / "interview_abc.json").is_file()
-    assert (workspace / "pid123" / "step4" / "SKILL_abc.md").is_file()
-    assert (workspace / "pid123" / "step4" / "SKILL_DIR_abc.zip").is_file()
-    assert (workspace / "pid123" / "step5" / "validation_result_abc.json").is_file()
-    assert (workspace / "pid123" / "step3" / "final_pid123_20260101.xlsx").is_file()
+    assert (workspace / pipeline_dir / "step1" / "template_abc.xlsx").is_file()
+    assert (workspace / pipeline_dir / "step2" / "preextract_abc.xlsx").is_file()
+    assert (workspace / pipeline_dir / "step2" / "interview_abc.json").is_file()
+    assert (workspace / pipeline_dir / "step4" / "SKILL_abc.md").is_file()
+    assert (workspace / pipeline_dir / "step4" / "SKILL_DIR_abc.zip").is_file()
+    assert (workspace / pipeline_dir / "step5" / "validation_result_abc.json").is_file()
+    assert (workspace / pipeline_dir / "step3" / "final_pid123_20260101.xlsx").is_file()
+
+    # pipelines.json 中写入了 workspace_dir
+    pipelines = json.loads((workspace / "pipelines.json").read_text(encoding="utf-8"))
+    assert pipelines[0].get("workspace_dir") == pipeline_dir
 
     # Deleted/unreferenced files no longer exist at root.
     assert not (workspace / "preextract_abc.xlsx").exists()
@@ -138,7 +170,7 @@ def test_organize_workspace(tmp_path):
 
     # Idempotency: second run reports no work.
     result2 = pa.organize_workspace(workspace)
-    assert result2 == {"moved": 0, "deleted": 0, "skipped": 0}
+    assert result2 == {"moved": 0, "deleted": 0, "skipped": 0, "renamed": 0}
 
 
 def test_organize_workspace_delivery_directories(tmp_path):
@@ -146,10 +178,13 @@ def test_organize_workspace_delivery_directories(tmp_path):
     workspace.mkdir()
 
     delivery_name = "delivery_abc123"
+    pipeline_name = "对公普惠营销"
+    pipeline_dir = f"{pipeline_name}_pid123"
     (workspace / "pipelines.json").write_text(
         json.dumps([
             {
                 "id": "pid123",
+                "name": pipeline_name,
                 "step_data": {
                     "step4_skill_file": "SKILL_abc.md",
                     # Reference the delivery directory by its basename so it is migrated.
@@ -177,10 +212,37 @@ def test_organize_workspace_delivery_directories(tmp_path):
     assert result["skipped"] == 1  # pipelines.json
 
     # Referenced delivery directory moved into pipeline step4 subdir.
-    assert (workspace / "pid123" / "step4" / delivery_name / "SKILL.md").is_file()
-    assert (workspace / "pid123" / "step4" / delivery_name / "chain_of_thought.md").is_file()
+    assert (workspace / pipeline_dir / "step4" / delivery_name / "SKILL.md").is_file()
+    assert (workspace / pipeline_dir / "step4" / delivery_name / "chain_of_thought.md").is_file()
     assert not delivery_dir.exists()
 
     # Orphan delivery directory deleted.
     assert not orphan_delivery.exists()
     assert (workspace / ".workspace_organized").is_file()
+
+
+def test_organize_workspace_renames_legacy_id_dirs(tmp_path):
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    pipeline_name = "旧流水线"
+    pipeline_dir = f"{pipeline_name}_pid123"
+    (workspace / "pipelines.json").write_text(
+        json.dumps([
+            {"id": "pid123", "name": pipeline_name, "step_data": {"step2_output_file": "preextract_abc.xlsx"}}
+        ]),
+        encoding="utf-8",
+    )
+
+    # 旧式纯 id 目录，已有 step 子目录和文件
+    old_dir = workspace / "pid123" / "step2"
+    old_dir.mkdir(parents=True)
+    (old_dir / "preextract_abc.xlsx").write_text("x", encoding="utf-8")
+
+    result = pa.organize_workspace(workspace)
+    assert result["renamed"] == 1
+    assert (workspace / pipeline_dir / "step2" / "preextract_abc.xlsx").is_file()
+    assert not (workspace / "pid123").exists()
+
+    pipelines = json.loads((workspace / "pipelines.json").read_text(encoding="utf-8"))
+    assert pipelines[0].get("workspace_dir") == pipeline_dir

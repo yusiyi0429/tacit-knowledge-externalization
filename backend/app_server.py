@@ -50,6 +50,7 @@ from pipeline_artifacts import (
     resolve_knowledge_ir_path,
     is_skill_draft_filename,
     workspace_path_for,
+    workspace_dir_for,
     PROTECTED_WORKSPACE_FILES,
 )
 from release_info import STEP2_EXCEL_BUILD, get_release_info
@@ -977,11 +978,15 @@ def api_create_pipeline():
         return jsonify({"status": "error", "error": "流水线名称不能为空"})
 
     now = datetime.datetime.now().isoformat()
+    pipeline_id = uuid.uuid4().hex[:12]
+    pipeline_stub = {"id": pipeline_id, "name": name}
+    workspace_dir = workspace_dir_for(pipeline_stub, workspace=WORKSPACE)
     pipeline = {
-        "id": uuid.uuid4().hex[:12],
+        "id": pipeline_id,
         "name": name,
         "scenario": scenario,
         "domain": domain or scenario,
+        "workspace_dir": workspace_dir,
         "current_step": 1,
         "step_status": {
             "1": "pending",
@@ -1044,7 +1049,18 @@ def api_update_pipeline(pipeline_id):
                 return jsonify({"status": "error", "error": err})
             target["step_data"].update(patch)
         if "name" in data:
-            target["name"] = data["name"]
+            old_name = target.get("name", "")
+            new_name = data["name"]
+            if new_name != old_name:
+                target["name"] = new_name
+                old_dir = WORKSPACE / (target.get("workspace_dir") or target["id"])
+                target["workspace_dir"] = workspace_dir_for(target, workspace=WORKSPACE)
+                new_dir = WORKSPACE / target["workspace_dir"]
+                if old_dir.is_dir() and not new_dir.exists():
+                    try:
+                        old_dir.rename(new_dir)
+                    except Exception:
+                        pass
 
         target["updated_at"] = datetime.datetime.now().isoformat()
 
@@ -1056,13 +1072,23 @@ def api_update_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>", methods=["DELETE"])
 def api_delete_pipeline(pipeline_id):
     """Delete a pipeline."""
+    removed_pipeline = None
     with _pipelines_lock:
         pipelines = load_pipelines()
         before = len(pipelines)
+        removed_pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         pipelines = [p for p in pipelines if p["id"] != pipeline_id]
         if len(pipelines) == before:
             return jsonify({"status": "error", "error": "流水线不存在"})
         save_pipelines(pipelines)
+
+    if removed_pipeline:
+        pipeline_dir = WORKSPACE / (removed_pipeline.get("workspace_dir") or removed_pipeline["id"])
+        if pipeline_dir.is_dir():
+            try:
+                shutil.rmtree(pipeline_dir)
+            except Exception:
+                pass
 
     return jsonify({"status": "ok"})
 

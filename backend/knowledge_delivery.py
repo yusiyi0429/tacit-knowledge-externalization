@@ -26,6 +26,7 @@ from excel_to_skill import (
     read_excel_knowledge,
     validate_records,
 )
+from pipeline_artifacts import get_pipeline_dir
 
 
 def _extract_data_tags(records: list) -> list[str]:
@@ -282,18 +283,19 @@ def _write_assets(assets_dir: str, pipeline_context: dict, output_dir: str) -> d
         if not filename:
             continue
         src = None
+        pipeline_dir = get_pipeline_dir(workspace, pipeline_id) if pipeline_id else ""
         # 候选 1：pipeline_context 中显式指定的 output_dir（兼容 workspace 根目录）
         if "output_dir" in pipeline_context:
             candidate = Path(pipeline_context["output_dir"])
             if pipeline_id:
-                candidate = candidate / pipeline_id / step / filename
+                candidate = candidate / pipeline_dir / step / filename
             else:
                 candidate = candidate / filename
             if candidate.is_file():
                 src = candidate
-        # 候选 2：从当前 output_dir 推导的 workspace/<pid>/<step>
+        # 候选 2：从当前 output_dir 推导的 workspace/<pipeline_dir>/<step>
         if src is None and pipeline_id:
-            candidate = workspace / pipeline_id / step / filename
+            candidate = workspace / pipeline_dir / step / filename
             if candidate.is_file():
                 src = candidate
         # 候选 3：回退到 workspace 根目录（旧行为兼容）

@@ -154,11 +154,94 @@ def infer_file_step(name: str) -> str | None:
     return None
 
 
+# Windows / Unix 非法文件名字符（保守处理）
+_DIRNAME_ILLEGAL_RE = re.compile(r'[\\/:*?"<>|]+')
+
+
+def sanitize_dirname(name: str, max_len: int = 40) -> str:
+    """把 pipeline 名称变成安全的目录名片段。"""
+    s = (name or "").strip()
+    s = _DIRNAME_ILLEGAL_RE.sub("_", s)
+    s = re.sub(r"\s+", "_", s)
+    s = s.strip("._")
+    if not s:
+        s = "pipeline"
+    # 限制长度，保留可读性
+    if len(s) > max_len:
+        s = s[:max_len].rsplit("_", 1)[0] or s[:max_len]
+    return s
+
+
+def _load_pipelines(workspace: Path) -> list[dict]:
+    """读取 workspace 下的 pipelines.json。"""
+    pipelines_file = Path(workspace) / "pipelines.json"
+    if not pipelines_file.is_file():
+        return []
+    try:
+        data = json.loads(pipelines_file.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _save_pipelines(workspace: Path, pipelines: list[dict]) -> None:
+    pipelines_file = Path(workspace) / "pipelines.json"
+    try:
+        pipelines_file.write_text(
+            json.dumps(pipelines, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def get_pipeline_by_id(workspace: Path, pipeline_id: str) -> dict | None:
+    if not pipeline_id:
+        return None
+    for p in _load_pipelines(workspace):
+        if str(p.get("id", "")) == str(pipeline_id):
+            return p
+    return None
+
+
+def _unique_workspace_dir(workspace: Path, base_dir: str) -> str:
+    """若 base_dir 已存在则追加序号，避免重名冲突。"""
+    candidate = base_dir
+    counter = 1
+    while (Path(workspace) / candidate).exists():
+        candidate = f"{base_dir}_{counter}"
+        counter += 1
+        if counter > 1000:
+            break
+    return candidate
+
+
+def workspace_dir_for(pipeline: dict, workspace: Path | None = None) -> str:
+    """生成 pipeline 对应的 workspace 目录名：{safe_name}_{id[:8]}。"""
+    pid = str(pipeline.get("id", "")) if pipeline else ""
+    name = str(pipeline.get("name", "")).strip() if pipeline else ""
+    safe_name = sanitize_dirname(name)
+    short_id = pid[:8] if pid else "unknown"
+    base = f"{safe_name}_{short_id}"
+    if workspace is not None:
+        return _unique_workspace_dir(workspace, base)
+    return base
+
+
+def get_pipeline_dir(workspace: Path, pipeline_id: str) -> str:
+    """返回 pipeline 的 workspace 目录名；找不到则 fallback 到 id 本身。"""
+    pipeline = get_pipeline_by_id(workspace, pipeline_id)
+    if pipeline:
+        return workspace_dir_for(pipeline, workspace=None)
+    return pipeline_id
+
+
 def workspace_path_for(workspace: Path, pipeline_id: str, step: str, filename: str) -> Path:
     """返回产物应写入的完整路径。"""
     if not pipeline_id or not step:
         return Path(workspace) / basename_only(filename)
-    return Path(workspace) / str(pipeline_id) / str(step) / basename_only(filename)
+    pipeline_dir = get_pipeline_dir(workspace, pipeline_id)
+    return Path(workspace) / pipeline_dir / str(step) / basename_only(filename)
 
 
 def locate_workspace_file(
@@ -173,15 +256,28 @@ def locate_workspace_file(
 
     # 1. 如果给了 pipeline_id，优先在对应目录按推断 step 查找
     if pipeline_id:
+        pipeline_dir_name = get_pipeline_dir(workspace, pipeline_id)
         step = infer_file_step(base)
         if step:
-            candidate = workspace / str(pipeline_id) / step / base
+            candidate = workspace / pipeline_dir_name / step / base
             if candidate.is_file():
                 return candidate
         # 兜底：在该 pipeline 所有子目录里找
-        pipeline_dir = workspace / str(pipeline_id)
+        pipeline_dir = workspace / pipeline_dir_name
         if pipeline_dir.is_dir():
             for subdir in pipeline_dir.iterdir():
+                if subdir.is_dir():
+                    candidate = subdir / base
+                    if candidate.is_file():
+                        return candidate
+        # 再兜底：兼容旧式纯 id 目录（迁移完成前）
+        legacy_dir = workspace / str(pipeline_id)
+        if legacy_dir.is_dir() and legacy_dir != pipeline_dir:
+            if step:
+                candidate = legacy_dir / step / base
+                if candidate.is_file():
+                    return candidate
+            for subdir in legacy_dir.iterdir():
                 if subdir.is_dir():
                     candidate = subdir / base
                     if candidate.is_file():
@@ -360,33 +456,70 @@ def keys_to_clear_from_step(from_step: int) -> list[str]:
     return list(dict.fromkeys(downstream_output_keys(from_step) + auxiliary_step_data_keys(from_step)))
 
 
+def _migrate_pipeline_dirs(workspace: Path, pipelines: list[dict]) -> dict:
+    """把旧式 <id> 目录重命名为 <name>_<id[:8]>，并写入 pipelines.json 的 workspace_dir 字段。"""
+    result = {"renamed": 0, "failed": 0}
+    for p in pipelines:
+        pid = str(p.get("id", ""))
+        if not pid:
+            continue
+        # 确保每个 pipeline 都有 workspace_dir
+        if not p.get("workspace_dir"):
+            p["workspace_dir"] = workspace_dir_for(p, workspace=workspace)
+
+        old_dir = workspace / pid
+        if not old_dir.is_dir():
+            continue
+        new_dir_name = p["workspace_dir"]
+        new_dir = workspace / new_dir_name
+        if old_dir == new_dir:
+            continue
+        try:
+            # 如果目标目录已存在，把旧目录内容合并进去
+            if new_dir.exists():
+                for sub in old_dir.iterdir():
+                    dest = new_dir / sub.name
+                    if dest.exists():
+                        continue
+                    sub.rename(dest)
+                old_dir.rmdir()
+            else:
+                old_dir.rename(new_dir)
+            result["renamed"] += 1
+        except Exception:
+            result["failed"] += 1
+    return result
+
+
 def organize_workspace(workspace: Path) -> dict:
     """一次性迁移：把根目录下能识别归属的文件按 pipeline/step 分类，无归属的删除。"""
     workspace = Path(workspace)
     marker = workspace / ".workspace_organized"
     if marker.exists():
-        return {"moved": 0, "deleted": 0, "skipped": 0}
+        return {"moved": 0, "deleted": 0, "skipped": 0, "renamed": 0}
 
-    result = {"moved": 0, "deleted": 0, "skipped": 0}
+    result = {"moved": 0, "deleted": 0, "skipped": 0, "renamed": 0}
 
-    # 建立每个 pipeline 引用过的 basename 集合
+    pipelines = _load_pipelines(workspace)
+
+    # 先迁移旧式 pipeline 目录（纯 id -> name_id），并为缺失 workspace_dir 的 pipeline 补字段
+    rename_result = _migrate_pipeline_dirs(workspace, pipelines)
+    result["renamed"] = rename_result["renamed"]
+
+    # 建立每个 pipeline 引用过的 basename 集合，以及 workspace_dir 映射
     pipeline_refs: dict[str, set[str]] = {}
-    pipelines_file = workspace / "pipelines.json"
-    if pipelines_file.is_file():
-        try:
-            pipelines = json.loads(pipelines_file.read_text(encoding="utf-8"))
-            for p in pipelines or []:
-                pid = str(p.get("id", ""))
-                if not pid:
-                    continue
-                refs: set[str] = set()
-                sd = p.get("step_data", {})
-                for val in sd.values():
-                    if isinstance(val, str):
-                        refs.add(basename_only(val))
-                pipeline_refs[pid] = refs
-        except Exception:
-            pass
+    pipeline_dir_by_id: dict[str, str] = {}
+    for p in pipelines:
+        pid = str(p.get("id", ""))
+        if not pid:
+            continue
+        pipeline_dir_by_id[pid] = p.get("workspace_dir") or workspace_dir_for(p, workspace=None)
+        refs: set[str] = set()
+        sd = p.get("step_data", {})
+        for val in sd.values():
+            if isinstance(val, str):
+                refs.add(basename_only(val))
+        pipeline_refs[pid] = refs
 
     for item in list(workspace.iterdir()):
         if item.name in PROTECTED_WORKSPACE_FILES or item.name == ".workspace_organized":
@@ -400,7 +533,7 @@ def organize_workspace(workspace: Path) -> dict:
                 None,
             )
             if target_pid:
-                dest_dir = workspace / target_pid / "step4" / item.name
+                dest_dir = workspace / pipeline_dir_by_id[target_pid] / "step4" / item.name
                 dest_dir.parent.mkdir(parents=True, exist_ok=True)
                 try:
                     item.rename(dest_dir)
@@ -434,7 +567,7 @@ def organize_workspace(workspace: Path) -> dict:
                 break
 
         if target_pid:
-            dest_dir = workspace / target_pid / step
+            dest_dir = workspace / pipeline_dir_by_id[target_pid] / step
             dest_dir.mkdir(parents=True, exist_ok=True)
             dest = dest_dir / item.name
             try:
@@ -448,6 +581,9 @@ def organize_workspace(workspace: Path) -> dict:
                 result["deleted"] += 1
             except Exception:
                 pass
+
+    # 持久化 workspace_dir 字段（可能新增或重命名）
+    _save_pipelines(workspace, pipelines)
 
     marker.write_text("", encoding="utf-8")
     return result
