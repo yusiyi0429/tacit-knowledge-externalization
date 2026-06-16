@@ -1037,6 +1037,112 @@ function renderPipelineProgressSummary(currentPanelStep) {
   threeCol.insertAdjacentHTML('beforebegin', html);
 }
 
+/* ===== Restore completed outputs when switching steps ===== */
+function restoreStep2Output() {
+  if (!currentPipeline) return;
+  const sd = currentPipeline.step_data || {};
+  const out = document.getElementById('s2-output');
+  if (!out) return;
+  if (!sd.step2_output_file) {
+    out.innerHTML = '';
+    return;
+  }
+  const dlName = sd.step2_output_file || '';
+  const dlUrl = sd.step2_download_url || '/downloads/' + dlName;
+  const mdFile = sd.step2_md_file || '';
+  const mdUrl = sd.step2_md_download_url || '';
+  const extractedCount = sd.step2_extracted_count || 0;
+  const sourceCount = sd.step2_source_count || 0;
+  const dedupCount = sd.step2_dedup_count || 0;
+  const draftFile = sd.step2_draft_file || '';
+  const draftUrl = sd.step2_draft_url || '';
+  const draftMdFile = sd.step2_draft_md_file || '';
+  const draftMdUrl = sd.step2_draft_md_url || '';
+  const draftVersion = sd.step2_draft_version || 1;
+
+  let html = '<div class="s2-result-success">';
+  html += '<div class="s2-result-header">知识萃取完成</div>';
+  html += '<div class="s2-result-meta">共提取 <strong>' + extractedCount + '</strong> 条知识';
+  if (sourceCount > 1) html += ' · ' + sourceCount + ' 源 · 去重 ' + dedupCount;
+  if (draftFile) html += ' · 已生成 <strong>Skill 草稿 v' + draftVersion + '</strong>';
+  html += '</div>';
+
+  if (draftFile) {
+    html += '<div class="signal-review-panel" style="margin-top:12px;display:block;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
+    html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">&#129518; Skill 草稿 v' + draftVersion + '（初版，待专家对齐）</div>';
+    html += '<div class="s2-result-actions">';
+    if (draftMdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(draftMdFile) + '\',\'Skill 草稿预览 (v' + draftVersion + ')\')">预览 Skill 草稿</button>';
+    if (draftMdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + draftMdUrl + '" download>下载草稿 Markdown</a>';
+    if (draftUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + draftUrl + '" download>下载草稿 JSON (IR)</a>';
+    html += '</div></div>';
+  }
+
+  html += '<div class="s2-result-actions" style="margin-top:12px;">';
+  const step2Fmt = document.getElementById('s2-output-format')?.value || 'excel';
+  const mdFlow = step2Fmt === 'markdown';
+  if (mdFlow && mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
+  if (!mdFlow && mdFile) html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
+  if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
+  if (!mdFlow && dlName) html += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+  if (mdFlow && dlName) html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+  if (dlUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + dlUrl + '" download>下载 Excel</a>';
+  html += '</div></div>';
+
+  renderOutput('s2-output', html);
+}
+
+function restoreStep3Output() {
+  if (!currentPipeline) return;
+  const sd = currentPipeline.step_data || {};
+  const resultSection = document.getElementById('s3-result-section');
+  const resultCard = document.getElementById('s3-result-card');
+  const inputSection = document.getElementById('s3-input-section');
+  const reviewSection = document.getElementById('s3-review-section');
+  if (!sd.step3_final_file || !resultSection || !resultCard) return;
+
+  const dlName = sd.step3_final_file || '';
+  const dlUrl = sd.step3_final_download_url || '/downloads/' + dlName;
+  const mdName = sd.step3_final_md_file || '';
+  const mdUrl = sd.step3_final_md_download_url || '';
+  const mdFlow = prefersMarkdownFlow();
+
+  if (inputSection) inputSection.style.display = 'none';
+  if (reviewSection) reviewSection.style.display = 'none';
+  resultSection.style.display = '';
+
+  let html = '';
+  html += '<div class="align-result-header"><span>&#10003;</span> 知识对齐完成</div>';
+  html += '<div class="align-result-meta">已生成对齐稿（共处理 ' + (sd.step3_final_count || 0) + ' 处修订）</div>';
+  html += '<div class="align-result-actions">';
+  if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
+  if (!mdFlow && mdName) html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
+  if (mdUrl) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>下载 Markdown</a>';
+  if (!mdFlow && dlName) html += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
+  if (dlUrl) html += '<a href="' + escapeHtml(dlUrl) + '" class="btn btn--outline btn--sm" download>下载 Excel</a>';
+  html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">重新对齐</button>';
+  html += '</div>';
+  resultCard.innerHTML = html;
+}
+
+function restoreStep4Output() {
+  if (!currentPipeline) return;
+  const sd = currentPipeline.step_data || {};
+  const panel = document.getElementById('s4-output-compile');
+  if (!sd.step4_download_url || !panel) return;
+
+  let html = '<div class="s4-compile-result">';
+  html += '<div class="s4-compile-header"><div class="s4-compile-icon">&#127919;</div><div class="s4-compile-title">交付包编译完成</div>';
+  html += '<div class="s4-compile-subtitle">输入：Skill 草稿 v' + (sd.step4_published_version || '?') + '（IR） · 已生成交付物</div></div>';
+  html += '<div class="s2-result-actions" style="margin-top:8px;">';
+  if (sd.step4_download_url) html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + sd.step4_download_url + '" download>下载 SKILL.md 终版</a>';
+  if (sd.step4_cot_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_cot_download_url + '" download>下载思维链</a>';
+  if (sd.step4_qa_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_qa_download_url + '" download>下载 QA 对</a>';
+  if (sd.step4_manifest_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_manifest_url + '" download>下载 manifest</a>';
+  html += '</div></div>';
+  panel.style.display = 'block';
+  panel.innerHTML = html;
+}
+
 function switchPanel(step) {
   if (step > MAX_STEP) step = MAX_STEP;
   if (step < 0) step = 0;
@@ -1092,6 +1198,7 @@ function switchPanel(step) {
         loadStep2PrevOutput();
         updateStep2Readiness();
         loadStep2KbHint();
+        if (currentPipeline?.step_status?.['2'] === 'done') restoreStep2Output();
       });
     }
   }
@@ -1104,6 +1211,7 @@ function switchPanel(step) {
     loadStep3RevisionContext();
     loadStep3SuggestionPool();
     updateStep3AlignModeHint();
+    if (currentPipeline?.step_status?.['3'] === 'done') restoreStep3Output();
   }
   if (step === 4 && currentPipeline) {
     var s4Draft = document.getElementById('s4-prev-draft');
@@ -1113,6 +1221,7 @@ function switchPanel(step) {
     var s4Name = document.getElementById('s4-prev-name');
     if (s4Name) s4Name.textContent = '加载中...';
     loadStep4PrevOutput();
+    if (currentPipeline?.step_status?.['4'] === 'done') restoreStep4Output();
   }
   if (step === 5 && currentPipeline) {
     refreshCurrentPipeline().then(function () { loadStep5Context(); });

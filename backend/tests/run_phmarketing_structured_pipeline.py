@@ -27,6 +27,9 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline_artifacts import workspace_path_for  # noqa: E402
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -176,11 +179,13 @@ def seed_step2_file(pipeline_id: str) -> str:
     _require_file(SOURCE_XLSX, "seed_step2_file")
 
     # 复制 Step1 占位文件，确保 step1_output_file 引用真实存在
-    step1_placeholder = WORKSPACE / "template_uploaded.xlsx"
+    step1_placeholder = workspace_path_for(WORKSPACE, pipeline_id, "step1", "template_uploaded.xlsx")
+    step1_placeholder.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(SOURCE_XLSX, step1_placeholder)
 
     fname = f"preextract_{uuid.uuid4().hex[:8]}.xlsx"
-    dest = WORKSPACE / fname
+    dest = workspace_path_for(WORKSPACE, pipeline_id, "step2", fname)
+    dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(SOURCE_XLSX, dest)
 
     # 动态计算萃取条数（表头占 1 行）
