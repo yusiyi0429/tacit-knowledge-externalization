@@ -589,6 +589,54 @@ def _normalize_extracted_items(items: list, target_columns: list[str]) -> list:
     return normalized
 
 
+def _normalize_stage_values(records: list, stage_chain: list[str]) -> list:
+    """将 LLM 输出的「步骤」字段规范化到模板定义的阶段链之一（去掉数字前缀）。
+
+    若 LLM 把「知识分类」值误填入「步骤」，则将其移到「知识分类」字段并清空步骤。
+    """
+    if not stage_chain:
+        return records
+    import re
+
+    # 去掉阶段链中的数字前缀，建立 原始阶段 -> 规范阶段 映射
+    def _clean_stage(s: str) -> str:
+        return re.sub(r"^\d+[.．、\s]+", "", str(s).strip())
+
+    canonical_stages = [_clean_stage(s) for s in stage_chain]
+    stage_aliases: dict[str, str] = {}
+    for raw, clean in zip(stage_chain, canonical_stages):
+        stage_aliases[raw] = clean
+        stage_aliases[clean] = clean
+        # 数字前缀别名
+        num = re.match(r"^(\d+)", raw)
+        if num:
+            stage_aliases[num.group(1)] = clean
+            stage_aliases[f"{num.group(1)}.{clean}"] = clean
+            stage_aliases[f"{num.group(1)}、{clean}"] = clean
+
+    stage_keys = {"步骤", "stage", "step", "阶段"}
+    category_keys = {"知识分类", "category", "知识类型", "分类"}
+
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        for key in list(rec.keys()):
+            if key in stage_keys or any(m in key for m in stage_keys):
+                val = str(rec.get(key, "")).strip()
+                if not val:
+                    continue
+                if val in stage_aliases:
+                    rec[key] = stage_aliases[val]
+                else:
+                    # LLM 可能把分类/标签值误填到「步骤」，迁移到「知识分类」
+                    rec[key] = ""
+                    for cat_key in category_keys:
+                        if cat_key not in rec or not str(rec.get(cat_key, "")).strip():
+                            rec[cat_key] = val
+                            break
+    return records
+
+
 def load_preset_overrides():
     """Load runtime overrides for preset models (by name)."""
     if not PRESET_OVERRIDES_PATH.exists():
@@ -701,10 +749,13 @@ def downloads(filename):
     base = basename_only(filename)
     if not is_download_allowed(base):
         return jsonify({"status": "error", "error": "不允许下载该文件"}), 403
-    path = safe_workspace_path(WORKSPACE, base, must_exist=True)
+
+    pipeline_id = request.args.get("pipeline_id", "") or request.form.get("pipeline_id", "")
+    from pipeline_artifacts import locate_workspace_file
+    path = locate_workspace_file(WORKSPACE, base, pipeline_id=pipeline_id or None)
     if not path:
         return jsonify({"status": "error", "error": "文件不存在"}), 404
-    return send_from_directory(str(WORKSPACE), base, as_attachment=True)
+    return send_from_directory(str(path.parent), path.name, as_attachment=True)
 
 
 @app.route("/api/files/read", methods=["GET"])
@@ -1100,12 +1151,11 @@ def api_step1_templates():
     if SCHEMA_PATH.exists():
         schema_info = schema_summary(load_scenario_schema(SCHEMA_PATH), schema_path=SCHEMA_PATH)
 
-    all_templates = list_default_step1_templates(SAMPLES_DIR)
-    templates = [p for p in all_templates if "测试" in p.stem or "测试" in p.name]
-    default_tpl = find_default_step1_template(SAMPLES_DIR)
+    step1_tpl_dir = SAMPLES_DIR / "step1-场景锚定"
+    all_templates = list_default_step1_templates(step1_tpl_dir)
+    templates = all_templates  # 默认返回所有有效 legacy 模板，不再只过滤"测试"
+    default_tpl = find_default_step1_template(step1_tpl_dir)
     legacy_default = default_tpl.name if default_tpl else ""
-    if default_tpl and not ("测试" in default_tpl.stem or "测试" in default_tpl.name):
-        legacy_default = templates[0].name if templates else ""
 
     return jsonify({
         "status": "ok",
@@ -1203,14 +1253,15 @@ def api_step1_generate():
         template_source = "upload"
         template_name = upload.filename
     elif template_mode == "legacy" and not has_custom_columns:
+        step1_tpl_dir = SAMPLES_DIR / "step1-场景锚定"
         default_tpl = None
         if selected_default_template and selected_default_template != "__schema__":
-            candidates = {p.name: p for p in list_default_step1_templates(SAMPLES_DIR)}
+            candidates = {p.name: p for p in list_default_step1_templates(step1_tpl_dir)}
             default_tpl = candidates.get(selected_default_template)
             if not default_tpl:
                 return jsonify({"status": "error", "error": "所选 Excel 模板不存在，请刷新后重试"})
         else:
-            default_tpl = find_default_step1_template(SAMPLES_DIR)
+            default_tpl = find_default_step1_template(step1_tpl_dir)
 
         if default_tpl:
             template_path = str(default_tpl)
@@ -1346,7 +1397,7 @@ def api_step1_generate():
                         sd.pop("step1_md_file", None)
                         sd.pop("step1_md_download_url", None)
                     p["scenario"] = scenario_name
-                    p["domain"] = scenario_name
+                    p["domain"] = p.get("domain", "") or scenario_name
                     p.setdefault("step_status", {})
                     p["step_status"]["1"] = "done"
                     if "2" not in p["step_status"] or p["step_status"]["2"] == "pending":
@@ -1511,6 +1562,7 @@ def api_step4_compile():
     config_path = str(SCHEMA_PATH) if SCHEMA_PATH.exists() else ""
 
     pipeline_ctx = {}
+    source_docs: list[str] = []
     if pipeline_id and pipeline:
         sd = pipeline.get("step_data") or {}
         step1_form = sd.get("step1_form_data") or {}
@@ -1518,7 +1570,19 @@ def api_step4_compile():
             "scenario_name": pipeline.get("scenario") or step1_form.get("scenario_name", ""),
             "scenario_content": step1_form.get("scenario_content", ""),
             "sub_scenarios": step1_form.get("sub_scenarios") or [],
+            # 用于 assets/ 目录抽取上下游产物
+            "step1_output_file": sd.get("step1_output_file", ""),
+            "step2_output_file": sd.get("step2_output_file", ""),
+            "step3_final_file": sd.get("step3_final_file", ""),
+            "output_dir": str(WORKSPACE),
         }
+        # 收集 references/source_document_*.txt 的候选文件
+        for key in ("step1_output_file", "step2_output_file", "step3_final_file", "step3_revision_file"):
+            fname = sd.get(key, "")
+            if fname:
+                p = safe_workspace_path(WORKSPACE, fname, must_exist=True)
+                if p and str(p) not in source_docs:
+                    source_docs.append(str(p))
 
     formats_raw = request.form.get("formats", "").strip()
     formats = [f.strip() for f in formats_raw.split(",") if f.strip()] if formats_raw else None
@@ -1537,6 +1601,9 @@ def api_step4_compile():
                 output_dir,
                 formats=formats,
                 source_name=ir.get("skill_meta", {}).get("scenario_name", ""),
+                pipeline_context=pipeline_ctx,
+                source_docs=source_docs,
+                ir_path=str(ir_path),
             )
             result["input_kind"] = "ir"
             result["ir_source"] = ir_source_key
@@ -1622,6 +1689,12 @@ def api_step4_compile():
         "openclaw",
         ".json",
     )
+    skill_zip_pub = _publish_artifact(
+        "skill_zip",
+        (artifacts.get("skill") or {}).get("zip_path"),
+        "SKILL_DIR",
+        ".zip",
+    )
 
     result["artifacts_download"] = downloads
     if skill_pub:
@@ -1639,6 +1712,9 @@ def api_step4_compile():
     if manifest_pub:
         result["openclaw_manifest_url"] = manifest_pub[1]
         result["openclaw_manifest_name"] = manifest_pub[0]
+    if skill_zip_pub:
+        result["skill_dir_zip_url"] = skill_zip_pub[1]
+        result["skill_dir_zip_name"] = skill_zip_pub[0]
 
     # 质量评分（确定性规则）→ 发布门槛判定
     quality_score = None
@@ -1685,6 +1761,9 @@ def api_step4_compile():
                     if manifest_pub:
                         sd["step4_manifest_file"] = manifest_pub[0]
                         sd["step4_manifest_url"] = manifest_pub[1]
+                    if skill_zip_pub:
+                        sd["step4_skill_dir_zip_file"] = skill_zip_pub[0]
+                        sd["step4_skill_dir_zip_url"] = skill_zip_pub[1]
                     if published_version:
                         sd["step4_published_version"] = published_version
                     p.setdefault("step_status", {})
@@ -2757,24 +2836,37 @@ def _step1_knowledge_columns_from_pipeline(pipeline_id: str) -> list[str]:
     return []
 
 
-def _extract_step2_target_columns(pipeline_id: str) -> list[str]:
-    """Read Step1 template headers and produce Step2 target keys."""
+def _extract_step2_template_context(pipeline_id: str) -> dict:
+    """Read Step1 template headers and produce Step2 target keys + stage chain.
+
+    Returns:
+        {
+            "target_columns": ["具体方法", "知识引用", "规则引用", ...],
+            "stage_chain": ["1.客户筛选", "2.客户数据匹配", "3.原因归因", "4.决策建议"],
+        }
+    """
     step1_path = _resolve_step1_workbook_path(pipeline_id)
     if not step1_path or not Path(step1_path).exists():
-        return _step1_knowledge_columns_from_pipeline(pipeline_id)
+        return {
+            "target_columns": _step1_knowledge_columns_from_pipeline(pipeline_id),
+            "stage_chain": [],
+        }
 
     try:
         from step1_template import detect_header_rows, find_anchor_columns
 
         with _safe_workbook(step1_path) as wb:
             ws = wb[wb.sheetnames[0]]
-            anchor_cols = set(find_anchor_columns(ws).values())
+            anchor_cols = find_anchor_columns(ws)
+            anchor_col_set = set(anchor_cols.values())
             header_rows = detect_header_rows(ws)
 
             cols = []
             seen = set()
+            stage_col = None
+            stage_chain = []
             for c in range(1, (ws.max_column or 1) + 1):
-                if c in anchor_cols:
+                if c in anchor_col_set:
                     continue
                 h1 = str(ws.cell(1, c).value).strip() if ws.cell(1, c).value else ""
                 h2 = str(ws.cell(2, c).value).strip() if header_rows >= 2 and ws.cell(2, c).value else ""
@@ -2784,17 +2876,40 @@ def _extract_step2_target_columns(pipeline_id: str) -> list[str]:
                     key = h2 or h1
                 if not key:
                     continue
+                # 识别「步骤」列，用于提取因果链阶段
+                if any(m in key for m in ("步骤", "环节", "stage", "phase")):
+                    stage_col = c
                 if key not in seen:
                     seen.add(key)
                     cols.append(key)
 
+            # 提取阶段链：去重、保留顺序
+            if stage_col:
+                seen_stages = set()
+                for r in range(header_rows + 1, (ws.max_row or header_rows) + 1):
+                    v = ws.cell(r, stage_col).value
+                    if not v:
+                        continue
+                    stage = str(v).strip()
+                    if stage and stage not in seen_stages:
+                        seen_stages.add(stage)
+                        stage_chain.append(stage)
+
         if len(cols) < 3:
             fallback = _step1_knowledge_columns_from_pipeline(pipeline_id)
             if len(fallback) > len(cols):
-                return fallback
-        return cols
+                return {"target_columns": fallback, "stage_chain": stage_chain}
+        return {"target_columns": cols, "stage_chain": stage_chain}
     except Exception:
-        return _step1_knowledge_columns_from_pipeline(pipeline_id)
+        return {
+            "target_columns": _step1_knowledge_columns_from_pipeline(pipeline_id),
+            "stage_chain": [],
+        }
+
+
+def _extract_step2_target_columns(pipeline_id: str) -> list[str]:
+    """兼容旧接口：只返回 target_columns。"""
+    return _extract_step2_template_context(pipeline_id).get("target_columns", [])
 
 
 def _normalize_extract_style(style: str) -> str:
@@ -2816,17 +2931,33 @@ def _pick_text(item: dict, keys: tuple[str, ...]) -> str:
 def _extract_item_content(item: dict, target_columns: list | None = None) -> str:
     # 自定义模板：优先从 Step1 解析出的后段列名取值（前四列锚定列不在此列表中）
     if target_columns:
+        # 阶段/步骤/环节等是结构性字段，不能作为“内容”用于去重或置信度评估
+        structural_markers = ("步骤", "阶段", "环节", "stage", "phase", "step")
+
+        # 第一遍：跳过结构性字段，优先取内容/语义字段
         for col in target_columns:
+            if any(m in col.lower() for m in structural_markers):
+                continue
             v = item.get(col)
             if v is not None and str(v).strip():
                 return str(v).strip()
+
+        # 第二遍：任意非空字段兜底（仍避免纯结构字段）
         for col in target_columns:
+            if any(m in col.lower() for m in structural_markers):
+                continue
             suffix = col.split("-")[-1].strip() if "-" in col else ""
             if not suffix:
                 continue
             for k, v in item.items():
                 if v is not None and str(v).strip() and (str(k).endswith(suffix) or suffix in str(k)):
                     return str(v).strip()
+
+        # 最后一遍：只要非空就取，保证至少有一个文本
+        for col in target_columns:
+            v = item.get(col)
+            if v is not None and str(v).strip():
+                return str(v).strip()
 
     text = _pick_text(
         item,
@@ -3009,7 +3140,9 @@ def _execute_knowledge_extraction():
             except Exception:
                 pass
 
-    target_columns = _extract_step2_target_columns(pipeline_id)
+    template_ctx = _extract_step2_template_context(pipeline_id)
+    target_columns = template_ctx.get("target_columns", [])
+    stage_chain = template_ctx.get("stage_chain", [])
     skill_caps = info.get("capabilities", []) if isinstance(info, dict) else []
     cap_text = "；".join(skill_caps) if skill_caps else "结构化知识提取"
     max_tokens = style_rule["max_tokens"]
@@ -3054,6 +3187,24 @@ def _execute_knowledge_extraction():
         )
         example_obj[content_key] = "（示例：从文档抽取的一条可执行知识）"
         example_json = json.dumps([example_obj], ensure_ascii=False)
+
+        stage_hint = ""
+        item_count_hint = f"输出条数尽量 {style_rule['min_items']}~{style_rule['max_items']} 条。"
+        if stage_chain:
+            chain_text = " → ".join(stage_chain)
+            allowed_stages = "、".join(stage_chain)
+            stage_hint = (
+                f"\n\n【阶段因果链 — 必须遵守】\n"
+                f"本模板将业务过程划分为以下阶段，阶段之间存在因果关系：{chain_text}\n"
+                f"1. 「步骤」字段只能且必须填写以下四个值之一：{allowed_stages}；严禁填写文档原始章节标题（如“业务概述”“办理流程”“营销话术”等）。\n"
+                f"2. 上述每个阶段都可能产生多条知识条目，不要每个阶段只输出 1 条。\n"
+                f"3. 每个阶段至少输出 3 条、最多 8 条知识条目。\n"
+                f"4. 条目之间要体现阶段递进：前一阶段的输出是后一阶段的输入。\n"
+                f"5. 「知识引用」和「规则引用」字段必须原样保留，作为 skill 取数逻辑。\n"
+                f"6. 总计输出 {len(stage_chain) * 3}~{len(stage_chain) * 8} 条知识条目。"
+            )
+            item_count_hint = f"按阶段输出 {len(stage_chain) * 3}~{len(stage_chain) * 8} 条知识条目。"
+
         system_prompt = (
             f"你是一位知识工程专家，正在执行隐性知识显性化的第二步——知识萃取。\n"
             f"萃取风格：{style}\n"
@@ -3065,13 +3216,13 @@ def _execute_knowledge_extraction():
             f"1. 只输出一个 JSON 数组，不要用 Markdown 代码块，不要写任何前后说明文字。\n"
             f"2. 数组元素为对象；每个对象的键名必须与下列列表完全一致（含连字符）：{target_cols_json}\n"
             f"3. 键名与值均使用英文双引号；无信息的字段填空字符串 \"\"。\n"
-            f"4. 输出条数尽量 {style_rule['min_items']}~{style_rule['max_items']} 条。\n"
+            f"4. {item_count_hint}{stage_hint}\n"
             f"5. 输出示例（结构参考，请替换为真实抽取内容）：\n{example_json}"
         )
         if _pipeline_prefers_markdown(pipeline_id) or len(target_columns) >= 8:
             system_prompt += (
                 "\n\n【深度萃取 — 多语义列】\n"
-                "适用条件、判断逻辑、反模式/踩坑提示、知识描述、知识引用等长文本字段须写完整"
+                "适用条件、判断逻辑、反模式/踩坑提示、知识描述、知识引用、规则引用等长文本字段须写完整"
                 "（每条通常不少于一两句），勿只填占位词；尽量让每条记录在多数语义列上都有实质内容。"
             )
     else:
@@ -6600,7 +6751,9 @@ def step2_extract_unified():
 
     style = _normalize_extract_style(style)
     style_rule = EXTRACT_STYLE_RULES[style]
-    target_columns = _extract_step2_target_columns(pipeline_id)
+    template_ctx = _extract_step2_template_context(pipeline_id)
+    target_columns = template_ctx.get("target_columns", [])
+    stage_chain = template_ctx.get("stage_chain", [])
     step1_path = _resolve_step1_workbook_path(pipeline_id)
     skill_info = SKILL_REGISTRY.get("knowledge-extraction", {})
     skill_caps = skill_info.get("capabilities", []) if isinstance(skill_info, dict) else []
@@ -6659,6 +6812,24 @@ def step2_extract_unified():
         )
         example_obj[content_key] = "（示例：从文档抽取的一条可执行知识）"
         example_json = json.dumps([example_obj], ensure_ascii=False)
+
+        stage_hint = ""
+        item_count_hint = f"输出条数尽量 {style_rule['min_items']}~{style_rule['max_items']} 条。"
+        if stage_chain:
+            chain_text = " → ".join(stage_chain)
+            allowed_stages = "、".join(stage_chain)
+            stage_hint = (
+                f"\n\n【阶段因果链 — 必须遵守】\n"
+                f"本模板将业务过程划分为以下阶段，阶段之间存在因果关系：{chain_text}\n"
+                f"1. 「步骤」字段只能且必须填写以下四个值之一：{allowed_stages}；严禁填写文档原始章节标题（如“业务概述”“办理流程”“营销话术”等）。\n"
+                f"2. 上述每个阶段都可能产生多条知识条目，不要每个阶段只输出 1 条。\n"
+                f"3. 每个阶段至少输出 3 条、最多 8 条知识条目。\n"
+                f"4. 条目之间要体现阶段递进：前一阶段的输出是后一阶段的输入。\n"
+                f"5. 「知识引用」和「规则引用」字段必须原样保留，作为 skill 取数逻辑。\n"
+                f"6. 总计输出 {len(stage_chain) * 3}~{len(stage_chain) * 8} 条知识条目。"
+            )
+            item_count_hint = f"按阶段输出 {len(stage_chain) * 3}~{len(stage_chain) * 8} 条知识条目。"
+
         system_prompt = (
             f"你是一位知识工程专家，正在执行隐性知识显性化的第二步——知识萃取。\n"
             f"萃取风格：{style}\n"
@@ -6670,13 +6841,13 @@ def step2_extract_unified():
             f"1. 只输出一个 JSON 数组，不要用 Markdown 代码块，不要写任何前后说明文字。\n"
             f"2. 数组元素为对象；每个对象的键名必须与下列列表完全一致（含连字符）：{target_cols_json}\n"
             f"3. 键名与值均使用英文双引号；无信息的字段填空字符串 \"\"。\n"
-            f"4. 输出条数尽量 {style_rule['min_items']}~{style_rule['max_items']} 条。\n"
+            f"4. {item_count_hint}{stage_hint}\n"
             f"5. 输出示例（结构参考，请替换为真实抽取内容）：\n{example_json}"
         )
         if _pipeline_prefers_markdown(pipeline_id) or len(target_columns) >= 8:
             system_prompt += (
                 "\n\n【深度萃取 — 多语义列】\n"
-                "适用条件、判断逻辑、反模式/踩坑提示、知识描述、知识引用等长文本字段须写完整"
+                "适用条件、判断逻辑、反模式/踩坑提示、知识描述、知识引用、规则引用等长文本字段须写完整"
                 "（每条通常不少于一两句），勿只填占位词；尽量让每条记录在多数语义列上都有实质内容。"
             )
     else:
@@ -6748,6 +6919,7 @@ def step2_extract_unified():
             )
             raw = extract_assistant_content(llm_result) if isinstance(llm_result, dict) else str(llm_result)
             records, _ = _parse_extracted_items(raw)
+            records = _normalize_stage_values(records, stage_chain)
             if records:
                 return {"records": records, "source_label": src["label"]}
             return {"error": {"source": src["label"], "error": "提取结果为空"}}
@@ -6781,14 +6953,39 @@ def step2_extract_unified():
         try:
             import knowledge_base as kb
             meta = _pipeline_scenario_meta(pipeline_id)
+            sub_scenarios = meta.get("sub_scenarios") or []
+            first_sub = sub_scenarios[0].get("name", "") if sub_scenarios else ""
             kb_entries = kb.search_entries(
                 domain=meta.get("domain", ""),
                 scenario=meta.get("scenario_name", ""),
+                sub_scenario=first_sub,
                 top_k=20,
+                min_score=0.3,
             )
             kb_records = kb.import_entries_as_records([e["entry_uid"] for e in kb_entries])
             if kb_records:
                 results.append({"records": kb_records, "source_label": "知识库继承"})
+            else:
+                errors.append({
+                    "source": "知识库继承",
+                    "error": "当前场景知识库为空，未注入任何继承条目",
+                    "level": "info",
+                })
+            # 记录匹配情况到 pipeline step_data
+            try:
+                with _pipelines_lock:
+                    pipelines = load_pipelines()
+                    for p in pipelines:
+                        if p.get("id") == pipeline_id:
+                            sd = p.get("step_data", {}) or {}
+                            sd["step2_kb_match_count"] = len(kb_entries)
+                            sd["step2_kb_match_domain"] = meta.get("domain", "")
+                            sd["step2_kb_match_scenario"] = meta.get("scenario_name", "")
+                            sd["step2_kb_match_sub_scenario"] = meta.get("sub_scenario", "")
+                            save_pipelines(pipelines)
+                            break
+            except Exception:
+                pass
         except Exception as e:
             errors.append({"source": "知识库继承", "error": str(e)})
 
@@ -7146,6 +7343,11 @@ def main():
     PRESET_OVERRIDES_PATH = WORKSPACE / "preset_overrides.json"
     PIPELINES_PATH = WORKSPACE / "pipelines.json"
     _maybe_migrate_from_old_default()
+    try:
+        from pipeline_artifacts import organize_workspace
+        organize_workspace(WORKSPACE)
+    except Exception:
+        pass
 
     print(f"Starting server at http://{args.host}:{args.port}")
     print(f"Workspace: {WORKSPACE}")
