@@ -1,6 +1,10 @@
 # 隐性知识提取平台
 
-将领域专家的隐性经验 → 结构化、可交付的 AI Skill，通过 **5 步流水线**（场景锚定→知识萃取→知识对齐→智能转化→验证回放），验证分歧回流第 3 步形成闭环。
+本文件为 **Kimi Code CLI** 提供项目级指导。原 `CLAUDE.md` 面向 Claude Code，两者会保持同步；当约定冲突时，以本文件为准。
+
+## 项目概述
+
+将领域专家的隐性经验 → 结构化、可交付的 AI Skill，通过 **5 步流水线**（场景锚定 → 知识萃取 → 知识对齐 → 智能转化 → 验证回放），验证分歧回流第 3 步形成闭环。
 
 ## 快速启动
 
@@ -71,7 +75,8 @@ backend/
   skill_generator.py      # Meta-skill：从 Step3 + golden DB 生成可执行 SKILL.md
   sandbox_db.py           # 沙盒数据库
   workbook_layout.py      # Excel 工作簿布局
-  scripts/                # 测试脚本（test_*.py, e2e_*.py, validate_*.py）
+  tests/                  # 测试脚本（test_*.py, e2e_*.py）
+  tools/                  # 一次性/辅助工具脚本（import_*.py, validate_*.py）
 frontend/
   index.html              # 单页应用入口
   js/app.js               # 主逻辑：流水线 CRUD、步骤切换、Skill 执行、Step5 回放 UI
@@ -95,8 +100,11 @@ config/
 data/
   kb/knowledge_base.db    # SQLite 知识库
   golden/                 # 黄金数据库文件
-  result/                 # 流水线产出物
   samples/                # 样本数据
+  test-cases/             # 验证/测试用例
+  deliveries/             # 最终发布的 Skill 交付物
+  archive/                # 历史完整 run 产物（gitignored）
+  workspace/              # 运行时流水线数据（gitignored）
 docs/
   重构实施方案-Skill中心化流水线.md
   PRODUCTION_AUDIT.md     # 生产审计报告
@@ -137,7 +145,7 @@ docker-compose.yml        # 内网部署编排
 | 文件 | 职责 |
 |------|------|
 | `backend/app_server.py` | Flask 路由总线（所有 API 入口） |
-| `backend/shared.py` | 共享工具/配置/全局状态（从 app_server.py 拆分） |
+| `backend/shared.py` | 共享工具/配置/全局状态 |
 | `backend/knowledge_base.py` | 知识库管理（entries/案例/发布/验证） |
 | `backend/skill_registry.py` | Skill 注册表定义 |
 | `backend/skill_generator.py` | Meta-skill：从 Step3 + golden DB 生成可执行 SKILL.md |
@@ -162,39 +170,63 @@ docker-compose.yml        # 内网部署编排
 - `/api/validate/*` — Step5 验证回放
 - `/api/health` — 健康检查
 
-## 天工 Agent 团队（10 人）
+## Agent 团队与 Kimi 映射
 
-完整 prompt 见 `.claude/commands/*.md`，工作流编排见 `.claude/workflows/*.js`。
+原项目使用 Claude Code 的 `.claude/commands/*.md` 定义 10 人 Agent 团队，并通过 `.claude/workflows/*.js` 编排。该团队已迁移到 Kimi Code CLI 项目级技能包：
 
-`.claude/` 结构：
 ```
-.claude/
-├── commands/            # 10 个 Agent prompt（*.md）
-├── workflows/           # 工作流编排脚本（*.js）
-├── workflows-config.json # 工作流配置
-├── skills/              # 项目级 skill 安装目录
-├── settings.json        # 项目级配置
-└── settings.local.json  # 权限白名单
+.kimi-code/skills/tiangong-team/
+├── SKILL.md              # 父包说明
+├── orchestrator/SKILL.md # 总调度
+├── plan/SKILL.md         # 规划师
+├── dev/SKILL.md          # 唯一编码者
+├── cr/SKILL.md           # 代码审查员
+├── bug-hunt/SKILL.md     # 缺陷猎人
+├── data-guardian/SKILL.md# 数据守护
+├── test/SKILL.md         # 测试工程师
+├── vr/SKILL.md           # 运行验证官
+├── ship-check/SKILL.md   # 通关检查官
+└── doc/SKILL.md          # 文档维护
 ```
 
-| 角色 | 职责 | 用法 |
-|------|------|------|
-| `/orchestrator` | 总调度：理解需求 → 委派角色 → 驱动修复回路 | `/orchestrator <高层需求>` |
-| `/plan` | 规划师：需求分析 + 结构化实施计划 | `/plan <需求描述>` |
-| `/dev` | **唯一编码者**：所有代码变更收口于此 | `/dev <需求>` |
-| `/cr` | 审查员：diff 审查 + 安全审查 + 简化建议 | `/cr [--fix \|--comment]` |
-| `/bug-hunt` | 缺陷猎人：全量代码扫描 | `/bug-hunt [scope]` |
-| `/data-guardian` | 数据守护：数据契约 / 状态完整性 | `/data-guardian <变更范围>` |
-| `/test` | 测试工程师：生成并运行测试 | `/test <需求或范围>` |
-| `/vr` | 运行验证官：端到端动态验证 | `/vr <受影响的路径>` |
-| `/ship-check` | 通关检查官：提交前静态通关 | `/ship-check` |
-| `/doc` | 文档维护：文档同步检查 | `/doc [自动检查\|同步]` |
+### 角色映射
 
-**修复回路**: test / cr / bug-hunt / ship-check / vr 发现的所有问题，统一交 `/dev` 落地修复。
+| 角色 | 职责 | Kimi 中对应方式 |
+|------|------|----------------|
+| `/orchestrator` | 总调度：理解需求 → 委派角色 → 驱动修复回路 | 激活 `tiangong-team/orchestrator` skill 后调用 `Agent` |
+| `/plan` | 规划师：需求分析 + 结构化实施计划 | 激活 `tiangong-team/plan` skill 后调用 `Agent` |
+| `/dev` | **唯一编码者**：所有代码变更收口于此 | 激活 `tiangong-team/dev` skill 后调用 `Agent` |
+| `/cr` | 审查员：diff 审查 + 安全审查 + 简化建议 | 激活 `tiangong-team/cr` skill 后调用 `Agent` |
+| `/bug-hunt` | 缺陷猎人：全量代码扫描 | 激活 `tiangong-team/bug-hunt` skill 后调用 `Agent` |
+| `/data-guardian` | 数据守护：数据契约 / 状态完整性 | 激活 `tiangong-team/data-guardian` skill 后调用 `Agent` |
+| `/test` | 测试工程师：生成并运行测试 | 激活 `tiangong-team/test` skill 后调用 `Agent` |
+| `/vr` | 运行验证官：端到端动态验证 | 激活 `tiangong-team/vr` skill 后调用 `Agent` |
+| `/ship-check` | 通关检查官：提交前静态通关 | 激活 `tiangong-team/ship-check` skill 后调用 `Agent` |
+| `/doc` | 文档维护：文档同步检查 | 激活 `tiangong-team/doc` skill 后调用 `Agent` |
+
+### 标准流水线
+
+```
+plan → dev → [cr ‖ test ‖ data-guardian?] → [vr ‖ doc] → ship-check → 提交
+          ↑         │ 发现问题                             │ 不通过        │ 不通过
+          └─── dev ←┘ (修复回路，每阶段最多 2 轮)           └── dev ←──────┘
+```
+
+- 串行阶段用 `Agent` 顺序调用
+- 并行阶段用 `AgentSwarm` 并发调用
+- 所有下游角色发现的问题统一交 `dev` 落地修复
+- 每阶段修复最多 2 轮；第 3 轮升级给 orchestrator 或用户决策
+
+### 与 Claude Code 原版共存
+
+- `.claude/commands/` 和 `.claude/workflows/` 继续保留，供 Claude Code 使用
+- `.kimi-code/skills/tiangong-team/` 供 Kimi Code CLI 使用
+- 两者角色定义和项目约束保持一致，仅调用方式不同
 
 ## 项目级 Skill
 
-`.claude/skills/tacit-to-skill/SKILL.md` — 引导领域专家通过 4 步流水线将隐性经验转化为 SKILL.md。触发词：知识萃取、经验沉淀、专家访谈、隐性知识显性化。
+- `.claude/skills/tacit-to-skill/SKILL.md` 是面向 Claude Code 的项目级 skill，用于引导领域专家通过流水线将隐性经验转化为 SKILL.md。
+- 在 Kimi 中如需类似能力，可直接读取该 SKILL.md 的内容，或将其迁移到 `~/.kimi-code/skills/` 下并适配 frontmatter。
 
 ## 不变量与风险规则
 
@@ -256,3 +288,11 @@ docker compose up -d
 - `workspace/` 挂载为卷，持久化用户数据
 - `logs/` 挂载为卷，持久化日志
 - `config/llm-config.yaml` 以只读方式挂载
+
+## Kimi 工作约定
+
+1. **默认工作目录**: `/mnt/d/my-workspace/tacit-knowledge-platform`
+2. **修改核心引擎前**：必须先阅读 `skill_ir.py`、`pipeline_artifacts.py`、`state.js`、`shared.py`、`skill_registry.py`
+3. **代码变更收口**：所有代码改动需保持风格一致，修改后运行相关测试
+4. **文档同步**：修改架构、接口或不变量后，同步更新 `AGENTS.md`、`README.md` 和 `docs/`
+5. **安全底线**：不绕过 `safe_workspace_path()` / `basename_only()`，前端输出必须转义

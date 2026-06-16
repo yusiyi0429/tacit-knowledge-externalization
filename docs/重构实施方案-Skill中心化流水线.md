@@ -11,7 +11,7 @@
 2. **建议池来源**：当前聚合 验证回流（validation）+ 访谈转化（interview）两路 entry 级建议；融合冲突/重复以 flags_summary 形式展示，不生成可应用建议。
 3. **Step1 继承预检落在 Step2**：`kb_inherit` 勾选项在知识萃取界面（继承条目作为融合源参与去重），Step1 不单独做勾选 UI。
 4. **旧 `/api/validate/replay` 原样保留**（验证 Excel 知识文本），新 `/api/step5/replay` 验证 SKILL 终版/IR 渲染。
-5. **测试**：新增 `backend/scripts/test_skill_ir.py`、`test_knowledge_base.py`（单元）与 `e2e_ir_pipeline_test.py`（无 LLM 全链路端到端，覆盖 草稿→对齐→编译→回流→采纳→v+1 重编译→KB 发布→回滚清理）。
+5. **测试**：新增 `backend/tests/test_skill_ir.py`、`test_knowledge_base.py`（单元）与 `e2e_ir_pipeline_test.py`（无 LLM 全链路端到端，覆盖 草稿→对齐→编译→回流→采纳→v+1 重编译→KB 发布→回滚清理）。
 
 ---
 
@@ -366,7 +366,7 @@ GET  /api/kb/entries/<uid>/timeline
 
 ## 6. 实施阶段划分（Phase 0–6）
 
-每个 Phase 独立可交付、可回退；**每个 Phase 收尾跑一遍同步契约核对（§4）+ `backend/scripts/test_*.py` + ship-check 静态关卡**。
+每个 Phase 独立可交付、可回退；**每个 Phase 收尾跑一遍同步契约核对（§4）+ `backend/tests/test_*.py` + ship-check 静态关卡**。
 
 ### Phase 0：Skill IR 基建（不动现有流水线）
 

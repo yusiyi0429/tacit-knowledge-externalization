@@ -87,8 +87,22 @@ LLM_CONFIG_LOCAL_PATH = CONFIG_DIR / "llm-config.local.yaml"
 # Optional API token auth (set APP_AUTH_TOKEN in production)
 APP_AUTH_TOKEN = os.environ.get("APP_AUTH_TOKEN", "").strip()
 
-# Workspace: where uploaded/generated files are stored (Docker: WORKSPACE_DIR=/app/workspace)
-WORKSPACE = Path(os.environ.get("WORKSPACE_DIR", Path(tempfile.gettempdir()) / "tacit_knowledge_app"))
+# Workspace: where uploaded/generated files are stored.
+# Precedence: --workspace CLI > WORKSPACE_DIR env > project-local data/workspace.
+PROJECT_WORKSPACE = PROJECT_DIR / "data" / "workspace"
+OLD_DEFAULT_WORKSPACE = Path(tempfile.gettempdir()) / "tacit_knowledge_app"
+
+
+def _resolve_workspace(cli_workspace: str | None = None) -> Path:
+    if cli_workspace:
+        return Path(cli_workspace).expanduser().resolve()
+    env = os.environ.get("WORKSPACE_DIR", "").strip()
+    if env:
+        return Path(env).expanduser().resolve()
+    return PROJECT_WORKSPACE.resolve()
+
+
+WORKSPACE = _resolve_workspace(None)
 WORKSPACE.mkdir(parents=True, exist_ok=True)
 
 # Custom models persistence
@@ -97,6 +111,27 @@ PRESET_OVERRIDES_PATH = WORKSPACE / "preset_overrides.json"
 
 # Pipelines persistence
 PIPELINES_PATH = WORKSPACE / "pipelines.json"
+
+
+def _maybe_migrate_from_old_default():
+    """一次性迁移：如果新的持久化工作空间为空，而旧 /tmp 默认目录有数据，则自动复制。"""
+    if not OLD_DEFAULT_WORKSPACE.exists():
+        return
+    old_pipelines = OLD_DEFAULT_WORKSPACE / "pipelines.json"
+    if not old_pipelines.exists():
+        return
+    if PIPELINES_PATH.exists():
+        return
+    try:
+        for item in OLD_DEFAULT_WORKSPACE.iterdir():
+            dest = WORKSPACE / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(item, dest)
+        print(f"[MIGRATE] 已从旧临时工作空间迁移数据: {OLD_DEFAULT_WORKSPACE} -> {WORKSPACE}")
+    except Exception as e:
+        print(f"[MIGRATE WARNING] 迁移旧数据失败: {e}")
 
 # Thread-safe model state
 _models_lock = threading.Lock()
@@ -6272,7 +6307,7 @@ def _resolve_skill_text_for_verification(pipeline_id: str, skill_file: str = "")
                 return skill_path.read_text(encoding="utf-8"), "skill_file"
             except Exception:
                 pass
-        # 允许项目内相对路径（如 data/result/SKILL.md）。这是项目固定资源目录的回退查找，
+        # 允许项目内相对路径（如 data/deliveries/SKILL.md）。这是项目固定资源目录的回退查找，
         # 不替代 safe_workspace_path 的安全沙箱，仅用于加载已发布产物。
         project_skill = PROJECT_DIR / skill_file
         if project_skill.exists():
@@ -6501,11 +6536,11 @@ def api_validate_report(run_uid):
 
 @app.route("/api/verify/import_result_data", methods=["POST"])
 def api_verify_import_result_data():
-    """从 data/result/test-data/ 和 golden_test.db 导入初始验证数据。"""
+    """从 data/test-cases/ 和 golden_test.db 导入初始验证数据。"""
     data = request.get_json(force=True) or {}
     skill_id = data.get("skill_id", "")
     try:
-        from scripts.import_verification_data import import_result_data
+        from tools.import_verification_data import import_result_data
         stats = import_result_data(skill_id=skill_id)
         return jsonify({"status": "ok", "stats": stats})
     except Exception as e:
@@ -7097,7 +7132,20 @@ def main():
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind")
     parser.add_argument("--port", type=int, default=5000, help="Port to bind")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument(
+        "--workspace",
+        default="",
+        help="持久化工作空间目录（默认：项目内 data/workspace/；可用 WORKSPACE_DIR 环境变量覆盖）",
+    )
     args = parser.parse_args()
+
+    global WORKSPACE, CUSTOM_MODELS_PATH, PRESET_OVERRIDES_PATH, PIPELINES_PATH
+    WORKSPACE = _resolve_workspace(args.workspace or None)
+    WORKSPACE.mkdir(parents=True, exist_ok=True)
+    CUSTOM_MODELS_PATH = WORKSPACE / "custom_models.json"
+    PRESET_OVERRIDES_PATH = WORKSPACE / "preset_overrides.json"
+    PIPELINES_PATH = WORKSPACE / "pipelines.json"
+    _maybe_migrate_from_old_default()
 
     print(f"Starting server at http://{args.host}:{args.port}")
     print(f"Workspace: {WORKSPACE}")

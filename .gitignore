@@ -11,6 +11,10 @@ __pycache__/
 
 # 外部知识库（运行时生成）
 data/kb/*.db
+data/backend.db
+data/workspace/
+data/output/
+data/archive/
 
 # Environment
 .env
@@ -39,6 +43,13 @@ build_*.log
 # Runtime directories
 logs/
 workspace/
+
+# Agent / Editor runtime
+.remember/
+.coze
+
+# Windows ADS metadata
+*Zone.Identifier
 
 # Frontend build deps（vendor/ 需提交或镜像内生成）
 frontend/node_modules/

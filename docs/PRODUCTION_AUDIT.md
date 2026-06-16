@@ -62,11 +62,11 @@
 
 ```bash
 # 需先启动 backend（端口 5000）
-python backend/scripts/test_artifacts.py
+python backend/tests/test_artifacts.py
 
 # 全链路（依赖 LLM，耗时较长）
 set E2E_BASE=http://127.0.0.1:5000
-python backend/scripts/e2e_pipeline_test.py
+python backend/tests/e2e_pipeline_test.py
 ```
 
 ## 容器部署注意

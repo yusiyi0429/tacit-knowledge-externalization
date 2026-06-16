@@ -99,7 +99,7 @@ const testResult = await agent(
 
 ${PIPELINE_CONTEXT}
 
-在 backend/scripts/ 目录下找到 test_*.py 文件并执行。
+在 backend/tests/ 目录下找到 test_*.py 文件并执行。
 记录：通过数 / 失败数 / 失败详情。`,
   { label: 'run-tests', phase: 'Tests', model: CFG.plugins.modelAllocation.haiku }
 )

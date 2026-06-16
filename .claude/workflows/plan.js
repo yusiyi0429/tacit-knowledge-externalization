@@ -20,7 +20,7 @@ const CFG = {
     frontend: { language: 'javascript', framework: 'vanilla', dir: 'frontend', entry: 'index.html',
       jsDir: 'frontend/js', cssDir: 'frontend/css', apiBase: '/api', fetchPattern: 'fetch(API_BASE +' },
   },
-  dirs: { config: 'config', docs: 'docs', scripts: 'backend/scripts' },
+  dirs: { config: 'config', docs: 'docs', scripts: 'backend/tests' },
   codeConventions: {
     htmlEscape: 'escapeHtml()', checkXSS: true, checkPathTraversal: true,
     pathSafety: 'safe_workspace_path()', basenameFn: 'basename_only()',

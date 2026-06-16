@@ -14,10 +14,14 @@
 build_*.log
 logs/
 workspace/
+data/workspace/
+data/output/
+data/archive/
 frontend/node_modules/
 *.tar
 *.tar.gz
 *.zip
-backend/scripts/
+backend/tests/
+backend/tools/
 README.md
 docker/README.md

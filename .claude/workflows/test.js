@@ -15,7 +15,7 @@ const CFG = {
     frontend: { language: 'javascript', framework: 'vanilla', dir: 'frontend', jsDir: 'frontend/js' },
   },
   test: {
-    dir: 'backend/scripts',
+    dir: 'backend/tests',
     prefix: 'test_',
     runner: 'python',
     runCommand: 'python {file}',

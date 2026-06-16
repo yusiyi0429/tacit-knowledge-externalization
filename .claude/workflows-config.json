@@ -53,7 +53,7 @@
     "frontend": "frontend",
     "config": "config",
     "docs": "docs",
-    "scripts": "backend/scripts"
+    "scripts": "backend/tests"
   },
 
   "tech": {
@@ -131,7 +131,7 @@
   },
 
   "test": {
-    "dir": "backend/scripts",
+    "dir": "backend/tests",
     "prefix": "test_",
     "runner": "python",
     "singleCommand": "python {test_file}",
