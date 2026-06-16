@@ -45,8 +45,14 @@ logs/
 workspace/
 
 # Agent / Editor runtime
+.claude/
+.kimi-code/
 .remember/
 .coze
+
+# Agent-specific docs (local only)
+AGENTS.md
+CLAUDE.md
 
 # Windows ADS metadata
 *Zone.Identifier
