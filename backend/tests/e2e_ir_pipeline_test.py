@@ -141,6 +141,12 @@ def run_flow(workspace: Path, env: dict) -> int:
     assert sd.get("step3_aligned_version") == 2, sd.get("step3_aligned_version")
     ok(f"step3 confirm_as_is → aligned IR v2（{sd['step3_aligned_file']}）")
 
+    # 4.1 Step3 final 文件应落在 pipeline/step3 子目录
+    sd = requests.get(f"{BASE}/api/pipelines/{pid}", timeout=30).json()["pipeline"]["step_data"]
+    final_file = sd.get("step3_final_file", "")
+    assert final_file, "缺少 step3_final_file"
+    assert (workspace / pid / "step3" / final_file).is_file(), "final 文件应在 pipeline/step3 子目录"
+
     # 5. Step4 IR 编译（确定性）
     r = requests.post(f"{BASE}/api/step4/compile", data={
         "pipeline_id": pid, "formats": "skill,cot,qa"}, timeout=120).json()
@@ -151,6 +157,15 @@ def run_flow(workspace: Path, env: dict) -> int:
     assert r.get("download_url"), "缺少 SKILL 下载"
     assert "quality_score" in r, "缺少质量分"
     ok(f"step4 compile (IR v2) → SKILL/COT/QA，质量分 {r.get('quality_score')}")
+
+    # 5.0 Step4 产物应落在 pipeline/step4 子目录
+    sd = requests.get(f"{BASE}/api/pipelines/{pid}", timeout=30).json()["pipeline"]["step_data"]
+    skill_file = sd.get("step4_skill_file", "")
+    assert skill_file, "缺少 step4_skill_file"
+    assert (workspace / pid / "step4" / skill_file).is_file(), "SKILL 文件应在 pipeline/step4 子目录"
+    zip_file = sd.get("step4_skill_dir_zip_file", "")
+    if zip_file:
+        assert (workspace / pid / "step4" / zip_file).is_file(), "zip 文件应在 pipeline/step4 子目录"
 
     skill_md = requests.get(f"{BASE}{r['download_url']}", timeout=30).text
     assert "负债率超过70%" in skill_md and "KN-001" not in skill_md[:50]
