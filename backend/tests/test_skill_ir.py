@@ -11,6 +11,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from pipeline_artifacts import locate_workspace_file  # noqa: E402
 from skill_ir import (  # noqa: E402
     STATUS_ALIGNED,
     STATUS_DRAFT,
@@ -179,7 +180,7 @@ def test_persist(new_ir):
         name = save_ir(td, new_ir, pipeline_id="pipe1234abcd")
         assert is_skill_draft_filename(name)
         assert "_v2_" in name
-        loaded = load_ir(Path(td) / name)
+        loaded = load_ir(locate_workspace_file(Path(td), name, pipeline_id="pipe1234abcd"))
         assert loaded["skill_meta"]["draft_version"] == 2
         assert len(loaded["entries"]) == 2
         # 非法 IR 拒绝保存

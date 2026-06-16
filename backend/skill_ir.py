@@ -24,6 +24,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from pipeline_artifacts import workspace_path_for
+
 IR_VERSION = "1.0"
 
 # IR 状态生命周期
@@ -491,8 +493,11 @@ def save_ir(workspace, ir: dict, pipeline_id: str = "") -> str:
         raise ValueError("IR 校验失败: " + "; ".join(errors[:5]))
     meta = ir.get("skill_meta") or {}
     pid = pipeline_id or _norm(meta.get("pipeline_id"))
-    name = draft_filename(pid, meta.get("draft_version", 1))
-    path = Path(workspace) / name
+    version = int(meta.get("draft_version", 1) or 1)
+    step = "step2" if version == 1 else "step3"
+    name = draft_filename(pid, version)
+    path = workspace_path_for(Path(workspace), pid, step, name)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(ir, ensure_ascii=False, indent=2), encoding="utf-8")
     return name
 

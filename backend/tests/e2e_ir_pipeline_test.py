@@ -23,6 +23,8 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from pipeline_artifacts import locate_workspace_file  # noqa: E402
+
 PORT = int(os.environ.get("E2E_PORT", "5057"))
 BASE = f"http://127.0.0.1:{PORT}"
 
@@ -183,7 +185,7 @@ def run_flow(workspace: Path, env: dict) -> int:
 
     sd = requests.get(f"{BASE}/api/pipelines/{pid}", timeout=30).json()["pipeline"]["step_data"]
     assert sd.get("step3_pending_suggestions") == [], "采纳后建议池应清空"
-    ir_v3 = json.loads((Path(workspace) / sd["step3_aligned_file"]).read_text(encoding="utf-8"))
+    ir_v3 = json.loads(locate_workspace_file(workspace, sd["step3_aligned_file"], pipeline_id=pid).read_text(encoding="utf-8"))
     e1 = next(e for e in ir_v3["entries"] if e["entry_id"] == "KN-001")
     assert "80%" in e1["fields"].get("例外情形", ""), e1["fields"]
     assert e1["lifecycle"]["revisions"], "应有修订审计"
