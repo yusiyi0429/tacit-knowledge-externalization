@@ -346,6 +346,27 @@ def _item_key(rec: dict, index: int) -> str:
     return f"条目{index + 1}"
 
 
+def _normalize_record(rec: dict) -> dict:
+    """兼容 IR v2 英文字段名与 Excel 中文字段名。"""
+    mapped = dict(rec)
+    field_map = {
+        "knowledge_desc": "知识描述",
+        "knowledge_ref": "来源文档",
+        "rule_ref": "规则引用",
+        "exception": "例外情形",
+        "output": "输出",
+    }
+    for src, dst in field_map.items():
+        if src in mapped and dst not in mapped:
+            mapped[dst] = mapped[src]
+    data_logic = mapped.get("data_logic")
+    if isinstance(data_logic, dict) and "判断逻辑" not in mapped:
+        sql = data_logic.get("sql", "")
+        if sql:
+            mapped["判断逻辑"] = sql
+    return mapped
+
+
 def _item_title(rec: dict) -> str:
     return (
         str(rec.get("知识描述", "")).strip()
@@ -425,7 +446,8 @@ def generate_cot_markdown(
         "",
     ]
 
-    for i, rec in enumerate(records):
+    for i, raw in enumerate(records):
+        rec = _normalize_record(raw)
         title = _item_title(rec)
         item_id = _item_key(rec, i)
         category = str(rec.get("知识分类", "")).strip() or "未分类"
@@ -499,7 +521,8 @@ def generate_cot_markdown(
 def generate_qa_pairs(records: list, scenario_name: str) -> list[dict]:
     """生成 QA 对列表。"""
     pairs = []
-    for i, rec in enumerate(records):
+    for i, raw in enumerate(records):
+        rec = _normalize_record(raw)
         item_id = _item_key(rec, i)
         qa = {
             "id": item_id,

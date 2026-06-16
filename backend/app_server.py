@@ -1610,7 +1610,7 @@ def api_step4_compile():
         {"has_pipeline_id": bool(pipeline_id), "input_basename": input_basename},
     )
 
-    from knowledge_delivery import excel_to_delivery_bundle, records_to_delivery_bundle
+    from knowledge_delivery import excel_to_delivery_bundle
 
     output_dir_name = f"delivery_{uuid.uuid4().hex[:8]}"
     output_dir_obj = workspace_path_for(WORKSPACE, pipeline_id, "step4", output_dir_name)
@@ -1648,29 +1648,36 @@ def api_step4_compile():
     published_version = 0
     try:
         if ir_path:
-            from skill_ir import ir_to_records, ir_version_info, load_ir
+            from skill_ir import load_ir
+            from agent_skill_builder import build_agent_skill_bundle
 
             ir = load_ir(ir_path)
             published_version = int(ir.get("skill_meta", {}).get("draft_version", 1) or 1)
-            result = records_to_delivery_bundle(
-                ir_to_records(ir),
-                ir_version_info(ir),
-                config_path,
+            result = build_agent_skill_bundle(
+                ir,
                 output_dir,
-                formats=formats,
-                source_name=ir.get("skill_meta", {}).get("scenario_name", ""),
-                pipeline_context=pipeline_ctx,
-                source_docs=source_docs,
-                ir_path=str(ir_path),
             )
+            result["status"] = "ok"
             result["input_kind"] = "ir"
             result["ir_source"] = ir_source_key
             result["ir_version"] = published_version
+            result["knowledge_count"] = len(ir.get("entries", []))
         else:
             result = excel_to_delivery_bundle(
                 input_path, config_path, output_dir, pipeline_ctx or None, formats=formats
             )
-            result["input_kind"] = "excel"
+            artifacts = result.get("artifacts") or {}
+            skill_zip_path = (artifacts.get("skill") or {}).get("zip_path")
+            qa_json_path = (artifacts.get("qa") or {}).get("path")
+
+            # Rebuild result with the two-artifact contract
+            result = {
+                "status": "ok",
+                "input_kind": "excel",
+                "knowledge_count": result.get("knowledge_count", 0),
+                "zip_path": skill_zip_path,
+                "qa_json_path": qa_json_path,
+            }
     except Exception as e:
         # region agent log
         _agent_debug_log(
@@ -1708,10 +1715,9 @@ def api_step4_compile():
         )
         return jsonify({"status": "error", "error": err})
 
-    artifacts = result.get("artifacts") or {}
     downloads = {}
 
-    def _publish_artifact(key: str, src_path: str, prefix: str, ext: str):
+    def _publish_artifact(key: str, src_path: str, prefix: str, ext: str, label: str):
         if not src_path or not os.path.isfile(src_path):
             return None
         name = f"{prefix}_{uuid.uuid4().hex[:8]}{ext}"
@@ -1721,59 +1727,21 @@ def api_step4_compile():
         info = {
             "file_name": name,
             "download_url": "/downloads/" + name,
+            "label": label,
         }
-        meta = artifacts.get(key) or {}
-        if meta.get("count") is not None:
-            info["count"] = meta["count"]
-        if meta.get("label"):
-            info["label"] = meta["label"]
         downloads[key] = info
         return name, "/downloads/" + name
 
-    cot_pub = _publish_artifact(
-        "cot", (artifacts.get("cot") or {}).get("path"), "COT", ".md"
-    )
-    qa_pub = _publish_artifact(
-        "qa", (artifacts.get("qa") or {}).get("path"), "QA", ".json"
-    )
-    qa_md_pub = _publish_artifact(
-        "qa_md", (artifacts.get("qa") or {}).get("markdown_path"), "QA", ".md"
-    )
-    skill_pub = _publish_artifact(
-        "skill", (artifacts.get("skill") or {}).get("path"), "SKILL", ".md"
-    )
-    manifest_pub = _publish_artifact(
-        "openclaw_manifest",
-        (artifacts.get("skill") or {}).get("manifest_path"),
-        "openclaw",
-        ".json",
-    )
-    skill_zip_pub = _publish_artifact(
-        "skill_zip",
-        (artifacts.get("skill") or {}).get("zip_path"),
-        "SKILL_DIR",
-        ".zip",
-    )
+    skill_zip_pub = _publish_artifact("skill_zip", result.get("zip_path"), "SKILL_DIR", ".zip", "Agent-Skill 可执行包")
+    step5_input_pub = _publish_artifact("step5_input", result.get("qa_json_path"), "QA", ".json", "Step5 验证输入")
 
     result["artifacts_download"] = downloads
-    if skill_pub:
-        result["download_url"] = skill_pub[1]
-        result["download_name"] = skill_pub[0]
-    if cot_pub:
-        result["cot_download_url"] = cot_pub[1]
-        result["cot_download_name"] = cot_pub[0]
-    if qa_pub:
-        result["qa_download_url"] = qa_pub[1]
-        result["qa_download_name"] = qa_pub[0]
-    if qa_md_pub:
-        result["qa_md_download_url"] = qa_md_pub[1]
-        result["qa_md_download_name"] = qa_md_pub[0]
-    if manifest_pub:
-        result["openclaw_manifest_url"] = manifest_pub[1]
-        result["openclaw_manifest_name"] = manifest_pub[0]
     if skill_zip_pub:
         result["skill_dir_zip_url"] = skill_zip_pub[1]
         result["skill_dir_zip_name"] = skill_zip_pub[0]
+    if step5_input_pub:
+        result["step5_input_url"] = step5_input_pub[1]
+        result["step5_input_name"] = step5_input_pub[0]
 
     # 质量评分（确定性规则）→ 发布门槛判定
     quality_score = None
@@ -1805,24 +1773,12 @@ def api_step4_compile():
             for p in pipelines:
                 if p["id"] == pipeline_id:
                     sd = p.setdefault("step_data", {})
-                    if skill_pub:
-                        sd["step4_skill_file"] = skill_pub[0]
-                        sd["step4_download_url"] = skill_pub[1]
-                    if cot_pub:
-                        sd["step4_cot_file"] = cot_pub[0]
-                        sd["step4_cot_download_url"] = cot_pub[1]
-                    if qa_pub:
-                        sd["step4_qa_file"] = qa_pub[0]
-                        sd["step4_qa_download_url"] = qa_pub[1]
-                    if qa_md_pub:
-                        sd["step4_qa_md_file"] = qa_md_pub[0]
-                        sd["step4_qa_md_download_url"] = qa_md_pub[1]
-                    if manifest_pub:
-                        sd["step4_manifest_file"] = manifest_pub[0]
-                        sd["step4_manifest_url"] = manifest_pub[1]
                     if skill_zip_pub:
                         sd["step4_skill_dir_zip_file"] = skill_zip_pub[0]
                         sd["step4_skill_dir_zip_url"] = skill_zip_pub[1]
+                    if step5_input_pub:
+                        sd["step4_step5_input_file"] = step5_input_pub[0]
+                        sd["step4_step5_input_url"] = step5_input_pub[1]
                     if published_version:
                         sd["step4_published_version"] = published_version
                     p.setdefault("step_status", {})
