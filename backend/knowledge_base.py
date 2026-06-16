@@ -155,6 +155,29 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 
+def get_db_schema_text() -> str:
+    """返回知识库核心表的 schema 文本，供 SQL 生成 prompt 使用。"""
+    if not DB_PATH.exists():
+        return ""
+    conn = sqlite3.connect(str(DB_PATH))
+    try:
+        cur = conn.execute("SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        lines = []
+        for name, sql in cur.fetchall():
+            lines.append(f"-- {name}")
+            lines.append(sql or "")
+            # columns
+            try:
+                cols = conn.execute(f"PRAGMA table_info({name})").fetchall()
+                for col in cols:
+                    lines.append(f"--   {col[1]} {col[2]}")
+            except sqlite3.Error:
+                pass
+        return "\n".join(lines)
+    finally:
+        conn.close()
+
+
 def init_db() -> None:
     conn = get_db()
     try:

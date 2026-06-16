@@ -952,6 +952,17 @@ def load_pipelines():
     return []
 
 
+def _get_pipeline(pipeline_id: str) -> dict | None:
+    if not pipeline_id:
+        return None
+    with _pipelines_lock:
+        pipelines = load_pipelines()
+        for p in pipelines:
+            if p.get("id") == pipeline_id:
+                return p
+    return None
+
+
 def save_pipelines(pipelines):
     """Persist pipelines list to JSON."""
     with open(str(PIPELINES_PATH), "w", encoding="utf-8") as f:
@@ -6805,6 +6816,157 @@ def _llm_call_for_interview(system_prompt, user_prompt, model_name):
         temperature=0.7,
     )
     return extract_assistant_content(result) if isinstance(result, dict) else str(result)
+
+
+@app.route("/api/step2/extract_rules", methods=["POST"])
+def api_step2_extract_rules():
+    """Step2a: 从知识文档萃取业务规则 IR（无 SQL）。"""
+    pipeline_id = request.form.get("pipeline_id", "")
+    model_name = request.form.get("model", "")
+    source_text = request.form.get("source_text", "")
+
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"status": "error", "error": "流水线不存在"})
+
+    if not model_name:
+        return jsonify({"status": "error", "error": "缺少 model 参数"})
+    if not get_model_by_name(model_name):
+        return jsonify({"status": "error", "error": f"模型 '{model_name}' 不可用"})
+
+    try:
+        step_data = pipeline.get("step_data") or {}
+        step1_form = step_data.get("step1_form_data") or {}
+        scenario_meta = {
+            "scenario_name": step1_form.get("scenario_name", pipeline.get("scenario", "")),
+            "scenario_content": step1_form.get("scenario_content", ""),
+            "sub_scenarios": step1_form.get("sub_scenarios", []),
+            "domain": pipeline.get("domain", ""),
+        }
+
+        # 如果没有 source_text，尝试从上传文件读取
+        if not source_text:
+            files = request.files.getlist("files")
+            parts = []
+            for f in files:
+                if f.filename:
+                    parts.append(f.read().decode("utf-8", errors="ignore"))
+            source_text = "\n\n".join(parts)
+
+        if not source_text:
+            return jsonify({"status": "error", "error": "缺少知识来源文本或文件"})
+
+        from step2_ir_extract import extract_rules_from_doc
+        entries = extract_rules_from_doc(scenario_meta, source_text, model_name)
+        if not entries:
+            return jsonify({"status": "error", "error": "未能从来源文档萃取出任何规则条目，请检查文档内容或模型输出"})
+
+        from skill_ir import new_draft_v2
+        ir = new_draft_v2(scenario_meta, entries, origin="doc_extract", pipeline_id=pipeline_id)
+
+        # 保存 IR v2 draft
+        from skill_ir import save_ir
+        ir_path = save_ir(WORKSPACE, ir, pipeline_id=pipeline_id)
+
+        # 持久化到 pipeline
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    sd = p.setdefault("step_data", {})
+                    sd["step2_draft_file"] = Path(ir_path).name
+                    sd["step2_draft_url"] = "/downloads/" + Path(ir_path).name
+                    sd["step2_draft_version"] = 1
+                    sd["step2_extracted_count"] = len(entries)
+                    sd["step2_has_sql"] = False
+                    break
+            save_pipelines(pipelines)
+
+        return jsonify({
+            "status": "ok",
+            "ir_path": Path(ir_path).name,
+            "download_url": "/downloads/" + Path(ir_path).name,
+            "entries_count": len(entries),
+            "ir": ir,
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"规则萃取失败: {e}"})
+
+
+@app.route("/api/step2/extract_sql", methods=["POST"])
+def api_step2_extract_sql():
+    """Step2b: 为规则 IR 生成取数逻辑 SQL。"""
+    pipeline_id = request.form.get("pipeline_id", "")
+    model_name = request.form.get("model", "")
+
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"status": "error", "error": "流水线不存在"})
+
+    if not model_name:
+        return jsonify({"status": "error", "error": "缺少 model 参数"})
+    if not get_model_by_name(model_name):
+        return jsonify({"status": "error", "error": f"模型 '{model_name}' 不可用"})
+
+    try:
+        from skill_ir import load_ir, save_ir, push_sql_history
+        from pipeline_artifacts import locate_workspace_file
+        from step2_ir_extract import fill_sql_for_entries
+        from knowledge_base import get_db_schema_text
+
+        sd = pipeline.get("step_data") or {}
+        ir_name = sd.get("step2_draft_file", "")
+        ir_path = locate_workspace_file(WORKSPACE, ir_name, pipeline_id=pipeline_id)
+        if not ir_path:
+            return jsonify({"status": "error", "error": "未找到 Step2a 规则 IR，请先萃取规则"})
+
+        ir = load_ir(ir_path)
+        if ir.get("ir_version") != "2.0":
+            return jsonify({"status": "error", "error": "当前 IR 不是 v2 格式"})
+
+        entries = ir.get("entries", [])
+        table_schema = get_db_schema_text() or "暂无表结构说明"
+
+        entries = fill_sql_for_entries(entries, table_schema, model_name)
+        ir["entries"] = entries
+        for entry in entries:
+            sql = entry.get("fields", {}).get("data_logic", {}).get("sql", "")
+            if sql:
+                push_sql_history(entry, sql, "llm")
+
+        ir["skill_meta"]["draft_version"] = 2
+        ir["skill_meta"]["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        ir["skill_meta"]["status"] = "draft"
+
+        new_ir_path = save_ir(WORKSPACE, ir, pipeline_id=pipeline_id)
+
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    sd = p.setdefault("step_data", {})
+                    sd["step2_draft_file"] = Path(new_ir_path).name
+                    sd["step2_draft_url"] = "/downloads/" + Path(new_ir_path).name
+                    sd["step2_draft_version"] = 2
+                    sd["step2_has_sql"] = True
+                    break
+            save_pipelines(pipelines)
+
+        return jsonify({
+            "status": "ok",
+            "ir_path": Path(new_ir_path).name,
+            "download_url": "/downloads/" + Path(new_ir_path).name,
+            "entries_count": len(entries),
+            "ir": ir,
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"SQL 生成失败: {e}"})
 
 
 @app.route("/api/step2/extract", methods=["POST"])

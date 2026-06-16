@@ -1,4 +1,5 @@
-from skill_ir import new_draft_v2, validate_ir_v2, push_sql_history, VALID_STEP_PHASES
+import pytest
+from skill_ir import new_draft_v2, validate_ir_v2, push_sql_history, VALID_STEP_PHASES, save_ir
 
 
 def test_new_draft_v2_basic():
@@ -370,3 +371,26 @@ def test_validate_ir_v2_data_logic_type_errors():
     base["entries"][0]["fields"]["data_logic"]["tables"] = ["t", 1]
     errors = validate_ir_v2(base)
     assert any("data_logic.tables must be string array" in e for e in errors)
+
+
+def test_save_ir_v2_validates(tmp_path):
+    ir = new_draft_v2(
+        {"scenario_name": "S", "sub_scenarios": []},
+        [{"entry_id": "KN-001", "step_phase": "客户筛选", "fields": {"knowledge_desc": "x", "knowledge_ref": "", "rule_ref": "", "output": ""}}],
+        pipeline_id="p1",
+    )
+    name = save_ir(str(tmp_path), ir, pipeline_id="p1")
+    assert name.startswith("skill_draft_p1_v1_")
+    assert name.endswith(".json")
+
+
+def test_save_ir_v2_rejects_invalid(tmp_path):
+    ir = new_draft_v2(
+        {"scenario_name": "S", "sub_scenarios": []},
+        [{"entry_id": "KN-001", "step_phase": "客户筛选", "fields": {"knowledge_desc": "x", "knowledge_ref": "", "rule_ref": "", "output": ""}}],
+        pipeline_id="p1",
+    )
+    # Remove a required field to make the IR v2 invalid.
+    del ir["entries"][0]["fields"]["knowledge_desc"]
+    with pytest.raises(ValueError):
+        save_ir(str(tmp_path), ir, pipeline_id="p1")

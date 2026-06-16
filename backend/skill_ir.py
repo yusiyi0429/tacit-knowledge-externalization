@@ -668,9 +668,14 @@ def is_skill_draft_filename(name: str) -> bool:
 
 def save_ir(workspace, ir: dict, pipeline_id: str = "") -> str:
     """保存 IR 到工作空间，返回文件名（basename）。"""
-    errors = validate_ir(ir)
-    if errors:
-        raise ValueError("IR 校验失败: " + "; ".join(errors[:5]))
+    if ir.get("ir_version") == IR_VERSION_V2:
+        errors = validate_ir_v2(ir)
+        if errors:
+            raise ValueError("IR v2 校验失败: " + "; ".join(errors[:5]))
+    else:
+        errors = validate_ir(ir)
+        if errors:
+            raise ValueError("IR 校验失败: " + "; ".join(errors[:5]))
     meta = ir.get("skill_meta") or {}
     pid = pipeline_id or _norm(meta.get("pipeline_id"))
     version = int(meta.get("draft_version", 1) or 1)
@@ -685,7 +690,12 @@ def save_ir(workspace, ir: dict, pipeline_id: str = "") -> str:
 def load_ir(path) -> dict:
     p = Path(path)
     ir = json.loads(p.read_text(encoding="utf-8"))
-    errors = validate_ir(ir)
-    if errors:
-        raise ValueError(f"IR 文件非法 {p.name}: " + "; ".join(errors[:5]))
+    if ir.get("ir_version") == IR_VERSION_V2:
+        errors = validate_ir_v2(ir)
+        if errors:
+            raise ValueError(f"IR v2 文件非法 {p.name}: " + "; ".join(errors[:5]))
+    else:
+        errors = validate_ir(ir)
+        if errors:
+            raise ValueError(f"IR 文件非法 {p.name}: " + "; ".join(errors[:5]))
     return ir
