@@ -1,0 +1,49 @@
+{
+  "schema": "agentskills.io/manifest/v1",
+  "name": "default-knowledge-extraction",
+  "display_name": "通用知识萃取结构",
+  "description": "通用知识萃取结构 专家经验 Skill（3 条知识）",
+  "version": "v2",
+  "entry": "SKILL.md",
+  "generator": "tacit-knowledge-pipeline",
+  "compatible": [
+    "openclaw",
+    "hermes",
+    "claude-code",
+    "cursor",
+    "codex",
+    "windsurf"
+  ],
+  "metadata": {
+    "openclaw": {
+      "tags": [
+        "判断规则",
+        "操作流程",
+        "反模式",
+        "客户筛选",
+        "科技型企业普惠贷款营销",
+        "指建设银行拟运用互联网和移动通信等信息通"
+      ],
+      "emoji": "📋",
+      "requires": {
+        "bins": []
+      }
+    },
+    "hermes": {
+      "tags": [
+        "判断规则",
+        "操作流程",
+        "反模式",
+        "客户筛选",
+        "科技型企业普惠贷款营销",
+        "指建设银行拟运用互联网和移动通信等信息通"
+      ],
+      "related_skills": [],
+      "requires_toolsets": []
+    },
+    "tacit_knowledge": {
+      "knowledge_count": 3,
+      "generated_at": "2026-06-16T14:53:22"
+    }
+  }
+}
