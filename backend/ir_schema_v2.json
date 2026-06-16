@@ -1,0 +1,104 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SkillIR v2",
+  "type": "object",
+  "required": ["ir_version", "skill_meta", "anchors", "entries"],
+  "properties": {
+    "ir_version": { "const": "2.0" },
+    "skill_meta": {
+      "type": "object",
+      "required": ["scenario_name", "domain", "draft_version", "status"],
+      "properties": {
+        "scenario_name": { "type": "string" },
+        "display_name": { "type": "string" },
+        "domain": { "type": "string" },
+        "slug": { "type": "string" },
+        "pipeline_id": { "type": "string" },
+        "draft_version": { "type": "integer" },
+        "status": { "enum": ["draft", "aligned", "published"] },
+        "parent_version": { "type": "integer" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      }
+    },
+    "anchors": {
+      "type": "object",
+      "required": ["scenario", "scenario_desc", "sub_scenarios"],
+      "properties": {
+        "scenario": { "type": "string" },
+        "scenario_desc": { "type": "string" },
+        "sub_scenarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "desc"],
+            "properties": {
+              "name": { "type": "string" },
+              "desc": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["entry_id", "step_phase", "fields"],
+        "properties": {
+          "entry_id": { "type": "string", "pattern": "^KN-[0-9]{3,}$" },
+          "sub_scenario": { "type": "string" },
+          "step_phase": { "enum": ["客户筛选", "客户数据匹配", "原因归因", "决策建议"] },
+          "fields": {
+            "type": "object",
+            "required": ["knowledge_desc", "knowledge_ref", "rule_ref", "output", "data_logic"],
+            "properties": {
+              "knowledge_desc": { "type": "string" },
+              "knowledge_ref": { "type": "string" },
+              "rule_ref": { "type": "string" },
+              "exception": { "type": "string" },
+              "output": { "type": "string" },
+              "data_logic": {
+                "type": "object",
+                "required": ["sql"],
+                "properties": {
+                  "sql": { "type": "string" },
+                  "tables": { "type": "array", "items": { "type": "string" } },
+                  "fields": { "type": "array", "items": { "type": "string" } },
+                  "confidence": { "enum": ["high", "medium", "low"] }
+                }
+              }
+            }
+          },
+          "lifecycle": {
+            "type": "object",
+            "properties": {
+              "origin": { "type": "string" },
+              "source_label": { "type": "string" },
+              "revisions": { "type": "array" }
+            }
+          },
+          "flags": {
+            "type": "object",
+            "properties": {
+              "sql_manually_edited": { "type": "boolean" },
+              "sql_history": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sql": { "type": "string" },
+                    "generated_at": { "type": "string" },
+                    "generated_by": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "signals": { "type": "object" },
+    "revision_log": { "type": "array" }
+  }
+}

@@ -27,6 +27,11 @@ from pathlib import Path
 from pipeline_artifacts import workspace_path_for
 
 IR_VERSION = "1.0"
+IR_VERSION_V2 = "2.0"
+
+VALID_STEP_PHASES = ("客户筛选", "客户数据匹配", "原因归因", "决策建议")
+
+_VALID_CONFIDENCE = ("high", "medium", "low")
 
 # IR 状态生命周期
 STATUS_DRAFT = "draft"
@@ -160,6 +165,101 @@ def new_draft(
         },
         "entries": entries,
         "signals": signals or {},
+        "revision_log": [],
+    }
+
+
+def new_draft_v2(
+    scenario_meta: dict,
+    entries: list[dict],
+    *,
+    origin: str = "doc_extract",
+    pipeline_id: str = "",
+) -> dict:
+    """从 Step2a/2b 萃取 entries 组装 Skill IR v2。"""
+    meta = scenario_meta or {}
+    sub_list = []
+    for sub in meta.get("sub_scenarios") or []:
+        if not isinstance(sub, dict):
+            continue
+        name = _norm(sub.get("name"))
+        desc = _norm(sub.get("content") or sub.get("desc"))
+        if name or desc:
+            sub_list.append({"name": name, "desc": desc})
+
+    normalized_entries = []
+    for i, entry in enumerate(entries or []):
+        if not isinstance(entry, dict):
+            continue
+        explicit = _norm(entry.get("entry_id"))
+        entry_id = explicit if ENTRY_ID_PATTERN.match(explicit) else f"KN-{i + 1:03d}"
+        fields = entry.get("fields")
+        if not isinstance(fields, dict):
+            fields = {}
+        data_logic = fields.get("data_logic")
+        if isinstance(data_logic, dict):
+            confidence = data_logic.get("confidence")
+            data_logic = {
+                "sql": _norm(data_logic.get("sql")),
+                "tables": [str(v) for v in (data_logic.get("tables") or []) if v is not None],
+                "fields": [str(v) for v in (data_logic.get("fields") or []) if v is not None],
+            }
+            if confidence:
+                data_logic["confidence"] = confidence
+        else:
+            data_logic = {"sql": ""}
+        normalized_entries.append({
+            "entry_id": entry_id,
+            "sub_scenario": _norm(entry.get("sub_scenario")),
+            "step_phase": _norm(entry.get("step_phase")),
+            "fields": {
+                "knowledge_desc": _norm(fields.get("knowledge_desc")),
+                "knowledge_ref": _norm(fields.get("knowledge_ref")),
+                "rule_ref": _norm(fields.get("rule_ref")),
+                "exception": _norm(fields.get("exception")),
+                "output": _norm(fields.get("output")),
+                "data_logic": data_logic,
+            },
+            "lifecycle": {
+                "origin": _norm(entry.get("origin")) or origin,
+                "source_label": _norm(entry.get("source_label")),
+                "revisions": [],
+            },
+            "flags": {
+                "sql_manually_edited": False,
+                "sql_history": [],
+            },
+        })
+
+    # entry_id 去重（显式编号可能冲突）
+    seen = set()
+    for e in normalized_entries:
+        if e["entry_id"] in seen:
+            e["entry_id"] = _next_entry_id(normalized_entries)
+        seen.add(e["entry_id"])
+
+    now = _now()
+    return {
+        "ir_version": IR_VERSION_V2,
+        "skill_meta": {
+            "scenario_name": _norm(meta.get("scenario_name")),
+            "display_name": _norm(meta.get("display_name")) or _norm(meta.get("scenario_name")),
+            "domain": _norm(meta.get("domain")) or "通用",
+            "slug": _norm(meta.get("slug")),
+            "pipeline_id": pipeline_id,
+            "draft_version": 1,
+            "status": STATUS_DRAFT,
+            "parent_version": 0,
+            "created_at": now,
+            "updated_at": now,
+        },
+        "anchors": {
+            "scenario": _norm(meta.get("scenario_name")),
+            "scenario_desc": _norm(meta.get("scenario_content") or meta.get("scenario_desc")),
+            "sub_scenarios": sub_list,
+        },
+        "entries": normalized_entries,
+        "signals": {},
         "revision_log": [],
     }
 
@@ -446,6 +546,86 @@ def validate_ir(ir: dict) -> list[str]:
         if not isinstance(e.get("fields"), dict):
             errors.append(f"{eid or i}: fields 必须是对象")
     return errors
+
+
+def validate_ir_v2(ir: dict) -> list[str]:
+    """校验 IR v2 基本结构；返回错误列表（空列表 = 合法）。"""
+    errors = []
+    if not isinstance(ir, dict):
+        return ["IR 必须是 JSON 对象"]
+    if ir.get("ir_version") != IR_VERSION_V2:
+        errors.append(f"ir_version must be {IR_VERSION_V2}")
+        return errors
+    if not isinstance(ir.get("skill_meta"), dict):
+        errors.append("skill_meta must be object")
+    if not isinstance(ir.get("anchors"), dict):
+        errors.append("anchors must be object")
+    entries = ir.get("entries")
+    if not isinstance(entries, list):
+        errors.append("entries must be array")
+        return errors
+    seen_ids = set()
+    required_fields = ("knowledge_desc", "knowledge_ref", "rule_ref", "output", "data_logic")
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            errors.append(f"entries[{i}] 必须是对象")
+            continue
+        eid = _norm(entry.get("entry_id"))
+        prefix = eid or f"entries[{i}]"
+        if not eid:
+            errors.append(f"entries[{i}] 缺少 entry_id")
+        elif not ENTRY_ID_PATTERN.match(eid):
+            errors.append(f"{prefix}: entry_id 格式非法: {eid!r}")
+        elif eid in seen_ids:
+            errors.append(f"entry_id 重复: {eid}")
+        else:
+            seen_ids.add(eid)
+        phase = _norm(entry.get("step_phase"))
+        if phase not in VALID_STEP_PHASES:
+            errors.append(f"{prefix}: invalid step_phase {phase!r}")
+        fields = entry.get("fields") or {}
+        if not isinstance(fields, dict):
+            errors.append(f"{prefix}: fields 必须是对象")
+            continue
+        for req in required_fields:
+            if req not in fields:
+                errors.append(f"{prefix}: missing required field {req}")
+        data_logic = fields.get("data_logic")
+        if not isinstance(data_logic, dict):
+            errors.append(f"{prefix}: data_logic must be object")
+        elif "sql" not in data_logic:
+            errors.append(f"{prefix}: data_logic.sql is required")
+        else:
+            if not isinstance(data_logic.get("sql"), str):
+                errors.append(f"{prefix}: data_logic.sql must be string")
+            for key in ("tables", "fields"):
+                val = data_logic.get(key)
+                if val is not None and not isinstance(val, list):
+                    errors.append(f"{prefix}: data_logic.{key} must be array")
+                elif isinstance(val, list):
+                    if any(not isinstance(v, str) for v in val):
+                        errors.append(f"{prefix}: data_logic.{key} must be string array")
+            confidence = data_logic.get("confidence")
+            if confidence is not None and confidence not in _VALID_CONFIDENCE:
+                errors.append(f"{prefix}: data_logic.confidence must be high|medium|low")
+    return errors
+
+
+def push_sql_history(entry: dict, sql: str, generated_by: str = "llm") -> None:
+    """保存 SQL 生成历史。"""
+    flags = entry.get("flags")
+    if not isinstance(flags, dict):
+        flags = {}
+        entry["flags"] = flags
+    history = flags.setdefault("sql_history", [])
+    if not isinstance(history, list):
+        history = []
+        flags["sql_history"] = history
+    history.append({
+        "sql": sql,
+        "generated_at": _now(),
+        "generated_by": generated_by,
+    })
 
 
 def diff_ir(ir_a: dict, ir_b: dict) -> list[dict]:
