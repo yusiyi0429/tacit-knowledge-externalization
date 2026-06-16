@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 PROTECTED_WORKSPACE_FILES = frozenset({
@@ -128,6 +129,25 @@ def is_skill_draft_filename(name: str) -> bool:
     """Skill IR 草稿文件（Step2 v1 draft / Step3 aligned vN）。"""
     n = basename_only(name).lower()
     return n.endswith(".json") and n.startswith("skill_draft_")
+
+
+_STEP_PREFIX_RULES = [
+    (re.compile(r"^(?:edited_step1_|template_)"), "step1"),
+    (re.compile(r"^(?:edited_step2_|preextract_|fusion_|signal_report_|interview_|skill_draft_.*_v1_)"), "step2"),
+    (re.compile(r"^(?:edited_step3_|final_|revision_|skill_draft_.*_v(?!1\b)\d+_)"), "step3"),
+    (re.compile(r"^(?:SKILL_|SKILL_DIR_|COT_|QA_|openclaw_|delivery_|pattern_mining_|gap_analysis_|freshness_audit_)"), "step4"),
+    (re.compile(r"^(?:validation_|quality_report_)"), "step5"),
+    (re.compile(r"^(?:cache_s\d+|upload|edit_read|upload_tpl)_"), "uploads"),
+]
+
+
+def infer_file_step(name: str) -> str | None:
+    """根据文件名前缀推断所属 step/目录。"""
+    base = basename_only(name)
+    for pattern, step in _STEP_PREFIX_RULES:
+        if pattern.search(base):
+            return step
+    return None
 
 
 def resolve_knowledge_ir_path(
