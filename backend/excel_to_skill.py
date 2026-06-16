@@ -777,6 +777,7 @@ def format_knowledge_item(rec: dict) -> str:
     # 场景专属字段（非通用字段，排在前面）
     common_field_names = {
         "知识编号", "知识分类", "知识描述", "适用条件", "判断逻辑",
+        "知识引用", "规则引用",
         "反模式/踩坑提示", "来源文档", "来源位置", "原文摘录",
         "置信度", "贡献专家", "确认专家", "备注",
         "场景", "子场景", "子场景说明", "步骤", "_source_sheet",
@@ -793,6 +794,21 @@ def format_knowledge_item(rec: dict) -> str:
     logic = rec.get("判断逻辑", "")
     if logic:
         parts.append(f"  - 判断逻辑：{logic}")
+
+    knowledge_ref = rec.get("知识引用", "")
+    if knowledge_ref:
+        parts.append(f"  - 知识引用（取数逻辑）：{knowledge_ref}")
+
+    rule_ref = rec.get("规则引用", "")
+    if rule_ref:
+        parts.append(f"  - 规则引用（取数逻辑）：{rule_ref}")
+        # 尝试把本条规则翻译成伪 SQL
+        tags = _split_tags(knowledge_ref)
+        if not tags:
+            tags = _split_tags(rec.get("知识描述", ""))
+        sql = _rule_to_sql(rule_ref, tags)
+        if sql:
+            parts.append(f"  - 伪 SQL：`{sql}`")
 
     anti_pattern = rec.get("反模式/踩坑提示", "")
     if anti_pattern:
@@ -828,6 +844,246 @@ def format_knowledge_item(rec: dict) -> str:
         parts.append(f"  - 署名：{' | '.join(attribution)}")
 
     return "\n".join(parts)
+
+
+def _split_tags(text: str) -> list[str]:
+    """从「涉及标签：A、B、C」或「A,B,C」文本中拆分出独立标签。"""
+    if not text:
+        return []
+    # 去掉「涉及标签：」前缀
+    text = re.sub(r"涉及标签[：:]\s*", "", text)
+    # 按中文顿号、英文逗号、逗号+空格拆分
+    parts = re.split(r"[,，]\s*|[、]", text)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _rule_to_sql(rule_text: str, tags: list[str]) -> str | None:
+    """把自然语言规则引用尽量翻译成伪 SQL 表达式。
+
+    支持：
+    - 比较：A > X, A = 'Y', A != 'Y'
+    - 逻辑：A 且 B / A 或 B -> A AND B / A OR B
+    - 计算：净流出 = 借方交易金额 - 贷方交易金额
+    - 任一标志：上述任一标志='1' -> tag1='1' OR tag2='1' OR ...
+    """
+    if not rule_text:
+        return None
+    t = rule_text.strip()
+    if not t:
+        return None
+
+    # 动作性/建议性描述，不转 SQL
+    if re.search(r"^(推荐|建议|强调|优先|营销|转向|制定|输出|按|对.*客户)", t):
+        return None
+
+    # "上述任一标志='1'" 模式：用具体标签展开
+    if re.search(r"上述任一[标志标签].*?=['\"]?1['\"]?", t) and tags:
+        cols = [f"{tag} = '1'" for tag in tags]
+        return "(" + " OR ".join(cols) + ")"
+
+    # 去掉描述性后缀/前缀
+    t = re.sub(r"[，,]?\s*(即|视为|认为|则|可|才|就)\s*.*$", "", t)
+    t = re.sub(r"^[^：:：]+[：:]\s*", "", t)
+    t = re.sub(r"[；;].*$", "", t)
+
+    if not t:
+        return None
+
+    # 保护引号字符串，替换中文连接词
+    placeholders: list[str] = []
+
+    def _protect(m: re.Match) -> str:
+        placeholders.append(m.group(0))
+        return f"\x00{len(placeholders) - 1}\x00"
+
+    s = re.sub(r"'[^']*'|\"[^\"]*\"", _protect, t)
+    s = re.sub(r"\s*且\s*|\s*和\s*", " AND ", s)
+    s = re.sub(r"\s*或\s*", " OR ", s)
+    for i, ph in enumerate(placeholders):
+        s = s.replace(f"\x00{i}\x00", ph)
+
+    # 比较表达式的右侧可能是普通值，也可能是 (A+B) 这种表达式
+    # 左侧/字段也可以带括号
+    value_pat = r"(\([^)]+\)|'[^']*'|\"[^\"]*\"|[^\s()，,、]+(?:\s*[+\-*/]\s*[^\s()，,、]+)*)"
+    field_pat = r"(\([^)]+\)|[^\s+\-*/()<>=!，,、]+)"
+    comp_re = re.compile(field_pat + r"\s*(>=|<=|>|<|!=|<>|=)\s*" + value_pat)
+
+    # 记录匹配位置，用于重建表达式
+    matches = list(comp_re.finditer(s))
+    if not matches:
+        # 没有比较式，尝试纯计算式
+        calc_m = re.match(r"([^=]+)\s*=\s*(.+)", s)
+        if calc_m:
+            lhs = calc_m.group(1).strip()
+            rhs = calc_m.group(2).strip()
+            if re.match(r"^[\w\s+\-*/()_,.]+$", rhs):
+                return f"{lhs} = {rhs}"
+        return None
+
+    # 多个比较：保留 AND/OR 连接词顺序
+    parts = []
+    conns = []
+    last_end = 0
+    for m in matches:
+        col = m.group(1).strip()
+        op = m.group(2).strip()
+        val = m.group(3).strip()
+        # OR 连接的子表达式整体加括号，避免 AND/OR 优先级混乱
+        is_or_branch = False
+        if last_end > 0:
+            between = s[last_end:m.start()]
+            if re.search(r"\bOR\b", between, re.IGNORECASE):
+                is_or_branch = True
+                conns.append("OR")
+            else:
+                conns.append("AND")
+        parts.append((col, op, val, is_or_branch))
+        last_end = m.end()
+
+    # 把 OR 分支的连续子表达式合并到同一个括号内
+    grouped = []
+    current_or = []
+    for i, (col, op, val, is_or_branch) in enumerate(parts):
+        if i == 0:
+            current_or.append(f"{col} {op} {val}")
+            continue
+        if is_or_branch:
+            current_or.append(f"{col} {op} {val}")
+        else:
+            if len(current_or) > 1:
+                grouped.append("(" + " OR ".join(current_or) + ")")
+            elif current_or:
+                grouped.append(current_or[0])
+            current_or = [f"{col} {op} {val}"]
+    if len(current_or) > 1:
+        grouped.append("(" + " OR ".join(current_or) + ")")
+    elif current_or:
+        grouped.append(current_or[0])
+
+    return " AND ".join(grouped)
+
+
+def _format_data_logic_section(records: list) -> list:
+    """汇总所有条目的知识引用/规则引用，生成「取数逻辑」章节（含伪 SQL）。"""
+    lines = []
+    knowledge_refs = []
+    rule_refs = []
+    data_tags = []
+    institution_refs = []
+    sql_items = []
+
+    for r in records:
+        kr = str(r.get("知识引用", "")).strip()
+        rr = str(r.get("规则引用", "")).strip()
+        desc = str(r.get("知识描述", "")).strip()
+        if kr:
+            knowledge_refs.append(kr)
+        if rr:
+            rule_refs.append(rr)
+        # 从「涉及标签：...」中提取数据标签（知识引用 + 知识描述）
+        entry_tags = []
+        tag_sources = [kr, desc]
+        for src in tag_sources:
+            for m in re.finditer(r"涉及标签[：:]\s*([^\n]+)", src):
+                entry_tags.extend(_split_tags(m.group(1)))
+                data_tags.extend(_split_tags(m.group(1)))
+            # 知识描述里常见的「涉及标签：A、B、C」之外，也可能直接列出字段名
+            # 例如："借方交易金额与贷方交易金额用于计算净流出"
+        # 从规则引用/知识引用中提取制度文件编号
+        for m in re.finditer(r"建总(?:发|规章?)〔\d{4}〕\d+\s*号", str(r.get("知识引用", "")) + "\n" + str(r.get("规则引用", ""))):
+            institution_refs.append(m.group(0))
+
+        # 尝试把规则引用翻译成 SQL
+        if rr:
+            sql = _rule_to_sql(rr, entry_tags)
+            if sql:
+                sql_items.append({"rule": rr, "sql": sql, "tags": entry_tags})
+
+    lines.append("## 取数逻辑")
+    lines.append("")
+    lines.append("本 Skill 在执行时需要依赖以下数据标签、筛选规则与制度依据。每条规则均给出可直接落地的伪 SQL 表达式。")
+    lines.append("")
+
+    unique_tags = list(dict.fromkeys(data_tags))
+    if unique_tags:
+        lines.append("### 数据标签清单")
+        lines.append("")
+        lines.append("执行本 Skill 需从数据仓库/客户视图抽取以下字段（建议映射到统一客户宽表）：")
+        lines.append("")
+        for tag in unique_tags:
+            # 给出字段英文别名建议（先去掉通用前缀，再替换常用后缀）
+            alias = tag
+            alias = re.sub(r"^对公客户", "", alias)
+            alias = re.sub(r"当前\s*", "cur_", alias)
+            alias = re.sub(r"当日\s*", "td_", alias)
+            alias = re.sub(r"年日均\s*", "ytd_avg_", alias)
+            alias = alias.replace("标志", "_flag")\
+                           .replace("余额", "_bal")\
+                           .replace("金额", "_amt")\
+                           .replace("次数", "_cnt")\
+                           .replace("额度", "_limit")
+            # 去掉开头/结尾的下划线
+            alias = alias.strip("_")
+            # 去掉连续下划线
+            alias = re.sub(r"_+", "_", alias)
+            if not alias:
+                alias = tag
+            lines.append(f"- `{tag}`  （建议字段名：`{alias}`）")
+        lines.append("")
+
+    if sql_items:
+        lines.append("### 可执行筛选/计算规则（伪 SQL）")
+        lines.append("")
+        lines.append("```sql")
+        lines.append("-- 客户筛选池")
+        where_clauses = []
+        calc_clauses = []
+        for item in sql_items:
+            sql = item["sql"]
+            # 简单分类：含 AND/OR/比较符的入 WHERE；含 = 且右侧是表达式的入计算/赋值
+            if re.search(r"\b(AND|OR)\b|>=|<=|!=|<>|>\s|<=?\s", sql):
+                where_clauses.append(sql)
+            elif "=" in sql and re.search(r"[+\-*/]", sql):
+                calc_clauses.append(sql)
+            else:
+                where_clauses.append(sql)
+
+        if where_clauses:
+            lines.append("SELECT * FROM corporate_customer_wide")
+            lines.append("WHERE " + "\n  AND ".join(dict.fromkeys(where_clauses)) + ";")
+            lines.append("")
+        if calc_clauses:
+            lines.append("-- 衍生指标计算")
+            for c in calc_clauses:
+                lines.append(f"{c};")
+        lines.append("```")
+        lines.append("")
+
+    unique_rr = list(dict.fromkeys(rule_refs))
+    if unique_rr:
+        lines.append("### 规则原文参考")
+        lines.append("")
+        for item in unique_rr[:30]:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    unique_kr = list(dict.fromkeys(knowledge_refs))
+    if unique_kr:
+        lines.append("### 专家经验与知识引用")
+        lines.append("")
+        for item in unique_kr[:30]:  # 避免章节过长
+            lines.append(f"- {item}")
+        lines.append("")
+
+    unique_inst = list(dict.fromkeys(institution_refs))
+    if unique_inst:
+        lines.append("### 制度依据")
+        lines.append("")
+        for item in unique_inst:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    return lines
 
 
 def compute_quality_metrics(records: list, groups: dict) -> dict:
@@ -999,6 +1255,9 @@ def generate_skill_md(records: list, groups: dict, config: dict, scenario_name: 
             for item in items:
                 lines.append(format_knowledge_item(item))
                 lines.append("")
+
+    # 取数逻辑章节
+    lines.extend(_format_data_logic_section(records))
 
     # Anti-patterns summary
     if compilation.get("include_anti_patterns_section", True):

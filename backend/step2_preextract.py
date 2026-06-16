@@ -17,15 +17,18 @@ from step1_template import (
 )
 
 # 英文字段 / 中文字段 → 模板列名候选（子串匹配）
+# 注意：「步骤/环节」是结构性阶段标识，不映射到 category，避免把知识分类写入阶段列。
 FIELD_COLUMN_ALIASES = {
-    "category": ("知识类型", "知识分类", "分类", "类别", "环节", "步骤", "category"),
-    "content": ("具体方法", "知识描述", "知识内容", "知识引用", "方法", "content"),
+    "category": ("知识类型", "知识分类", "分类", "类别", "category"),
+    "content": ("具体方法", "知识描述", "知识内容", "方法", "content"),
     "trigger_condition": ("访谈方向", "适用条件", "触发条件", "条件", "关键输出-名称", "名称", "trigger_condition"),
-    "judgment_logic": ("判断逻辑", "决策逻辑", "规则引用", "judgment_logic"),
+    "judgment_logic": ("判断逻辑", "决策逻辑", "judgment_logic"),
+    "knowledge_ref": ("知识引用", "knowledge_ref"),
+    "rule_ref": ("规则引用", "rule_ref"),
     "anti_pattern": ("反模式", "踩坑", "反模式/踩坑提示", "关键输出-描述", "描述", "anti_pattern"),
     "source": ("来源", "来源文档", "source"),
     "confidence": ("置信度", "confidence"),
-    "excerpt": ("原文摘录", "原文", "摘录", "知识引用"),
+    "excerpt": ("原文摘录", "原文", "摘录"),
 }
 
 STANDARD_HEADERS = [
@@ -63,6 +66,14 @@ def normalize_item(item: dict) -> dict:
         "judgment_logic": _norm(
             item.get("judgment_logic")
             or item.get("判断逻辑")
+        ),
+        "knowledge_ref": _norm(
+            item.get("knowledge_ref")
+            or item.get("知识引用")
+        ),
+        "rule_ref": _norm(
+            item.get("rule_ref")
+            or item.get("规则引用")
         ),
         "anti_pattern": _norm(
             item.get("anti_pattern")

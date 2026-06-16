@@ -336,10 +336,17 @@ def search_entries(
     scenario: str = "",
     query: str = "",
     *,
+    sub_scenario: str = "",
+    category: str = "",
     top_k: int = 20,
     status: str = "active",
+    min_score: float = 0.0,
 ) -> list[dict]:
-    """检索知识条目：domain/scenario 过滤 + query 词重叠重排。"""
+    """检索知识条目：严格按 domain/scenario 过滤，可选 sub_scenario/category 进一步收缩。
+
+    不再在 domain/scenario 无命中时自动回退全库搜索，避免无关知识注入 Step2。
+    当传入 query 时，仅在精确匹配结果内按字符 bigram 相似度重排，并可用 min_score 过滤。
+    """
     init_db()
     conn = get_db()
     try:
@@ -354,13 +361,15 @@ def search_entries(
         if scenario:
             sql += " AND scenario = ?"
             params.append(scenario)
+        if sub_scenario:
+            sql += " AND sub_scenario = ?"
+            params.append(sub_scenario)
+        if category:
+            sql += " AND category = ?"
+            params.append(category)
         rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     finally:
         conn.close()
-
-    # 域/场景无精确命中时放宽到全库（跨场景复用）
-    if not rows and (domain or scenario):
-        return search_entries("", "", query or scenario or domain, top_k=top_k, status=status)
 
     results = []
     for r in rows:
@@ -370,7 +379,11 @@ def search_entries(
             fields = {}
         r["fields"] = fields
         r.pop("fields_json", None)
-        r["_score"] = _similarity(query, _entry_text(fields)) if query else 0.0
+        score = _similarity(query, _entry_text(fields)) if query else 0.0
+        r["_score"] = score
+        # min_score 仅在传入 query 时生效；空 query 时保留所有精确匹配结果
+        if query and min_score > 0 and score < min_score:
+            continue
         results.append(r)
     if query:
         results.sort(key=lambda x: x["_score"], reverse=True)
@@ -403,7 +416,16 @@ def import_entries_as_records(entry_uids: list[str]) -> list[dict]:
         rec["子场景"] = r.get("sub_scenario") or rec.get("子场景", "")
         rec["kb_entry_id"] = r.get("entry_uid")
         rec["_origin"] = "kb_import"
-        rec["source_label"] = f"知识库继承（{r.get('entry_uid')}）"
+        rec["_kb_meta"] = {
+            "domain": r.get("domain", ""),
+            "scenario": r.get("scenario", ""),
+            "sub_scenario": r.get("sub_scenario", ""),
+            "category": r.get("category", ""),
+        }
+        source_label = f"知识库继承（{r.get('entry_uid')}）"
+        if r.get("scenario"):
+            source_label += f" · 场景:{r.get('scenario')}"
+        rec["source_label"] = source_label
         records.append(rec)
     return records
 

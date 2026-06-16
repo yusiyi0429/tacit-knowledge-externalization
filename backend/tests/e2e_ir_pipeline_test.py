@@ -155,6 +155,7 @@ def run_flow(workspace: Path, env: dict) -> int:
     assert r.get("ir_version") == 2
     assert r.get("knowledge_count") == 2
     assert r.get("download_url"), "缺少 SKILL 下载"
+    assert r.get("skill_dir_zip_url"), "缺少 Skill 目录 zip 下载"
     assert "quality_score" in r, "缺少质量分"
     ok(f"step4 compile (IR v2) → SKILL/COT/QA，质量分 {r.get('quality_score')}")
 
@@ -170,6 +171,18 @@ def run_flow(workspace: Path, env: dict) -> int:
     skill_md = requests.get(f"{BASE}{r['download_url']}", timeout=30).text
     assert "负债率超过70%" in skill_md and "KN-001" not in skill_md[:50]
     ok("SKILL.md 终版内容校验")
+
+    # 5.1 Skill 目录 zip 包校验
+    zip_resp = requests.get(f"{BASE}{r['skill_dir_zip_url']}", timeout=30)
+    assert zip_resp.status_code == 200, f"zip 下载失败: {zip_resp.status_code}"
+    import zipfile, io
+    with zipfile.ZipFile(io.BytesIO(zip_resp.content)) as zf:
+        names = zf.namelist()
+        assert any(n.endswith("SKILL.md") for n in names), "zip 中缺少 SKILL.md"
+        assert any(n.endswith("manifest.json") for n in names), "zip 中缺少 manifest.json"
+        assert any("references/" in n and not n.endswith("/") for n in names), "zip 中缺少 references"
+        assert any("scripts/" in n and n.endswith(".py") for n in names), "zip 中缺少 scripts"
+    ok(f"skill dir zip 下载校验通过，文件数 {len(names)}")
 
     # 6. Step4 质量（IR 进程内评分）
     r = requests.post(f"{BASE}/api/step4/quality", data={"pipeline_id": pid}, timeout=60).json()
@@ -248,6 +261,7 @@ def run_flow(workspace: Path, env: dict) -> int:
     sd = r["pipeline"]["step_data"]
     for key in ("step3_aligned_file", "step3_final_file", "step3_pending_suggestions",
                 "step4_skill_file", "step4_published_version",
+                "step4_skill_dir_zip_file", "step4_skill_dir_zip_url",
                 "step5_replay_file", "step5_hit_rate", "step5_suggestions_file"):
         assert not sd.get(key), f"rollback 后 {key} 应被清理: {sd.get(key)}"
     assert r["pipeline"]["step_status"].get("5") == "pending"

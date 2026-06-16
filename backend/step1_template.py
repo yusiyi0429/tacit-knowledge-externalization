@@ -16,8 +16,9 @@ ANCHOR_HEADERS = {
 }
 
 # 数据区不保留模板示例值的列（表头行 1–2 仍保留列名）
+# 注意：「步骤/环节」属于结构性阶段标识，保留示例值以指导 Step2 萃取因果链。
 REFERENCE_HEADER_MARKERS = (
-    "环节", "步骤", "访谈方向", "具体方法", "知识类型", "知识引用",
+    "访谈方向", "具体方法", "知识类型", "知识引用",
     "规则引用", "专业术语", "关键输出", "名称", "描述",
 )
 
@@ -136,20 +137,31 @@ def _copy_cell_style(src, dst):
     dst.protection = copy(src.protection)
 
 
+# 保留的结构性列（阶段/环节标识），不清空数据区示例值
+STAGE_HEADER_MARKERS = ("步骤", "环节", "stage", "phase")
+
+
+def _is_stage_column(h1: str, h2: str) -> bool:
+    return any(m in h1 or m in h2 for m in STAGE_HEADER_MARKERS)
+
+
 def find_reference_columns(ws, anchor_cols):
-    """需清空数据区内容的列（锚定四列以外的参考/环节类列）。"""
+    """需清空数据区内容的列（锚定四列以外的参考列，保留步骤/环节等结构性阶段列）。"""
     anchor_set = set(anchor_cols)
     ref_cols = set()
     header_rows = detect_header_rows(ws)
+    max_anchor_col = max(anchor_set) if anchor_set else 0
     for c in range(1, ws.max_column + 1):
         if c in anchor_set:
             continue
         h1 = _norm(ws.cell(1, c).value)
         h2 = _norm(ws.cell(2, c).value) if header_rows >= 2 else ""
+        if _is_stage_column(h1, h2):
+            continue
         matched = any(
             m in h1 or m in h2 or h1 == m or h2 == m for m in REFERENCE_HEADER_MARKERS
         )
-        if matched or c > max(anchor_set):
+        if matched or c > max_anchor_col:
             ref_cols.add(c)
     return ref_cols
 
@@ -258,10 +270,10 @@ def list_default_step1_templates(samples_dir: Path):
 
 
 def find_default_step1_template(samples_dir: Path):
-    """优先使用「测试模板」，排除临时/输出文件。"""
+    """优先使用「标准」模板，其次按字母序第一个；排除临时/输出文件。"""
     candidates = list_default_step1_templates(samples_dir)
     for path in candidates:
-        if "测试" in path.stem or "测试" in path.name:
+        if "标准" in path.stem or "标准" in path.name:
             return path
     return candidates[0] if candidates else None
 
