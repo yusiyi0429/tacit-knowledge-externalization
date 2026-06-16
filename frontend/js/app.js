@@ -4956,5 +4956,140 @@ async function step5GoldenVerify() {
   }
 }
 
+/* ===== Step2 IR v2 rendering helpers ===== */
+function getCurrentPipelineId() {
+  if (!currentPipeline || !currentPipeline.id) {
+    console.error('No current pipeline available');
+    return null;
+  }
+  return currentPipeline.id;
+}
+
+function getSelectedModel() {
+  return resolveModelName('s2-model');
+}
+
+function switchStep2Tab(tab) {
+  document.querySelectorAll('#s2-output .s2-tab').forEach(function (el) { el.classList.remove('active'); });
+  document.querySelectorAll('#s2-output .s2-tab-panel').forEach(function (el) { el.style.display = 'none'; });
+  var tabBtn = document.querySelector('#s2-output .s2-tab[data-tab="' + tab + '"]');
+  if (tabBtn) tabBtn.classList.add('active');
+  var panel = document.getElementById('s2-ir-' + tab);
+  if (panel) panel.style.display = 'block';
+}
+
+function renderStep2IR(ir) {
+  window.currentStep2IR = ir;
+  document.getElementById('s2-ir-tree').innerHTML = renderIRTree(ir);
+  var mdHtml;
+  if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+    mdHtml = marked.parse(renderIRMarkdown(ir));
+  } else {
+    mdHtml = renderIRMarkdown(ir).replace(/\n/g, '<br>');
+  }
+  document.getElementById('s2-ir-markdown').innerHTML = mdHtml;
+  document.getElementById('s2-ir-table').innerHTML = renderIRTable(ir);
+  document.getElementById('s2-generate-sql').disabled = ir && ir.skill_meta && ir.skill_meta.draft_version >= 2;
+}
+
+function renderIRTree(ir) {
+  var entries = ir.entries || [];
+  var html = '<ul class="ir-tree">';
+  entries.forEach(function (e) {
+    html += '<li><strong>' + escapeHtml(e.entry_id) + '</strong> [' + escapeHtml(e.step_phase) + '] ' + escapeHtml(e.fields.knowledge_desc) + '</li>';
+  });
+  html += '</ul>';
+  return html;
+}
+
+function renderIRMarkdown(ir) {
+  var md = '# ' + (ir.anchors && ir.anchors.scenario ? ir.anchors.scenario : 'Skill IR') + '\n\n';
+  (ir.entries || []).forEach(function (e) {
+    md += '## ' + e.entry_id + ' | ' + e.sub_scenario + ' | ' + e.step_phase + '\n';
+    md += '- 业务描述：' + (e.fields.knowledge_desc || '') + '\n';
+    md += '- 规则：' + (e.fields.rule_ref || '') + '\n';
+    md += '- SQL：```sql\n' + ((e.fields.data_logic || {}).sql || '待生成') + '\n```\n\n';
+  });
+  return md;
+}
+
+function renderIRTable(ir) {
+  var html = '<table class="ir-table"><thead><tr><th>编号</th><th>子场景</th><th>阶段</th><th>业务描述</th><th>规则</th><th>SQL</th></tr></thead><tbody>';
+  (ir.entries || []).forEach(function (e) {
+    var sql = (e.fields.data_logic || {}).sql || '待生成';
+    html += '<tr><td>' + escapeHtml(e.entry_id) + '</td><td>' + escapeHtml(e.sub_scenario) + '</td><td>' + escapeHtml(e.step_phase) + '</td><td>' + escapeHtml(e.fields.knowledge_desc) + '</td><td>' + escapeHtml(e.fields.rule_ref) + '</td><td><code>' + escapeHtml(sql) + '</code></td></tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function step2ExtractRules() {
+  var pipelineId = getCurrentPipelineId();
+  if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
+  var model = getSelectedModel();
+  if (!model) { showToast('请先选择模型', 'error'); return; }
+
+  var formData = new FormData();
+  formData.append('pipeline_id', pipelineId);
+  formData.append('model', model);
+  var files = document.getElementById('s2-source-files').files;
+  for (var i = 0; i < files.length; i++) formData.append('files', files[i]);
+
+  fetch(API_BASE + '/api/step2/extract_rules', { method: 'POST', body: formData })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.status === 'ok') {
+        renderStep2IR(data.ir);
+        document.getElementById('s2-generate-sql').disabled = false;
+      } else {
+        alert(data.error || '生成规则失败');
+      }
+    })
+    .catch(function (e) {
+      console.error('step2ExtractRules failed:', e);
+      alert('网络错误: ' + e.message);
+    });
+}
+
+function step2GenerateSQL() {
+  var pipelineId = getCurrentPipelineId();
+  if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
+  var model = getSelectedModel();
+  if (!model) { showToast('请先选择模型', 'error'); return; }
+
+  var formData = new FormData();
+  formData.append('pipeline_id', pipelineId);
+  formData.append('model', model);
+
+  fetch(API_BASE + '/api/step2/extract_sql', { method: 'POST', body: formData })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.status === 'ok') {
+        renderStep2IR(data.ir);
+      } else {
+        alert(data.error || '生成取数逻辑失败');
+      }
+    })
+    .catch(function (e) {
+      console.error('step2GenerateSQL failed:', e);
+      alert('网络错误: ' + e.message);
+    });
+}
+
+function downloadCurrentIR() {
+  var ir = window.currentStep2IR;
+  if (!ir) {
+    alert('没有可下载的 IR');
+    return;
+  }
+  var blob = new Blob([JSON.stringify(ir, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'skill_ir_v2.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // Load pipeline overview on startup
 loadPipelineOverview();

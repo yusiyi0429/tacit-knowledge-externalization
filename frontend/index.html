@@ -550,7 +550,19 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <div class="col col-right">
             <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
             <div class="col-content output-area" id="s2-output">
-              <div class="output-placeholder">上传知识来源文件并点击"引用 Skill 萃取"查看结果</div>
+              <div class="s2-tabs">
+                <button type="button" class="s2-tab active" data-tab="tree" onclick="switchStep2Tab('tree')">IR 树</button>
+                <button type="button" class="s2-tab" data-tab="markdown" onclick="switchStep2Tab('markdown')">Markdown</button>
+                <button type="button" class="s2-tab" data-tab="table" onclick="switchStep2Tab('table')">表格</button>
+              </div>
+              <div id="s2-ir-tree" class="s2-tab-panel active"></div>
+              <div id="s2-ir-markdown" class="s2-tab-panel" style="display:none;"></div>
+              <div id="s2-ir-table" class="s2-tab-panel" style="display:none;"></div>
+              <div class="s2-actions">
+                <button type="button" class="btn btn--primary btn--sm" id="s2-extract-rules" onclick="step2ExtractRules()">生成规则</button>
+                <button type="button" class="btn btn--secondary btn--sm" id="s2-generate-sql" onclick="step2GenerateSQL()" disabled>生成取数逻辑</button>
+                <button type="button" class="btn btn--outline btn--sm" onclick="downloadCurrentIR()">下载 IR JSON</button>
+              </div>
             </div>
           </div>
         </div>

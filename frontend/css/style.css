@@ -2636,3 +2636,16 @@ a { color: var(--red); text-decoration: none; }
 
 
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   Step 2: IR v2 preview (tree / markdown / table)
+   ═══════════════════════════════════════════════════════════════════ */
+.s2-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.s2-tab { background: #f3f4f6; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
+.s2-tab.active { background: #2563eb; color: white; }
+.s2-tab-panel { max-height: 400px; overflow: auto; }
+.ir-tree { list-style: none; padding-left: 0; }
+.ir-tree li { padding: 6px; border-bottom: 1px solid #e5e7eb; }
+.ir-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ir-table th, .ir-table td { border: 1px solid #e5e7eb; padding: 6px; text-align: left; }
+.ir-table code { background: #f3f4f6; padding: 2px 4px; border-radius: 3px; }
