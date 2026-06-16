@@ -150,6 +150,49 @@ def infer_file_step(name: str) -> str | None:
     return None
 
 
+def workspace_path_for(workspace: Path, pipeline_id: str, step: str, filename: str) -> Path:
+    """返回产物应写入的完整路径。"""
+    if not pipeline_id or not step:
+        return Path(workspace) / basename_only(filename)
+    return Path(workspace) / str(pipeline_id) / str(step) / basename_only(filename)
+
+
+def locate_workspace_file(
+    workspace: Path,
+    filename: str,
+    *,
+    pipeline_id: str | None = None,
+) -> Path | None:
+    """按 basename 定位文件，优先子目录，fallback 根目录。"""
+    base = basename_only(filename)
+    workspace = Path(workspace)
+
+    # 1. 如果给了 pipeline_id，优先在对应目录按推断 step 查找
+    if pipeline_id:
+        step = infer_file_step(base)
+        if step:
+            candidate = workspace / str(pipeline_id) / step / base
+            if candidate.is_file():
+                return candidate
+        # 兜底：在该 pipeline 所有子目录里找
+        pipeline_dir = workspace / str(pipeline_id)
+        if pipeline_dir.is_dir():
+            for subdir in pipeline_dir.iterdir():
+                if subdir.is_dir():
+                    candidate = subdir / base
+                    if candidate.is_file():
+                        return candidate
+
+    # 2. 全局子目录搜索
+    for root, _dirs, files in os.walk(workspace):
+        if base in files:
+            return Path(root) / base
+
+    # 3. fallback 根目录
+    root_candidate = workspace / base
+    return root_candidate if root_candidate.is_file() else None
+
+
 def resolve_knowledge_ir_path(
     workspace: Path,
     step_data: dict,

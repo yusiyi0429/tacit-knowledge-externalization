@@ -50,3 +50,25 @@ def test_infer_file_step():
 
     assert pa.infer_file_step("unknown.bin") is None
     assert pa.infer_file_step("pipelines.json") is None
+
+
+def test_workspace_path_for_and_locate(tmp_path):
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    path = pa.workspace_path_for(workspace, "pid123", "step2", "preextract_abc.xlsx")
+    assert path == workspace / "pid123" / "step2" / "preextract_abc.xlsx"
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("x")
+
+    # Direct lookup via inferred step inside pipeline.
+    assert pa.locate_workspace_file(workspace, "preextract_abc.xlsx", pipeline_id="pid123") == path
+    # Fallback search across all subdirectories.
+    assert pa.locate_workspace_file(workspace, "preextract_abc.xlsx") == path
+    # Root fallback when no subdirectories match.
+    root_file = workspace / "template_root.xlsx"
+    root_file.write_text("y")
+    assert pa.locate_workspace_file(workspace, "template_root.xlsx") == root_file
+    # Missing file returns None.
+    assert pa.locate_workspace_file(workspace, "missing.bin") is None
