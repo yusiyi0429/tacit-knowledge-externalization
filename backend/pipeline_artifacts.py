@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from pathlib import Path
@@ -354,3 +355,73 @@ def auxiliary_step_data_keys(from_step: int) -> list[str]:
 
 def keys_to_clear_from_step(from_step: int) -> list[str]:
     return list(dict.fromkeys(downstream_output_keys(from_step) + auxiliary_step_data_keys(from_step)))
+
+
+def organize_workspace(workspace: Path) -> dict:
+    """一次性迁移：把根目录下能识别归属的文件按 pipeline/step 分类，无归属的删除。"""
+    workspace = Path(workspace)
+    marker = workspace / ".workspace_organized"
+    if marker.exists():
+        return {"moved": 0, "deleted": 0, "skipped": 0}
+
+    result = {"moved": 0, "deleted": 0, "skipped": 0}
+
+    # 建立每个 pipeline 引用过的 basename 集合
+    pipeline_refs: dict[str, set[str]] = {}
+    pipelines_file = workspace / "pipelines.json"
+    if pipelines_file.is_file():
+        try:
+            pipelines = json.loads(pipelines_file.read_text(encoding="utf-8"))
+            for p in pipelines or []:
+                pid = str(p.get("id", ""))
+                if not pid:
+                    continue
+                refs: set[str] = set()
+                sd = p.get("step_data", {})
+                for val in sd.values():
+                    if isinstance(val, str):
+                        refs.add(basename_only(val))
+                pipeline_refs[pid] = refs
+        except Exception:
+            pass
+
+    for item in list(workspace.iterdir()):
+        if not item.is_file():
+            continue
+        if item.name in PROTECTED_WORKSPACE_FILES or item.name == ".workspace_organized":
+            result["skipped"] += 1
+            continue
+
+        step = infer_file_step(item.name)
+        if not step:
+            try:
+                item.unlink()
+                result["deleted"] += 1
+            except Exception:
+                pass
+            continue
+
+        target_pid = None
+        for pid, refs in pipeline_refs.items():
+            if item.name in refs:
+                target_pid = pid
+                break
+
+        if target_pid:
+            dest_dir = workspace / target_pid / step
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest = dest_dir / item.name
+            try:
+                item.rename(dest)
+                result["moved"] += 1
+            except Exception:
+                pass
+        else:
+            try:
+                item.unlink()
+                result["deleted"] += 1
+            except Exception:
+                pass
+
+    marker.write_text("", encoding="utf-8")
+    return result

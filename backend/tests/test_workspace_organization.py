@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -72,3 +73,69 @@ def test_workspace_path_for_and_locate(tmp_path):
     assert pa.locate_workspace_file(workspace, "template_root.xlsx") == root_file
     # Missing file returns None.
     assert pa.locate_workspace_file(workspace, "missing.bin") is None
+
+
+def test_organize_workspace(tmp_path):
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    # Protected files stay in root.
+    (workspace / "pipelines.json").write_text(
+        json.dumps([
+            {
+                "id": "pid123",
+                "step_data": {
+                    "step2_output_file": "preextract_abc.xlsx",
+                    "step2_interview_file": "/downloads/interview_abc.json",
+                    "step4_skill_file": "SKILL_abc.md",
+                    "step4_skill_dir_zip_file": "SKILL_DIR_abc.zip",
+                    "step5_result_file": "validation_result_abc.json",
+                    "step1_output_file": "template_abc.xlsx",
+                    "step3_final_file": "final_pid123_20260101.xlsx",
+                    "note": "This is a string but not a file reference",
+                },
+            }
+        ]),
+        encoding="utf-8",
+    )
+    (workspace / "custom_models.json").write_text("{}", encoding="utf-8")
+    (workspace / "preset_overrides.json").write_text("{}", encoding="utf-8")
+
+    # Referenced artifacts at root.
+    (workspace / "preextract_abc.xlsx").write_text("x", encoding="utf-8")
+    (workspace / "interview_abc.json").write_text("y", encoding="utf-8")
+    (workspace / "SKILL_abc.md").write_text("z", encoding="utf-8")
+    (workspace / "SKILL_DIR_abc.zip").write_text("zip", encoding="utf-8")
+    (workspace / "validation_result_abc.json").write_text("v", encoding="utf-8")
+    (workspace / "template_abc.xlsx").write_text("t", encoding="utf-8")
+    (workspace / "final_pid123_20260101.xlsx").write_text("f", encoding="utf-8")
+
+    # Unreferenced but recognizable files are deleted.
+    (workspace / "preextract_orphan.xlsx").write_text("o", encoding="utf-8")
+    (workspace / "random.txt").write_text("r", encoding="utf-8")
+
+    result = pa.organize_workspace(workspace)
+    assert result["moved"] == 7
+    assert result["deleted"] == 2
+    assert result["skipped"] == 3  # protected files
+
+    # Referenced files moved into pipeline/step subdirectories.
+    assert (workspace / "pid123" / "step1" / "template_abc.xlsx").is_file()
+    assert (workspace / "pid123" / "step2" / "preextract_abc.xlsx").is_file()
+    assert (workspace / "pid123" / "step2" / "interview_abc.json").is_file()
+    assert (workspace / "pid123" / "step4" / "SKILL_abc.md").is_file()
+    assert (workspace / "pid123" / "step4" / "SKILL_DIR_abc.zip").is_file()
+    assert (workspace / "pid123" / "step5" / "validation_result_abc.json").is_file()
+    assert (workspace / "pid123" / "step3" / "final_pid123_20260101.xlsx").is_file()
+
+    # Deleted/unreferenced files no longer exist at root.
+    assert not (workspace / "preextract_abc.xlsx").exists()
+    assert not (workspace / "preextract_orphan.xlsx").exists()
+    assert not (workspace / "random.txt").exists()
+
+    # Marker created.
+    assert (workspace / ".workspace_organized").is_file()
+
+    # Idempotency: second run reports no work.
+    result2 = pa.organize_workspace(workspace)
+    assert result2 == {"moved": 0, "deleted": 0, "skipped": 0}
