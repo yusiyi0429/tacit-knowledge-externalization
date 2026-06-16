@@ -6169,149 +6169,62 @@ def _load_step5_cases(case_source: str):
 
 @app.route("/api/step5/replay", methods=["POST"])
 def api_step5_replay():
-    """Step5 决策回放：用 SKILL 终版判断历史案例 → 命中率 + 分歧 → 修订建议（待回流）。
-
-    与旧 /api/validate/replay 的区别：
-    - 验证对象是 SKILL.md 终版/IR 渲染（最终交付物），不是中间 Excel 文本
-    - 判官模型可独立指定（judge_model 优先），避免同模型自评偏置
-    - 分歧自动生成 entry 级修订建议，专家可一键回流 Step3 建议池
-    """
+    """Step5 验证回放：在 test_customers 上执行 agent-skill，计算 P/R/F1。"""
     pipeline_id = request.form.get("pipeline_id", "")
-    model_name = request.form.get("judge_model", "") or request.form.get("model", "")
-    case_source = (request.form.get("case_source", "") or "upload").strip()
+    test_source = request.form.get("test_source", "")
 
     if not pipeline_id:
         return jsonify({"status": "error", "error": "缺少 pipeline_id"})
 
-    cases, err = _load_step5_cases(case_source)
-    if err:
-        return jsonify({"status": "error", "error": err})
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"status": "error", "error": "流水线不存在"})
 
-    knowledge_text, knowledge_source = _resolve_skill_text_for_validation(pipeline_id)
-    if not knowledge_text:
-        return jsonify({"status": "error", "error": "未找到可验证的 SKILL/知识稿，请先完成智能转化（或至少完成知识萃取）"})
+    sd = pipeline.get("step_data") or {}
+    skill_zip = sd.get("step4_skill_dir_zip_file", "")
+    if not skill_zip:
+        return jsonify({"status": "error", "error": "请先完成 Step4 智能转化"})
 
-    if not model_name:
-        models_list = load_llm_config()
-        if models_list:
-            model_name = models_list[0]["name"]
-    model_cfg = get_model_by_name(model_name)
-    if not model_cfg:
-        return jsonify({"status": "error", "error": "判官模型未配置"})
+    from pipeline_artifacts import locate_workspace_file
+    zip_path = locate_workspace_file(WORKSPACE, skill_zip, pipeline_id=pipeline_id)
+    if not zip_path:
+        return jsonify({"status": "error", "error": "未找到 agent-skill zip"})
 
-    from validation_replay import (
-        build_validation_prompt,
-        compare_predictions,
-        generate_replay_report,
-        validation_to_revision_suggestions,
-    )
-
-    system_prompt, user_prompt = build_validation_prompt(knowledge_text, cases)
+    import zipfile, tempfile, shutil
+    tmp_dir = tempfile.mkdtemp()
     try:
-        result = call_llm_with_retry(model_cfg, [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ], stream=False, temperature=0.1, max_tokens=4096)
-        raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
-        raw_json = _extract_json_from_text(raw)
-        try:
-            predictions = json.loads(raw_json)
-            if not isinstance(predictions, list):
-                predictions = [{"case_id": "unknown", "prediction": raw[:200]}]
-        except json.JSONDecodeError:
-            predictions = [{"case_id": "unknown", "prediction": raw[:200]}]
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"回放判官调用失败: {str(e)}"})
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(tmp_dir)
+        skill_dir = Path(tmp_dir)
+        # find the first subdir if zip has nested folder
+        subdirs = [d for d in skill_dir.iterdir() if d.is_dir()]
+        if subdirs:
+            skill_dir = subdirs[0]
 
-    comparison = compare_predictions(predictions, cases)
-    report = generate_replay_report(comparison, cases, predictions)
+        from knowledge_base import get_db_path
+        from step5_agent_verify import verify_agent_skill
+        db_path = get_db_path()
+        result = verify_agent_skill(str(skill_dir), str(db_path), source=test_source or None)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
+    # Persist results
     run_id = uuid.uuid4().hex[:8]
-    report_name = f"validation_replay_{run_id}.md"
+    report_name = f"verification_report_{run_id}.json"
     report_path = workspace_path_for(WORKSPACE, pipeline_id, "step5", report_name)
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(report, encoding="utf-8")
+    report_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    result_name = f"validation_result_{run_id}.json"
-    result_path = workspace_path_for(WORKSPACE, pipeline_id, "step5", result_name)
-    result_path.parent.mkdir(parents=True, exist_ok=True)
-    result_payload = {
-        "run_id": run_id,
-        "pipeline_id": pipeline_id,
-        "judge_model": model_name,
-        "knowledge_source": knowledge_source,
-        "case_source": case_source,
-        "comparison": comparison,
-        "predictions": predictions,
-        "ran_at": datetime.datetime.now().isoformat(timespec="seconds"),
-    }
-    result_path.write_text(
-        json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8",
-    )
-
-    # 分歧 → entry 级修订建议（待专家回流裁决）
-    suggestions = []
-    suggestions_name = ""
-    if comparison.get("mismatches"):
-        ir = None
-        sd = {}
-        with _pipelines_lock:
-            pipelines = load_pipelines()
-            for p in pipelines:
-                if p["id"] == pipeline_id:
-                    sd = p.get("step_data", {}) or {}
-                    break
-        ir_path, _k = resolve_knowledge_ir_path(WORKSPACE, sd)
-        if ir_path:
-            try:
-                from skill_ir import load_ir
-                ir = load_ir(ir_path)
-            except Exception:
-                ir = None
-        if ir:
-            suggestions = validation_to_revision_suggestions(
-                comparison["mismatches"], ir,
-                llm_call_fn=_llm_call_for_interview,
-                model_name=model_name,
-            )
-            if suggestions:
-                suggestions_name = f"revision_suggestions_{run_id}.json"
-                suggestions_path = workspace_path_for(WORKSPACE, pipeline_id, "step5", suggestions_name)
-                suggestions_path.parent.mkdir(parents=True, exist_ok=True)
-                suggestions_path.write_text(
-                    json.dumps(suggestions, ensure_ascii=False, indent=2), encoding="utf-8",
-                )
-
-    # 命中率门槛（schema quality.replay_hit_threshold）
-    hit_threshold = 0.8
-    try:
-        if SCHEMA_PATH.exists():
-            from excel_to_skill import load_scenario_config
-            cfg = load_scenario_config(str(SCHEMA_PATH))
-            hit_threshold = float((cfg.get("quality") or {}).get("replay_hit_threshold", 0.8))
-    except Exception:
-        pass
-    passed = comparison["hit_rate"] >= hit_threshold
-
-    # 持久化 step5 keys
     with _pipelines_lock:
         pipelines = load_pipelines()
         for p in pipelines:
             if p["id"] == pipeline_id:
-                sd = p.setdefault("step_data", {})
-                sd["step5_replay_file"] = report_name
-                sd["step5_replay_url"] = f"/downloads/{report_name}"
-                sd["step5_result_file"] = result_name
-                sd["step5_result_url"] = f"/downloads/{result_name}"
-                sd["step5_hit_rate"] = comparison["hit_rate"]
-                sd["step5_case_source"] = case_source
-                sd["step5_run_id"] = run_id
-                if suggestions_name:
-                    sd["step5_suggestions_file"] = suggestions_name
-                    sd["step5_suggestions_url"] = f"/downloads/{suggestions_name}"
-                else:
-                    sd.pop("step5_suggestions_file", None)
-                    sd.pop("step5_suggestions_url", None)
+                psd = p.setdefault("step_data", {})
+                psd["step5_report_file"] = report_name
+                psd["step5_report_url"] = "/downloads/" + report_name
+                psd["step5_precision"] = result["metrics"]["precision"]
+                psd["step5_recall"] = result["metrics"]["recall"]
+                psd["step5_f1"] = result["metrics"]["f1"]
                 p.setdefault("step_status", {})
                 p["step_status"]["5"] = "done"
                 p["current_step"] = max(p.get("current_step", 1), 5)
@@ -6319,79 +6232,46 @@ def api_step5_replay():
                 save_pipelines(pipelines)
                 break
 
-    # 记录到知识库验证运行表（如可用）
-    try:
-        import knowledge_base as kb
-        kb.record_validation_run(
-            pipeline_id=pipeline_id,
-            skill_slug="",
-            skill_version=0,
-            case_uids=[str(c.get("case_id", "")) for c in cases],
-            total_cases=comparison["total_cases"],
-            hits=comparison["hits"],
-            hit_rate=comparison["hit_rate"],
-            mismatches=comparison["mismatches"],
-            judge_model=model_name,
-        )
-    except Exception:
-        pass
-
     return jsonify({
         "status": "ok",
         "run_id": run_id,
-        "hit_rate": comparison["hit_rate"],
-        "hits": comparison["hits"],
-        "total": comparison["total_cases"],
-        "mismatch_count": comparison["mismatch_count"],
-        "mismatches": comparison["mismatches"],
-        "hit_threshold": hit_threshold,
-        "passed": passed,
-        "knowledge_source": knowledge_source,
-        "judge_model": model_name,
-        "report_name": report_name,
-        "download_url": f"/downloads/{report_name}",
-        "result_url": f"/downloads/{result_name}",
-        "suggestions": suggestions,
-        "suggestions_count": len(suggestions),
-        "suggestions_url": f"/downloads/{suggestions_name}" if suggestions_name else "",
+        "metrics": result["metrics"],
+        "mismatches": result["mismatches"],
+        "report_url": "/downloads/" + report_name,
     })
 
 
 @app.route("/api/step5/feedback", methods=["POST"])
 def api_step5_feedback():
-    """验证回流：将 Step5 生成的修订建议推入 Step3 建议池，由专家裁决。"""
+    """验证回流：将 Step5 验证分歧推入 Step3 建议池。"""
     data = request.get_json(force=True) or {}
     pipeline_id = data.get("pipeline_id", "")
-    if not pipeline_id:
-        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
 
-    suggestions = data.get("suggestions")
-    if not isinstance(suggestions, list) or not suggestions:
-        # 默认取最近一次回放生成的建议文件
-        sd = {}
-        with _pipelines_lock:
-            pipelines = load_pipelines()
-            for p in pipelines:
-                if p["id"] == pipeline_id:
-                    sd = p.get("step_data", {}) or {}
-                    break
-        sug_file = sd.get("step5_suggestions_file", "")
-        if not sug_file:
-            return jsonify({"status": "error", "error": "无可回流的建议，请先执行决策回放"})
-        sug_path = safe_workspace_path(WORKSPACE, sug_file, must_exist=True)
-        if not sug_path:
-            return jsonify({"status": "error", "error": "建议文件不存在"})
-        try:
-            suggestions = json.loads(sug_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            return jsonify({"status": "error", "error": f"建议文件解析失败: {str(e)}"})
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"status": "error", "error": "流水线不存在"})
 
+    sd = pipeline.get("step_data") or {}
+    report_name = sd.get("step5_report_file", "")
+    from pipeline_artifacts import locate_workspace_file
+    report_path = locate_workspace_file(WORKSPACE, report_name, pipeline_id=pipeline_id)
+    if not report_path:
+        return jsonify({"status": "error", "error": "未找到 Step5 报告，请先执行验证回放"})
+
+    result = json.loads(report_path.read_text(encoding="utf-8"))
+    mismatches = result.get("mismatches", [])
+
+    from step5_agent_verify import build_revision_suggestions
+    from skill_ir import load_ir
+    ir_name = sd.get("step3_aligned_file") or sd.get("step2_draft_file", "")
+    ir_path = locate_workspace_file(WORKSPACE, ir_name, pipeline_id=pipeline_id)
+    ir = load_ir(ir_path) if ir_path else {}
+    suggestions = build_revision_suggestions(mismatches, ir)
+
+    # Push to step3 pending suggestions
     pushed = _push_step3_suggestions(pipeline_id, suggestions, source="validation")
-    return jsonify({
-        "status": "ok",
-        "pushed": pushed,
-        "message": f"已将 {pushed} 条修订建议回流到「知识对齐」建议池，请到第 3 步裁决",
-    })
+
+    return jsonify({"status": "ok", "suggestions_count": pushed})
 
 
 @app.route("/api/step5/golden_verify", methods=["POST"])
