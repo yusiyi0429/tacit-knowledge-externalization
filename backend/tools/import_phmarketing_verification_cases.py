@@ -11,11 +11,11 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import knowledge_base as kb
 
-CASE_DIR = Path(__file__).resolve().parent.parent / "data" / "test-cases"
+CASE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "test-cases"
 FILES = [
     "case-phmarketing-01_无融资需求.json",
     "case-phmarketing-02_不满足准入.json",

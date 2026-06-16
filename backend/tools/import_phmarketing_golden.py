@@ -12,7 +12,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DB_PATH = PROJECT_ROOT / "data" / "golden" / "golden_test.db"
 JSON_PATH = PROJECT_ROOT / "data" / "golden" / "对公普惠客户潜力营销_golden_items.json"
 DOC_PATH = PROJECT_ROOT / "data" / "samples" / "step2-文档萃取" / "对公普惠客户潜力营销_访谈提纲模板.md"
