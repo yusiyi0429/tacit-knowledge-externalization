@@ -816,7 +816,7 @@ def api_file_cache_upload():
         return jsonify({"status": "error", "error": "缺少上传文件"})
 
     try:
-        saved_path = save_upload(file_obj, prefix=f"cache_s{step or 'x'}")
+        saved_path = save_upload(file_obj, prefix=f"cache_s{step or 'x'}", pipeline_id=pipeline_id)
         base = os.path.basename(saved_path)
         resp = {"status": "ok", "file_name": base}
 
@@ -925,11 +925,13 @@ def run_script(script_name, args_list):
         return {"status": "error", "error": str(e)}
 
 
-def save_upload(file_obj, prefix="upload"):
+def save_upload(file_obj, prefix="upload", pipeline_id: str = ""):
     """Save an uploaded file to workspace, return the path."""
     ext = Path(file_obj.filename).suffix if file_obj.filename else ".xlsx"
     fname = f"{prefix}_{uuid.uuid4().hex[:8]}{ext}"
-    fpath = WORKSPACE / fname
+    step = infer_file_step(fname) or "uploads"
+    fpath = workspace_path_for(WORKSPACE, pipeline_id or "", step, fname)
+    fpath.parent.mkdir(parents=True, exist_ok=True)
     file_obj.save(str(fpath))
     return str(fpath)
 
@@ -1547,7 +1549,7 @@ def api_step4_compile():
 
     if not input_path and not ir_path:
         if excel_file:
-            input_path = save_upload(excel_file, prefix="compile")
+            input_path = save_upload(excel_file, prefix="compile", pipeline_id=pipeline_id)
         else:
             return jsonify({
                 "status": "error",
@@ -2162,7 +2164,7 @@ def api_step4_quality():
 
     if not input_path:
         if excel_file:
-            input_path = save_upload(excel_file, prefix="quality")
+            input_path = save_upload(excel_file, prefix="quality", pipeline_id=pipeline_id)
         else:
             return jsonify({
                 "status": "error",
@@ -2453,8 +2455,9 @@ def api_excel_read():
 
     # Support both file upload and file_name from JSON/form
     excel_file = request.files.get("excel")
+    pipeline_id = request.form.get("pipeline_id", "").strip()
     if excel_file:
-        input_path = save_upload(excel_file, prefix="edit_read")
+        input_path = save_upload(excel_file, prefix="edit_read", pipeline_id=pipeline_id)
     else:
         # Try JSON body or form data with file_name
         data = request.get_json(silent=True) or request.form.to_dict()
@@ -4458,7 +4461,7 @@ def _execute_gap_analysis():
                         input_path = str(resolved)
                     break
     if excel_file:
-        input_path = save_upload(excel_file, prefix="gap_analysis")
+        input_path = save_upload(excel_file, prefix="gap_analysis", pipeline_id=pipeline_id)
 
     if not input_path or not os.path.exists(input_path):
         return jsonify({"status": "error", "error": "未找到知识 Excel 文件"})
