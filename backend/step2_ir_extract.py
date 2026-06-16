@@ -15,6 +15,9 @@ _logger = logging.getLogger(__name__)
 
 STEP_PHASES = ["客户筛选", "客户数据匹配", "原因归因", "决策建议"]
 
+_DEFAULT_RULES_PROMPT = str(Path(__file__).parent / "prompts" / "step2a_rules_extract.txt")
+_DEFAULT_SQL_PROMPT = str(Path(__file__).parent / "prompts" / "step2b_sql_generate.txt")
+
 
 def _render_prompt(template_path: str, ctx: dict) -> str:
     text = Path(template_path).read_text(encoding="utf-8")
@@ -28,7 +31,7 @@ def extract_rules_from_doc(
     scenario_meta: dict,
     source_text: str,
     model_name: str,
-    prompt_template: str = "prompts/step2a_rules_extract.txt",
+    prompt_template: str = _DEFAULT_RULES_PROMPT,
 ) -> list[dict]:
     """Step2a: 从知识文档萃取业务规则（无 SQL）。"""
     if not source_text or not str(source_text).strip():
@@ -66,7 +69,7 @@ def generate_sql_for_entry(
     entry: dict,
     table_schema: str,
     model_name: str,
-    prompt_template: str = "prompts/step2b_sql_generate.txt",
+    prompt_template: str = _DEFAULT_SQL_PROMPT,
 ) -> dict:
     """Step2b: 为单条 entry 生成 data_logic.sql。"""
     model_cfg = get_model_by_name(model_name)

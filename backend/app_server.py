@@ -5807,14 +5807,143 @@ def api_step3_apply_notes():
         return jsonify({"status": "error", "error": f"生成对齐稿失败: {str(e)}"})
 
 
+@app.route("/api/step3/align_ir", methods=["POST"])
+def api_step3_align_ir():
+    """Step3 对齐 IR：专家修订规则/SQL。"""
+    data = request.get_json(force=True) or {}
+    pipeline_id = data.get("pipeline_id", "")
+    entry_id = data.get("entry_id", "")
+    field = data.get("field", "")  # e.g. "rule_ref" or "data_logic.sql"
+    new_value = data.get("new_value")
+    regenerate_sql = data.get("regenerate_sql", False)
+    model_name = data.get("model", "")
+
+    if not pipeline_id or not entry_id or not field:
+        return jsonify({"status": "error", "error": "缺少必要参数"})
+
+    from skill_ir import load_ir, save_ir, apply_field_revision, set_sql_manually_edited
+    from pipeline_artifacts import locate_workspace_file
+    from knowledge_base import get_db_schema_text
+
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"status": "error", "error": "流水线不存在"})
+
+    sd = pipeline.get("step_data") or {}
+
+    try:
+        ir_name = sd.get("step3_aligned_file") or sd.get("step2_draft_file", "")
+        ir_path = locate_workspace_file(WORKSPACE, ir_name, pipeline_id=pipeline_id)
+        if not ir_path:
+            return jsonify({"status": "error", "error": "未找到 Step2 IR"})
+
+        ir = load_ir(ir_path)
+        entry = None
+        for e in ir.get("entries", []):
+            if e.get("entry_id") == entry_id:
+                entry = e
+                break
+        if not entry:
+            return jsonify({"status": "error", "error": "entry_id 不存在"})
+
+        if field == "data_logic.sql":
+            entry.setdefault("fields", {}).setdefault("data_logic", {})["sql"] = new_value
+            set_sql_manually_edited(entry, True)
+        else:
+            apply_field_revision(entry, field, new_value, by="expert")
+
+        if regenerate_sql and field != "data_logic.sql":
+            if not model_name:
+                return jsonify({"status": "error", "error": "重新生成 SQL 需要提供 model"})
+            model_cfg = get_model_by_name(model_name)
+            if not model_cfg:
+                return jsonify({"status": "error", "error": f"模型不存在: {model_name}"})
+            from skill_ir import regenerate_sql_for_entry
+            table_schema = get_db_schema_text()
+            data_logic = regenerate_sql_for_entry(entry, table_schema, model_name)
+            entry["fields"]["data_logic"] = data_logic
+
+        ir["skill_meta"]["updated_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+        new_ir_path = save_ir(WORKSPACE, ir, pipeline_id=pipeline_id)
+        new_name = Path(new_ir_path).name
+
+        # 更新 pipeline 指向最新 IR（对齐稿与草稿均指向最新版，后续编辑从对齐稿继续）
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    psd = p.setdefault("step_data", {})
+                    psd["step3_aligned_file"] = new_name
+                    psd["step3_aligned_url"] = "/downloads/" + new_name
+                    psd["step2_draft_file"] = new_name
+                    psd["step2_draft_url"] = "/downloads/" + new_name
+                    break
+            save_pipelines(pipelines)
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"保存 IR 修订失败: {e}"})
+
+    return jsonify({
+        "status": "ok",
+        "ir_path": new_name,
+        "entry": entry,
+    })
+
+
 @app.route("/api/step3/confirm_as_is", methods=["POST"])
 def api_step3_confirm_as_is():
-    """专家无修订意见时，将当前对齐输入稿直接确认为 final_*.xlsx。"""
+    """专家无修订意见时，将当前 IR v2 或 Excel 对齐输入稿直接确认。"""
     data = request.get_json(force=True) or {}
     pipeline_id = data.get("pipeline_id", "")
     if not pipeline_id:
         return jsonify({"status": "error", "error": "缺少 pipeline_id"})
 
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"status": "error", "error": "流水线不存在"})
+
+    sd = pipeline.get("step_data") or {}
+    ir_name = sd.get("step2_draft_file", "")
+
+    # IR v2 path
+    if ir_name:
+        from pipeline_artifacts import locate_workspace_file
+        from skill_ir import STATUS_ALIGNED, load_ir, save_ir, IR_VERSION_V2
+        ir_path = locate_workspace_file(WORKSPACE, ir_name, pipeline_id=pipeline_id)
+        if ir_path:
+            try:
+                ir = load_ir(ir_path)
+                if ir.get("ir_version") == IR_VERSION_V2:
+                    old_version = ir["skill_meta"].get("draft_version", 1)
+                    ir["skill_meta"]["draft_version"] = old_version + 1
+                    ir["skill_meta"]["parent_version"] = old_version
+                    ir["skill_meta"]["status"] = STATUS_ALIGNED
+                    ir["skill_meta"]["updated_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+                    aligned_path = save_ir(WORKSPACE, ir, pipeline_id=pipeline_id)
+                    aligned_name = Path(aligned_path).name
+                    with _pipelines_lock:
+                        pipelines = load_pipelines()
+                        for p in pipelines:
+                            if p["id"] == pipeline_id:
+                                psd = p.setdefault("step_data", {})
+                                psd["step3_aligned_file"] = aligned_name
+                                psd["step3_aligned_url"] = f"/downloads/{aligned_name}"
+                                psd["step3_final_file"] = aligned_name
+                                psd["step3_final_download_url"] = f"/downloads/{aligned_name}"
+                                psd["step3_aligned_version"] = old_version + 1
+                                break
+                        save_pipelines(pipelines)
+                    return jsonify({
+                        "status": "ok",
+                        "aligned_file": aligned_name,
+                        "final_file": aligned_name,
+                        "aligned_url": f"/downloads/{aligned_name}",
+                        "final_url": f"/downloads/{aligned_name}",
+                        "message": "已确认 IR v2 为对齐稿（无修订）",
+                    })
+            except Exception as e:
+                return jsonify({"status": "error", "error": f"确认 IR 对齐稿失败: {str(e)}"})
+
+    # Legacy Excel fallback (keep existing logic)
     source_file_path, _ = _resolve_align_source_for_pipeline(pipeline_id)
     if not source_file_path:
         return jsonify({"status": "error", "error": "未找到可对齐的知识稿"})

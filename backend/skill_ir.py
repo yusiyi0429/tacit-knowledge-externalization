@@ -628,6 +628,35 @@ def push_sql_history(entry: dict, sql: str, generated_by: str = "llm") -> None:
     })
 
 
+def apply_field_revision(entry: dict, field: str, new_value, by: str = "expert") -> dict:
+    """修改 entry 的单个字段，并记录修订历史。"""
+    entry.setdefault("fields", {})
+    old_value = entry["fields"].get(field)
+    entry["fields"][field] = new_value
+    entry.setdefault("lifecycle", {}).setdefault("revisions", []).append({
+        "field": field,
+        "action": "modify",
+        "old_value": old_value,
+        "new_value": new_value,
+        "by": by,
+        "at": _now(),
+    })
+    return entry
+
+
+def set_sql_manually_edited(entry: dict, edited: bool = True) -> None:
+    entry.setdefault("flags", {})["sql_manually_edited"] = edited
+
+
+def regenerate_sql_for_entry(entry: dict, table_schema: str, model_name: str) -> dict:
+    """基于当前规则重新生成 SQL，并标记为 LLM 生成。"""
+    from step2_ir_extract import generate_sql_for_entry
+    data_logic = generate_sql_for_entry(entry, table_schema, model_name)
+    push_sql_history(entry, data_logic["sql"], "llm")
+    entry.setdefault("flags", {})["sql_manually_edited"] = False
+    return data_logic
+
+
 def diff_ir(ir_a: dict, ir_b: dict) -> list[dict]:
     """对比两个版本：返回 entry 级变更清单（added / removed / changed）。"""
     a_entries = {_norm(e.get("entry_id")): e for e in (ir_a or {}).get("entries") or []}
