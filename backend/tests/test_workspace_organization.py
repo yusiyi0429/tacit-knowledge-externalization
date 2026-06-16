@@ -139,3 +139,48 @@ def test_organize_workspace(tmp_path):
     # Idempotency: second run reports no work.
     result2 = pa.organize_workspace(workspace)
     assert result2 == {"moved": 0, "deleted": 0, "skipped": 0}
+
+
+def test_organize_workspace_delivery_directories(tmp_path):
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    delivery_name = "delivery_abc123"
+    (workspace / "pipelines.json").write_text(
+        json.dumps([
+            {
+                "id": "pid123",
+                "step_data": {
+                    "step4_skill_file": "SKILL_abc.md",
+                    # Reference the delivery directory by its basename so it is migrated.
+                    "step4_delivery_dir": delivery_name,
+                },
+            }
+        ]),
+        encoding="utf-8",
+    )
+
+    # Referenced delivery directory at root.
+    delivery_dir = workspace / delivery_name
+    delivery_dir.mkdir()
+    (delivery_dir / "SKILL.md").write_text("skill", encoding="utf-8")
+    (delivery_dir / "chain_of_thought.md").write_text("cot", encoding="utf-8")
+
+    # Unreferenced delivery directory should be deleted.
+    orphan_delivery = workspace / "delivery_orphan"
+    orphan_delivery.mkdir()
+    (orphan_delivery / "file.txt").write_text("x", encoding="utf-8")
+
+    result = pa.organize_workspace(workspace)
+    assert result["moved"] == 1
+    assert result["deleted"] == 1
+    assert result["skipped"] == 1  # pipelines.json
+
+    # Referenced delivery directory moved into pipeline step4 subdir.
+    assert (workspace / "pid123" / "step4" / delivery_name / "SKILL.md").is_file()
+    assert (workspace / "pid123" / "step4" / delivery_name / "chain_of_thought.md").is_file()
+    assert not delivery_dir.exists()
+
+    # Orphan delivery directory deleted.
+    assert not orphan_delivery.exists()
+    assert (workspace / ".workspace_organized").is_file()

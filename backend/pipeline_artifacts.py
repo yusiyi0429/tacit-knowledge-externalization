@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 PROTECTED_WORKSPACE_FILES = frozenset({
@@ -24,6 +25,7 @@ DOWNLOAD_ALLOWED_PREFIXES = (
     "upload_tpl_",
     "signal_report_",
     "SKILL_",
+    "SKILL_DIR_",
     "COT_",
     "QA_",
     "openclaw_",
@@ -90,6 +92,7 @@ STEP_OUTPUT_KEYS_BY_STEP = {
         "step4_manifest_file", "step4_manifest_url",
         "step4_quality_file", "step4_quality_url",
         "step4_published_version",
+        "step4_skill_dir_zip_file", "step4_skill_dir_zip_url",
     ),
     # 第 5 步「验证」：决策回放 + 分歧回流
     5: (
@@ -386,10 +389,33 @@ def organize_workspace(workspace: Path) -> dict:
             pass
 
     for item in list(workspace.iterdir()):
-        if not item.is_file():
-            continue
         if item.name in PROTECTED_WORKSPACE_FILES or item.name == ".workspace_organized":
             result["skipped"] += 1
+            continue
+
+        # 迁移根目录下的 delivery_* 目录：按目录名匹配 pipeline 引用集合。
+        if item.is_dir() and item.name.startswith("delivery_"):
+            target_pid = next(
+                (pid for pid, refs in pipeline_refs.items() if item.name in refs),
+                None,
+            )
+            if target_pid:
+                dest_dir = workspace / target_pid / "step4" / item.name
+                dest_dir.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    item.rename(dest_dir)
+                    result["moved"] += 1
+                except Exception:
+                    pass
+            else:
+                try:
+                    shutil.rmtree(item)
+                    result["deleted"] += 1
+                except Exception:
+                    pass
+            continue
+
+        if not item.is_file():
             continue
 
         step = infer_file_step(item.name)
