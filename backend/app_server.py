@@ -4437,6 +4437,18 @@ def api_step3_prev_output():
         for p in pipelines:
             if p["id"] == pipeline_id:
                 sd = p.get("step_data", {})
+
+                # New markdown flow: return SKILL.md file
+                md_file = sd.get("step2_skill_md_file")
+                if md_file:
+                    return jsonify({
+                        "status": "ok",
+                        "has_output": True,
+                        "markdown_file": md_file,
+                        "markdown_download_url": "/downloads/" + md_file,
+                        "scenario": p.get("scenario", ""),
+                    })
+
                 # Step2 outputs an Excel file with extracted knowledge
                 step2_file = sd.get("step2_output_file", "")
                 step2_download = sd.get("step2_download_url", "")
