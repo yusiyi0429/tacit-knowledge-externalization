@@ -28,6 +28,8 @@ DOWNLOAD_ALLOWED_PREFIXES = (
     "SKILL_DIR_",
     "COT_",
     "QA_",
+    "qa_",
+    "cot_",
     "openclaw_",
     "quality_report_",
     "report_",

@@ -5880,13 +5880,13 @@ def api_step5_prev_output():
     if not pipeline:
         return jsonify({"has_output": False})
     sd = pipeline.get("step_data") or {}
-    has_output = bool(sd.get("step4_skill_dir_zip_file"))
+    has_output = bool(sd.get("step4_skill_zip_file") or sd.get("step4_skill_dir_zip_file"))
     return jsonify({
         "has_output": has_output,
-        "skill_zip_file": sd.get("step4_skill_dir_zip_file"),
-        "skill_zip_url": sd.get("step4_skill_dir_zip_url"),
-        "step5_input_file": sd.get("step4_step5_input_file"),
-        "step5_input_url": sd.get("step4_step5_input_url"),
+        "skill_zip_file": sd.get("step4_skill_zip_file") or sd.get("step4_skill_dir_zip_file"),
+        "skill_zip_url": sd.get("step4_skill_zip_url") or sd.get("step4_skill_dir_zip_url"),
+        "step5_input_file": sd.get("step4_qa_file") or sd.get("step4_step5_input_file"),
+        "step5_input_url": sd.get("step4_qa_url") or sd.get("step4_step5_input_url"),
         "published_version": sd.get("step4_published_version"),
         "skill_file": sd.get("step4_skill_file"),
         "skill_url": sd.get("step4_skill_url"),
