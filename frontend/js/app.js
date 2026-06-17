@@ -1817,6 +1817,7 @@ let allSkills = [];
 const SKILL_META = {
   'knowledge-extraction': { icon: '🔍', iconCls: 'icon-purple', step: 2 },
   'knowledge-revision': { icon: '📝', iconCls: 'icon-orange', step: 3 },
+  'skill-generator': { icon: '🤖', iconCls: 'icon-teal', step: 4 },
 };
 
 async function loadSkills() {
@@ -3135,11 +3136,9 @@ async function step3ApplySuggestions() {
     var result = await resp.json();
 
     if (result.status === 'ok') {
-      document.getElementById('s3-md-editor').value = result.skill_md;
-      if (typeof marked !== 'undefined') {
-        document.getElementById('s3-md-rendered').innerHTML = marked.parse(result.skill_md);
-      }
-      document.getElementById('s3-md-preview').style.display = 'block';
+      // Recreate editor structure (renderLoading destroyed it)
+      var s3out = document.getElementById('s3-output');
+      s3out.innerHTML = '<div id="s3-md-editor-area" style="margin-bottom:12px;"><label style="font-size:12px;color:#6b7280;">修订 SKILL.md（可直接编辑代码块中的 SQL）：</label><textarea id="s3-md-editor" rows="20" style="width:100%;font-family:monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:8px;">' + escapeHtml(result.skill_md) + '</textarea></div><div id="s3-md-preview" class="md-preview" style="display:block;max-height:400px;overflow:auto;border:1px solid #e5e7eb;padding:12px;border-radius:6px;"><div style="font-size:12px;color:#6b7280;margin-bottom:6px;">预览：</div><div id="s3-md-rendered">' + (typeof marked !== 'undefined' ? marked.parse(result.skill_md) : '') + '</div></div>';
       showToast('已应用 ' + ids.length + ' 条建议，修订稿已更新', 'ok');
       loadStep3SuggestionPool();
       refreshCurrentPipeline();
@@ -3210,6 +3209,9 @@ async function step3GeneratePreview() {
           document.getElementById('s3-md-rendered').innerHTML = marked.parse(data.skill_md);
         }
         document.getElementById('s3-md-preview').style.display = 'block';
+        // Recreate after renderLoading destroyed output
+        var s3out = document.getElementById('s3-output');
+        s3out.innerHTML = '<div id="s3-md-editor-area" style="margin-bottom:12px;"><label style="font-size:12px;color:#6b7280;">修订 SKILL.md（可直接编辑代码块中的 SQL）：</label><textarea id="s3-md-editor" rows="20" style="width:100%;font-family:monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:8px;">' + escapeHtml(data.skill_md) + '</textarea></div><div id="s3-md-preview" class="md-preview" style="display:block;max-height:400px;overflow:auto;border:1px solid #e5e7eb;padding:12px;border-radius:6px;"><div style="font-size:12px;color:#6b7280;margin-bottom:6px;">预览：</div><div id="s3-md-rendered">' + (typeof marked !== 'undefined' ? marked.parse(data.skill_md) : '') + '</div></div>';
         showToast('修订完成，请检查后点击保存', 'ok');
       } else {
         renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '修订失败') + '</div></div>');
