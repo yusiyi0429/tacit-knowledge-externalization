@@ -4521,11 +4521,47 @@ async function step4Compile() {
     var resp = await fetch(API_BASE + '/api/step4/build_skill', { method: 'POST', body: formData });
     var data = await resp.json();
     if (data.status === 'ok') {
-      var html = '<div class="s2-result-success"><div class="s2-result-header">生成完成</div></div>';
-      html += '<div class="s4-downloads">';
-      if (data.qa_url) html += '<a class="s4-download-link" href="' + API_BASE + data.qa_url + '" download>QA 对 (.json)</a>';
-      if (data.cot_url) html += '<a class="s4-download-link" href="' + API_BASE + data.cot_url + '" download>思维链 (.md)</a>';
-      if (data.skill_zip_url) html += '<a class="s4-download-link" href="' + API_BASE + data.skill_zip_url + '" download>待验证 Agent-Skill (.zip)</a>';
+      var html = '<div class="s2-result-success" style="margin-bottom:12px;"><div class="s2-result-header">生成完成（' + (data.knowledge_count || 0) + ' 条知识）</div></div>';
+      html += '<div class="s4-cards">';
+
+      // 1. QA pairs card
+      html += '<div class="s4-card">';
+      html += '<div class="s4-card-icon">❓</div>';
+      html += '<div class="s4-card-title">QA 对</div>';
+      html += '<div class="s4-card-desc">用于 RAG 检索和 Step5 验证的问答对</div>';
+      if (data.qa_url) {
+        html += '<div class="s4-card-actions">';
+        html += '<button class="btn btn--primary btn--sm" onclick="previewStep4QA(\'' + escapeHtml(data.qa_url) + '\')">预览</button>';
+        html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.qa_url + '" download>下载</a>';
+        html += '</div>';
+      }
+      html += '</div>';
+
+      // 2. Chain of Thought card
+      html += '<div class="s4-card">';
+      html += '<div class="s4-card-icon">🧠</div>';
+      html += '<div class="s4-card-title">思维链</div>';
+      html += '<div class="s4-card-desc">分步推理链条，供 Agent 决策参考</div>';
+      if (data.cot_url) {
+        html += '<div class="s4-card-actions">';
+        html += '<button class="btn btn--primary btn--sm" onclick="previewStep4COT(\'' + escapeHtml(data.cot_url) + '\')">预览</button>';
+        html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.cot_url + '" download>下载</a>';
+        html += '</div>';
+      }
+      html += '</div>';
+
+      // 3. Agent-Skill zip card
+      html += '<div class="s4-card">';
+      html += '<div class="s4-card-icon">🤖</div>';
+      html += '<div class="s4-card-title">待验证 Agent-Skill</div>';
+      html += '<div class="s4-card-desc">可执行 Skill 包，供 Step5 验证回放</div>';
+      if (data.skill_zip_url) {
+        html += '<div class="s4-card-actions">';
+        html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + data.skill_zip_url + '" download>下载</a>';
+        html += '</div>';
+      }
+      html += '</div>';
+
       html += '</div>';
       renderOutput('s4-output', html);
       await refreshCurrentPipeline();
@@ -4534,6 +4570,44 @@ async function step4Compile() {
     }
   } catch (e) {
     renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
+  }
+}
+
+async function previewStep4QA(url) {
+  try {
+    var resp = await fetch(API_BASE + url);
+    var data = await resp.json();
+    var items = data.items || data[0] || data;
+    var html = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">';
+    html += '<div class="modal-dialog modal-lg"><div class="modal-header"><span>QA 对预览（' + (Array.isArray(items) ? items.length : 0) + ' 条）</span><button class="modal-close" onclick="closeModal()">&times;</button></div>';
+    html += '<div class="modal-body" style="max-height:70vh;overflow:auto;">';
+    var list = Array.isArray(items) ? items : (Array.isArray(data) ? data : [data]);
+    list.forEach(function(item) {
+      html += '<div style="margin-bottom:16px;border-bottom:1px solid #e5e7eb;padding-bottom:12px;">';
+      html += '<div style="font-weight:600;color:#111827;margin-bottom:4px;">Q: ' + escapeHtml(item.q || item.question || '') + '</div>';
+      html += '<div style="color:#374151;">A: ' + escapeHtml(item.a || item.answer || '') + '</div>';
+      if (item.sql) html += '<pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:4px;margin-top:4px;font-size:12px;">' + escapeHtml(item.sql) + '</pre>';
+      html += '</div>';
+    });
+    html += '</div></div></div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+  } catch (e) {
+    showToast('加载失败: ' + e.message, 'error');
+  }
+}
+
+async function previewStep4COT(url) {
+  try {
+    var resp = await fetch(API_BASE + url);
+    var md = await resp.text();
+    var html = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">';
+    html += '<div class="modal-dialog modal-lg"><div class="modal-header"><span>思维链预览</span><button class="modal-close" onclick="closeModal()">&times;</button></div>';
+    html += '<div class="modal-body md-preview" style="max-height:70vh;overflow:auto;">';
+    html += (typeof marked !== 'undefined' ? marked.parse(md) : '<pre>' + escapeHtml(md) + '</pre>');
+    html += '</div></div></div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+  } catch (e) {
+    showToast('加载失败: ' + e.message, 'error');
   }
 }
 
