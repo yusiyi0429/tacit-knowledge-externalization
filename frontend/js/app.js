@@ -743,7 +743,7 @@ function step2Execute() {
 }
 
 function updateStep2Readiness() {
-  var btn = document.getElementById('s2-skill-extract');
+  var btn = document.getElementById('s2-extract-btn');
   if (!btn) return;
 
   var model = resolveModelName('s2-model');
@@ -937,46 +937,36 @@ function renderPipelineProgressSummary(currentPanelStep) {
 function restoreStep2Output() {
   if (!currentPipeline) return;
   const sd = currentPipeline.step_data || {};
-  const out = document.getElementById('s2-output');
-  if (!out) return;
-  if (!sd.step2_output_file) {
-    out.innerHTML = '';
+  const mdFile = sd.step2_skill_md_file || sd.step2_draft_md_file || sd.step2_md_file || '';
+  const mdUrl = sd.step2_skill_md_url || sd.step2_draft_md_url || sd.step2_md_download_url || '';
+  if (!mdFile && !mdUrl) {
+    document.getElementById('s2-md-preview').innerHTML = '';
+    document.getElementById('s2-actions').innerHTML = '';
     return;
   }
-  const mdFile = sd.step2_md_file || '';
-  const mdUrl = sd.step2_md_download_url || '';
-  const extractedCount = sd.step2_extracted_count || 0;
-  const sourceCount = sd.step2_source_count || 0;
-  const dedupCount = sd.step2_dedup_count || 0;
-  const draftFile = sd.step2_draft_file || '';
-  const draftUrl = sd.step2_draft_url || '';
-  const draftMdFile = sd.step2_draft_md_file || '';
-  const draftMdUrl = sd.step2_draft_md_url || '';
-  const draftVersion = sd.step2_draft_version || 1;
-
-  let html = '<div class="s2-result-success">';
-  html += '<div class="s2-result-header">知识萃取完成</div>';
-  html += '<div class="s2-result-meta">共提取 <strong>' + extractedCount + '</strong> 条知识';
-  if (sourceCount > 1) html += ' · ' + sourceCount + ' 源 · 去重 ' + dedupCount;
-  if (draftFile) html += ' · 已生成 <strong>Skill 草稿 v' + draftVersion + '</strong>';
-  html += '</div>';
-
-  if (draftFile) {
-    html += '<div class="signal-review-panel" style="margin-top:12px;display:block;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
-    html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">&#129518; Skill 草稿 v' + draftVersion + '（初版，待专家对齐）</div>';
-    html += '<div class="s2-result-actions">';
-    if (draftMdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(draftMdFile) + '\',\'Skill 草稿预览 (v' + draftVersion + ')\')">预览 Skill 草稿</button>';
-    if (draftMdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + draftMdUrl + '" download>下载草稿 Markdown</a>';
-    if (draftUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + draftUrl + '" download>下载草稿 JSON (IR)</a>';
-    html += '</div></div>';
+  // Try to load the md content
+  if (mdFile) {
+    fetch(API_BASE + '/downloads/' + mdFile)
+      .then(function (r) { if (r.ok) return r.text(); throw new Error('not found'); })
+      .then(function (md) {
+        var html = '';
+        if (typeof marked !== 'undefined') {
+          html = marked.parse(md);
+        } else {
+          html = '<pre style="white-space:pre-wrap;">' + escapeHtml(md) + '</pre>';
+        }
+        document.getElementById('s2-md-preview').innerHTML = html;
+        if (mdUrl) {
+          document.getElementById('s2-actions').innerHTML = '<a class="btn btn--primary btn--sm" href="' + API_BASE + mdUrl + '" download>下载 SKILL.md</a>';
+        }
+      })
+      .catch(function () {
+        document.getElementById('s2-md-preview').innerHTML = '<div class="s2-result-success"><div class="s2-result-header">SKILL.md 已生成</div></div>';
+        if (mdUrl) {
+          document.getElementById('s2-actions').innerHTML = '<a class="btn btn--primary btn--sm" href="' + API_BASE + mdUrl + '" download>下载 SKILL.md</a>';
+        }
+      });
   }
-
-  html += '<div class="s2-result-actions" style="margin-top:12px;">';
-  if (mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Skill 草稿预览\')">预览 Skill 草稿</button>';
-  if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载草稿 Markdown</a>';
-  html += '</div></div>';
-
-  renderOutput('s2-output', html);
 }
 
 function restoreStep3Output() {
@@ -1127,6 +1117,7 @@ function switchPanel(step) {
     if (s3Empty) { s3Empty.style.display = 'none'; }
     loadStep3PrevOutput();
     loadStep3IRForAlignment();
+    loadStep3SkillMd();
     loadStep3RevisionContext();
     loadStep3SuggestionPool();
     updateStep3AlignModeHint();
@@ -1188,6 +1179,9 @@ function renderOutput(containerId, html) {
 function renderLoading(containerId) {
   var el = document.getElementById(containerId);
   if (el) { el.style.display = ''; el.innerHTML = '<div class="loading"><div class="spinner"></div>处理中...</div>'; }
+}
+function renderError(containerId, msg) {
+  renderOutput(containerId, '<div class="error-list"><div class="error-item">' + escapeHtml(msg || '未知错误') + '</div></div>');
 }
 function escapeHtml(str) {
   if (str == null) return '';
@@ -2889,6 +2883,108 @@ async function loadStep3IRForAlignment() {
   }
 }
 
+/* ===== Step3: Markdown editor + revision ===== */
+async function loadStep3SkillMd() {
+  var pid = getCurrentPipelineId();
+  if (!pid) return;
+  try {
+    var resp = await fetch(API_BASE + '/api/pipelines/' + pid);
+    var data = await resp.json();
+    var sd = (data.pipeline || {}).step_data || {};
+    var mdFile = sd.step3_skill_md_file || sd.step2_skill_md_file || sd.step2_draft_file;
+    if (!mdFile) {
+      document.getElementById('s3-md-editor').value = '请先完成 Step2 知识萃取';
+      return;
+    }
+    var mdResp = await fetch(API_BASE + '/downloads/' + mdFile);
+    var md = await mdResp.text();
+    document.getElementById('s3-md-editor').value = md;
+    if (typeof marked !== 'undefined') {
+      document.getElementById('s3-md-rendered').innerHTML = marked.parse(md);
+    }
+  } catch (e) {
+    console.error('loadStep3SkillMd:', e);
+  }
+}
+
+function step3AIRevise() {
+  document.getElementById('s3-expert-input-area').style.display = 'block';
+}
+
+async function step3SubmitFeedback() {
+  var pid = getCurrentPipelineId();
+  var feedback = document.getElementById('s3-expert-feedback').value;
+  var model = resolveModelName('s3-model');
+  if (!feedback) { showToast('请输入修订意见', 'error'); return; }
+
+  var formData = new FormData();
+  formData.append('pipeline_id', pid);
+  formData.append('model', model);
+  formData.append('expert_feedback', feedback);
+
+  renderLoading('s3-output');
+  try {
+    var resp = await fetch(API_BASE + '/api/step3/revision_with_expert', { method: 'POST', body: formData });
+    var data = await resp.json();
+    if (data.status === 'ok') {
+      document.getElementById('s3-md-editor').value = data.skill_md;
+      if (typeof marked !== 'undefined') {
+        document.getElementById('s3-md-rendered').innerHTML = marked.parse(data.skill_md);
+      }
+      document.getElementById('s3-expert-input-area').style.display = 'none';
+      document.getElementById('s3-expert-feedback').value = '';
+      showToast('修订完成，请检查后再保存', 'ok');
+    } else {
+      showToast(data.error || '修订失败', 'error');
+    }
+  } catch (e) {
+    showToast('修订失败: ' + e.message, 'error');
+  }
+}
+
+async function step3SaveMd() {
+  var pid = getCurrentPipelineId();
+  var md = document.getElementById('s3-md-editor').value;
+  if (!md) { showToast('没有可保存的内容', 'error'); return; }
+  try {
+    var resp = await fetch(API_BASE + '/api/step3/save_skill_md', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pipeline_id: pid, skill_md: md }),
+    });
+    var data = await resp.json();
+    if (data.status === 'ok') {
+      showToast('已保存', 'ok');
+    } else {
+      showToast(data.error || '保存失败', 'error');
+    }
+  } catch (e) {
+    showToast('保存失败: ' + e.message, 'error');
+  }
+}
+
+async function step3ConfirmMd() {
+  var pid = getCurrentPipelineId();
+  var md = document.getElementById('s3-md-editor').value;
+  if (!md) { showToast('无内容可确认', 'error'); return; }
+  try {
+    var resp = await fetch(API_BASE + '/api/step3/confirm_skill_md', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pipeline_id: pid, skill_md: md }),
+    });
+    var data = await resp.json();
+    if (data.status === 'ok') {
+      showToast('对齐确认完成', 'ok');
+      await refreshCurrentPipeline();
+    } else {
+      showToast(data.error || '确认失败', 'error');
+    }
+  } catch (e) {
+    showToast('确认失败: ' + e.message, 'error');
+  }
+}
+
 function renderStep3ChatHistory() {
   const box = document.getElementById('s3-chat-history');
   if (!box) return;
@@ -4449,49 +4545,32 @@ async function saveExcelEditor() {
 
 /* ===== Step4: 一键编译交付包（确定性主路径）===== */
 async function step4Compile() {
-  const btn = document.getElementById('s4-compile-btn');
-  if (btn._locked) return;
-  btn._locked = true;
-  btn.disabled = true;
+  var pid = getCurrentPipelineId();
+  var model = resolveModelName('s4-model');
+  if (!pid || !model) { showToast('请先选择模型', 'error'); return; }
+
+  var formData = new FormData();
+  formData.append('pipeline_id', pid);
+  formData.append('model', model);
+
+  renderLoading('s4-output');
   try {
-    const pipelineId = getCurrentPipelineId();
-    if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
-    const model = resolveModelName('s4-model');
-    if (!model) { showToast('请先选择模型', 'error'); return; }
-
-    const formData = new FormData();
-    formData.append('pipeline_id', pipelineId);
-    formData.append('model', model);
-
-    renderOutput('s4-output', '<div class="loading">编译中...</div>');
-    try {
-      const resp = await fetch(API_BASE + '/api/step4/compile', { method: 'POST', body: formData });
-      const data = await resp.json();
-      if (data.status !== 'ok') {
-        renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '编译失败') + '</div></div>');
-        return;
-      }
-      const downloads = data.artifacts_download || {};
-      let html = '<div class="s2-result-success"><div class="s2-result-header">编译完成</div><div class="s2-result-meta">生成 ' + (data.knowledge_count || 0) + ' 条知识</div></div>';
+    var resp = await fetch(API_BASE + '/api/step4/build_skill', { method: 'POST', body: formData });
+    var data = await resp.json();
+    if (data.status === 'ok') {
+      var html = '<div class="s2-result-success"><div class="s2-result-header">生成完成</div></div>';
       html += '<div class="s4-downloads">';
-      if (downloads.skill_zip) {
-        html += '<a class="s4-download-link" href="' + API_BASE + downloads.skill_zip.download_url + '" download>' + escapeHtml(downloads.skill_zip.label || 'Agent-Skill 可执行包') + ' (.zip)</a>';
-      }
-      if (downloads.step5_input) {
-        html += '<a class="s4-download-link" href="' + API_BASE + downloads.step5_input.download_url + '" download>' + escapeHtml(downloads.step5_input.label || 'Step5 验证输入') + ' (.json)</a>';
-      }
+      if (data.qa_url) html += '<a class="s4-download-link" href="' + API_BASE + data.qa_url + '" download>QA 对 (.json)</a>';
+      if (data.cot_url) html += '<a class="s4-download-link" href="' + API_BASE + data.cot_url + '" download>思维链 (.md)</a>';
+      if (data.skill_zip_url) html += '<a class="s4-download-link" href="' + API_BASE + data.skill_zip_url + '" download>待验证 Agent-Skill (.zip)</a>';
       html += '</div>';
       renderOutput('s4-output', html);
-
-      // Refresh pipeline to advance step
       await refreshCurrentPipeline();
-    } catch (e) {
-      console.error('step4Compile failed:', e);
-      renderOutput('s4-output', '<div class="error-list"><div class="error-item">编译失败: ' + escapeHtml(e.message) + '</div></div>');
+    } else {
+      renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '生成失败') + '</div></div>');
     }
-  } finally {
-    btn._locked = false;
-    btn.disabled = false;
+  } catch (e) {
+    renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
   }
 }
 
@@ -4649,6 +4728,13 @@ async function step5RunReplay() {
         });
         html += '</div>';
       }
+
+      if (m.f1 >= 0.5) {
+        html += '<button type="button" class="btn btn--primary btn--md" onclick="step5Finalize()" style="margin-top:12px;">生成最终版 Agent-Skill</button>';
+      }
+
+      window._s5_metrics = m;
+
       renderOutput('s5-output', html);
 
       await refreshCurrentPipeline();
@@ -4699,6 +4785,30 @@ async function step5RunFeedback() {
 
 async function step5GoldenVerify() {
   step5RunReplay();
+}
+
+async function step5Finalize() {
+  var pid = getCurrentPipelineId();
+  if (!pid) return;
+  try {
+    var resp = await fetch(API_BASE + '/api/step5/finalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'pipeline_id=' + encodeURIComponent(pid),
+    });
+    var data = await resp.json();
+    if (data.status === 'ok') {
+      showToast('最终版已生成', 'ok');
+      var a = document.createElement('a');
+      a.href = API_BASE + data.final_zip_url;
+      a.download = data.final_zip_file;
+      a.click();
+    } else {
+      showToast(data.error || '生成失败', 'error');
+    }
+  } catch (e) {
+    showToast('生成失败: ' + e.message, 'error');
+  }
 }
 
 /* ===== Step2 IR v2 rendering helpers ===== */
@@ -4768,10 +4878,10 @@ function renderIRTable(ir) {
   return html;
 }
 
-function step2ExtractRules() {
+async function step2ExtractSkillMd() {
   var pipelineId = getCurrentPipelineId();
   if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
-  var model = getSelectedModel();
+  var model = resolveModelName('s2-model');
   if (!model) { showToast('请先选择模型', 'error'); return; }
 
   var formData = new FormData();
@@ -4780,45 +4890,43 @@ function step2ExtractRules() {
   var files = document.getElementById('s2-source-files').files;
   for (var i = 0; i < files.length; i++) formData.append('files', files[i]);
 
-  fetch(API_BASE + '/api/step2/extract_rules', { method: 'POST', body: formData })
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      if (data.status === 'ok') {
-        renderStep2IR(data.ir);
-        document.getElementById('s2-generate-sql').disabled = false;
+  // 收集文本输入行
+  var textRows = document.querySelectorAll('#s2-text-inputs .s2-text-input-row');
+  var textInputs = [];
+  textRows.forEach(function (row) {
+    var label = (row.querySelector('.s2-text-input-label') || {}).value || '';
+    var content = (row.querySelector('.s2-text-input-content') || {}).value || '';
+    if (content.trim()) textInputs.push({ source_label: label, content: content.trim() });
+  });
+  if (textInputs.length > 0) {
+    formData.append('text_inputs', JSON.stringify(textInputs));
+  }
+
+  // 知识库继承
+  if (document.getElementById('s2-kb-inherit')?.checked) {
+    formData.append('kb_inherit', '1');
+  }
+
+  renderLoading('s2-output');
+  try {
+    var resp = await fetch(API_BASE + '/api/step2/extract_skill_md', { method: 'POST', body: formData });
+    var data = await resp.json();
+    if (data.status === 'ok') {
+      var html = '';
+      if (typeof marked !== 'undefined') {
+        html = marked.parse(data.skill_md);
       } else {
-        alert(data.error || '生成规则失败');
+        html = '<pre style="white-space:pre-wrap;">' + escapeHtml(data.skill_md) + '</pre>';
       }
-    })
-    .catch(function (e) {
-      console.error('step2ExtractRules failed:', e);
-      alert('网络错误: ' + e.message);
-    });
-}
-
-function step2GenerateSQL() {
-  var pipelineId = getCurrentPipelineId();
-  if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
-  var model = getSelectedModel();
-  if (!model) { showToast('请先选择模型', 'error'); return; }
-
-  var formData = new FormData();
-  formData.append('pipeline_id', pipelineId);
-  formData.append('model', model);
-
-  fetch(API_BASE + '/api/step2/extract_sql', { method: 'POST', body: formData })
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      if (data.status === 'ok') {
-        renderStep2IR(data.ir);
-      } else {
-        alert(data.error || '生成取数逻辑失败');
-      }
-    })
-    .catch(function (e) {
-      console.error('step2GenerateSQL failed:', e);
-      alert('网络错误: ' + e.message);
-    });
+      document.getElementById('s2-md-preview').innerHTML = html;
+      document.getElementById('s2-actions').innerHTML = '<a class="btn btn--primary btn--sm" href="' + API_BASE + data.download_url + '" download>下载 SKILL.md</a>';
+      await refreshCurrentPipeline();
+    } else {
+      renderError('s2-output', data.error);
+    }
+  } catch (e) {
+    renderError('s2-output', e.message);
+  }
 }
 
 function downloadCurrentIR() {

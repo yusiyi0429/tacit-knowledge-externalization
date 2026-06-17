@@ -1545,6 +1545,173 @@ def api_step2_prev_output():
 
 # ─── Step 4: Compile ──────────────────────────────────────────────
 
+@app.route("/api/step4/build_skill", methods=["POST"])
+def api_step4_build_skill():
+    """Step4: LLM 解析 SKILL.md 生成 QA/CoT/Agent-Skill"""
+    pipeline_id = request.form.get("pipeline_id", "")
+    model_name = request.form.get("model", "")
+
+    if not pipeline_id or not model_name:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id 或 model"})
+
+    from shared import get_model_by_name
+    model_cfg = get_model_by_name(model_name)
+    if not model_cfg:
+        return jsonify({"status": "error", "error": f"模型 '{model_name}' 不可用"})
+
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"status": "error", "error": "流水线不存在"})
+
+    try:
+        sd = pipeline.get("step_data") or {}
+        step1_form = sd.get("step1_form_data") or {}
+        md_file = sd.get("step3_skill_md_file") or sd.get("step3_aligned_file") or sd.get("step2_skill_md_file") or sd.get("step2_draft_file")
+        if not md_file:
+            return jsonify({"status": "error", "error": "未找到 SKILL.md（请先完成 Step2/Step3）"})
+
+        from pipeline_artifacts import locate_workspace_file
+        md_path = locate_workspace_file(WORKSPACE, md_file, pipeline_id=pipeline_id)
+        if not md_path:
+            return jsonify({"status": "error", "error": "SKILL.md 文件不存在"})
+
+        skill_md = md_path.read_text(encoding="utf-8")
+
+        # Render Step4 prompt
+        prompt_path = Path("prompts/step4_build_deliverables.txt")
+        prompt_tpl = prompt_path.read_text(encoding="utf-8")
+        prompt = prompt_tpl.replace("{{skill_md}}", skill_md[:12000])
+        scenario_name = step1_form.get("scenario_name", pipeline.get("scenario", ""))
+        prompt = prompt.replace("{{scenario_name}}", scenario_name)
+        prompt = prompt.replace("{{domain}}", step1_form.get("domain", pipeline.get("domain", "")) or "")
+        prompt = prompt.replace("{{scenario_desc}}", step1_form.get("scenario_content", "") or "")
+        prompt = prompt.replace("{{knowledge_columns}}", ", ".join(step1_form.get("knowledge_columns") or []))
+
+        from llm_client import call_llm_with_retry
+        result = call_llm_with_retry(
+            model_cfg,
+            [{"role": "user", "content": prompt}],
+            stream=False,
+            temperature=0.1,
+            max_tokens=100000,
+        )
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "") if isinstance(result, dict) else str(result)
+
+        # Parse the three deliverables
+        qa_json = {"items": []}
+        cot_md = ""
+        agent_skill_ir = {}
+
+        if "===QA_PAIRS===" in content:
+            parts = content.split("===QA_PAIRS===")
+            if len(parts) > 1:
+                qa_part = parts[1].split("===CHAIN_OF_THOUGHT===")[0] if "===CHAIN_OF_THOUGHT===" in parts[1] else parts[1]
+                try:
+                    qa_json = json.loads(qa_part.strip())
+                except:
+                    qa_json = {"raw": qa_part.strip(), "items": []}
+
+        if "===CHAIN_OF_THOUGHT===" in content:
+            parts = content.split("===CHAIN_OF_THOUGHT===")
+            if len(parts) > 1:
+                cot_part = parts[1].split("===AGENT_SKILL===")[0] if "===AGENT_SKILL===" in parts[1] else parts[1]
+                cot_md = cot_part.strip()
+
+        if "===AGENT_SKILL===" in content:
+            parts = content.split("===AGENT_SKILL===")
+            if len(parts) > 1:
+                skill_part = parts[1].strip()
+                try:
+                    agent_skill_ir = json.loads(skill_part)
+                except:
+                    agent_skill_ir = {"raw": skill_part}
+
+        # Save deliverable files
+        qa_path = workspace_path_for(WORKSPACE, pipeline_id, "step4", f"qa_{uuid.uuid4().hex[:6]}.json")
+        qa_path.parent.mkdir(parents=True, exist_ok=True)
+        qa_path.write_text(json.dumps(qa_json, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        cot_path = workspace_path_for(WORKSPACE, pipeline_id, "step4", f"cot_{uuid.uuid4().hex[:6]}.md")
+        cot_path.write_text(cot_md or "无法生成思维链", encoding="utf-8")
+
+        # Build agent-skill zip (to be verified)
+        skill_dir = workspace_path_for(WORKSPACE, pipeline_id, "step4", "skill_verify")
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        skill_base = skill_dir / f"agent_skill_{pipeline_id[:8]}"
+        skill_base.mkdir(exist_ok=True)
+
+        # Write SKILL.md
+        (skill_base / "SKILL.md").write_text(skill_md, encoding="utf-8")
+
+        # Write manifest.json
+        manifest = {
+            "name": f"agent-skill-{pipeline_id[:8]}",
+            "version": "0.1.0-verify",
+            "description": scenario_name + " Agent Skill（待验证）",
+            "entry": "scripts/execute.py",
+        }
+        (skill_base / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # Write ir_snapshot.json
+        refs_dir = skill_base / "references"
+        refs_dir.mkdir(exist_ok=True)
+        (refs_dir / "ir_snapshot.json").write_text(json.dumps(agent_skill_ir, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # Copy execute.py
+        scripts_dir = skill_base / "scripts"
+        scripts_dir.mkdir(exist_ok=True)
+        executor_src = Path(__file__).resolve().parent / "skill_executor.py"
+        if executor_src.exists():
+            shutil.copy2(executor_src, scripts_dir / "execute.py")
+        (scripts_dir / "__init__.py").write_text("", encoding="utf-8")
+
+        # Create zip
+        import zipfile as zf_mod
+        zip_name = f"SKILL_VERIFY_{pipeline_id[:8]}.zip"
+        zip_path = workspace_path_for(WORKSPACE, pipeline_id, "step4", zip_name)
+        with zf_mod.ZipFile(zip_path, "w", zf_mod.ZIP_DEFLATED) as zf:
+            for fp in skill_base.rglob("*"):
+                if fp.is_file():
+                    zf.write(fp, fp.relative_to(skill_base))
+
+        # Update pipeline
+        qa_name = qa_path.name
+        cot_name = cot_path.name
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    psd = p.setdefault("step_data", {})
+                    psd["step4_qa_file"] = qa_name
+                    psd["step4_qa_url"] = "/downloads/" + qa_name
+                    psd["step4_cot_file"] = cot_name
+                    psd["step4_cot_url"] = "/downloads/" + cot_name
+                    psd["step4_skill_zip_file"] = zip_name
+                    psd["step4_skill_zip_url"] = "/downloads/" + zip_name
+                    psd["step4_published_version"] = 1
+                    p.setdefault("step_status", {})
+                    p["step_status"]["4"] = "done"
+                    if p["step_status"].get("5", "pending") == "pending":
+                        p["step_status"]["5"] = "active"
+                    p["current_step"] = max(p.get("current_step", 1), 5)
+                    p["updated_at"] = datetime.datetime.now().isoformat()
+                    break
+            save_pipelines(pipelines)
+
+        return jsonify({
+            "status": "ok",
+            "qa_file": qa_name,
+            "qa_url": "/downloads/" + qa_name,
+            "cot_file": cot_name,
+            "cot_url": "/downloads/" + cot_name,
+            "skill_zip_file": zip_name,
+            "skill_zip_url": "/downloads/" + zip_name,
+            "knowledge_count": len(agent_skill_ir.get("entries", [])),
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"Skill生成失败: {str(e)}"})
+
+
 @app.route("/api/step4/compile", methods=["POST"])
 def api_step4_compile():
     """智能转化：生成思维链 / QA 对 / OpenClaw Skill 三类交付物。"""
@@ -5335,6 +5502,85 @@ def api_step3_confirm_as_is():
         return jsonify({"status": "error", "error": f"确认对齐稿失败: {str(e)}"})
 
 
+@app.route("/api/step3/revision_with_expert", methods=["POST"])
+def api_step3_revision_with_expert():
+    """Step3: LLM 根据专家反馈修订 SKILL.md"""
+    pipeline_id = request.form.get("pipeline_id", "")
+    model_name = request.form.get("model", "")
+    expert_feedback = request.form.get("expert_feedback", "")
+
+    if not pipeline_id or not expert_feedback:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id 或专家反馈"})
+
+    from shared import get_model_by_name
+    model_cfg = get_model_by_name(model_name)
+    if not model_cfg:
+        return jsonify({"status": "error", "error": f"模型 '{model_name}' 不可用"})
+
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"status": "error", "error": "流水线不存在"})
+
+    try:
+        sd = pipeline.get("step_data") or {}
+        md_file = sd.get("step3_skill_md_file") or sd.get("step2_skill_md_file") or sd.get("step2_draft_file")
+        if not md_file:
+            return jsonify({"status": "error", "error": "未找到 Step2 生成的 SKILL.md"})
+
+        from pipeline_artifacts import locate_workspace_file
+        md_path = locate_workspace_file(WORKSPACE, md_file, pipeline_id=pipeline_id)
+        if not md_path:
+            return jsonify({"status": "error", "error": "SKILL.md 文件不存在"})
+
+        current_skill_md = md_path.read_text(encoding="utf-8")
+
+        # Render Step3 prompt
+        prompt_path = Path("prompts/step3_align_with_expert.txt")
+        prompt_tpl = prompt_path.read_text(encoding="utf-8")
+        prompt = prompt_tpl.replace("{{current_skill_md}}", current_skill_md)
+        prompt = prompt.replace("{{expert_feedback}}", expert_feedback)
+
+        from llm_client import call_llm_with_retry
+        result = call_llm_with_retry(
+            model_cfg,
+            [{"role": "user", "content": prompt}],
+            stream=False,
+            temperature=0.2,
+            max_tokens=100000,
+        )
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "") if isinstance(result, dict) else str(result)
+
+        if not content.strip():
+            return jsonify({"status": "error", "error": "LLM 返回空内容"})
+
+        # Save revised SKILL.md
+        revised_name = f"skill_revised_{pipeline_id[:8]}_{uuid.uuid4().hex[:6]}.md"
+        revised_path = workspace_path_for(WORKSPACE, pipeline_id, "step3", revised_name)
+        revised_path.parent.mkdir(parents=True, exist_ok=True)
+        revised_path.write_text(content, encoding="utf-8")
+
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    psd = p.setdefault("step_data", {})
+                    psd["step3_skill_md_file"] = revised_name
+                    psd["step3_skill_md_url"] = "/downloads/" + revised_name
+                    psd["step3_aligned_file"] = revised_name
+                    psd["step3_aligned_url"] = "/downloads/" + revised_name
+                    break
+            save_pipelines(pipelines)
+
+        return jsonify({
+            "status": "ok",
+            "skill_md": content,
+            "skill_md_file": revised_name,
+            "download_url": "/downloads/" + revised_name,
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"知识对齐失败: {str(e)}"})
+
+
 # ─── Interview API (方案三) ──────────────────────────────────────
 
 @app.route("/api/interview/probe", methods=["POST"])
@@ -5674,6 +5920,96 @@ def api_step5_golden_verify():
     report["report_name"] = report_name
     report["download_url"] = f"/downloads/{report_name}" if report_name else ""
     return jsonify(report)
+
+
+@app.route("/api/step5/finalize", methods=["POST"])
+def api_step5_finalize():
+    """Step5: 验证通过后生成最终版 agent-skill_final.zip"""
+    pipeline_id = request.form.get("pipeline_id", "")
+
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"status": "error", "error": "流水线不存在"})
+
+    sd = pipeline.get("step_data") or {}
+    zip_file = sd.get("step4_skill_zip_file", "")
+    if not zip_file:
+        return jsonify({"status": "error", "error": "未找到 Step4 生成的待验证 Skill"})
+
+    # Check verification passed
+    precision = sd.get("step5_precision", 0)
+    if precision < 0.6:
+        return jsonify({"status": "error", "error": f"验证未通过 (precision={precision})，请先完成验证回流", "precision": precision})
+
+    try:
+        from pipeline_artifacts import locate_workspace_file
+        zip_src = locate_workspace_file(WORKSPACE, zip_file, pipeline_id=pipeline_id)
+        if not zip_src:
+            return jsonify({"status": "error", "error": "待验证 Skill zip 不存在"})
+
+        import zipfile as zf_mod, tempfile, shutil
+        tmp_dir = Path(tempfile.mkdtemp())
+
+        # Extract existing zip
+        with zf_mod.ZipFile(zip_src, "r") as zf:
+            zf.extractall(tmp_dir)
+
+        # Find skill base dir
+        subdirs = [d for d in tmp_dir.iterdir() if d.is_dir() and (d / "SKILL.md").exists()]
+        skill_base = subdirs[0] if subdirs else tmp_dir
+
+        # Add QA and COT files
+        qa_file = sd.get("step4_qa_file", "")
+        cot_file = sd.get("step4_cot_file", "")
+        if qa_file:
+            qa_path = locate_workspace_file(WORKSPACE, qa_file, pipeline_id=pipeline_id)
+            if qa_path and qa_path.exists():
+                shutil.copy2(qa_path, skill_base / "qa_pairs.json")
+        if cot_file:
+            cot_path = locate_workspace_file(WORKSPACE, cot_file, pipeline_id=pipeline_id)
+            if cot_path and cot_path.exists():
+                shutil.copy2(cot_path, skill_base / "chain_of_thought.md")
+
+        # Update manifest to final version
+        manifest_path = skill_base / "manifest.json"
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["version"] = "1.0.0"
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # Create final zip
+        final_name = f"SKILL_FINAL_{pipeline_id[:8]}.zip"
+        final_path = workspace_path_for(WORKSPACE, pipeline_id, "step5", final_name)
+        final_path.parent.mkdir(parents=True, exist_ok=True)
+        with zf_mod.ZipFile(final_path, "w", zf_mod.ZIP_DEFLATED) as zf:
+            for fp in skill_base.rglob("*"):
+                if fp.is_file():
+                    zf.write(fp, fp.relative_to(skill_base))
+
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    psd = p.setdefault("step_data", {})
+                    psd["step5_final_zip_file"] = final_name
+                    psd["step5_final_zip_url"] = "/downloads/" + final_name
+                    p["step_status"]["5"] = "done"
+                    p["updated_at"] = datetime.datetime.now().isoformat()
+                    break
+            save_pipelines(pipelines)
+
+        return jsonify({
+            "status": "ok",
+            "final_zip_file": final_name,
+            "final_zip_url": "/downloads/" + final_name,
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"最终打包失败: {str(e)}"})
 
 
 # ─── 外部知识库 API（知识资产 / 案例库 / 发布登记） ────────────────
@@ -6654,6 +6990,110 @@ def step2_extract_unified():
         "skill_draft_md_url": draft_info.get("draft_md_url", ""),
         "skill_draft_version": draft_info.get("draft_version", 0),
     })
+
+
+@app.route("/api/step2/extract_skill_md", methods=["POST"])
+def api_step2_extract_skill_md():
+    """Step2: LLM 根据场景骨架+知识文档生成 SKILL.md"""
+    pipeline_id = request.form.get("pipeline_id", "")
+    model_name = request.form.get("model", "")
+
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+    if not model_name:
+        return jsonify({"status": "error", "error": "缺少 model 参数"})
+
+    from shared import get_model_by_name
+    model_cfg = get_model_by_name(model_name)
+    if not model_cfg:
+        return jsonify({"status": "error", "error": f"模型 '{model_name}' 不可用"})
+
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"status": "error", "error": "流水线不存在"})
+
+    try:
+        sd = pipeline.get("step_data") or {}
+        step1_form = sd.get("step1_form_data") or {}
+
+        # Read uploaded files
+        source_text = request.form.get("source_text", "")
+        if not source_text:
+            parts = []
+            for f in request.files.getlist("files") or []:
+                if f.filename:
+                    parts.append(f.read().decode("utf-8", errors="ignore"))
+            source_text = "\n\n".join(parts)
+        if not source_text:
+            return jsonify({"status": "error", "error": "缺少知识来源文本或文件"})
+
+        # Build sub_scenarios text
+        sub_list = step1_form.get("sub_scenarios") or []
+        sub_text = "\n".join(f"- {s.get('name', '')}：{s.get('desc', '')}" for s in sub_list) or "- 默认子场景"
+
+        # Build knowledge columns text
+        cols = step1_form.get("knowledge_columns") or []
+        col_text = ", ".join(cols) if cols else "步骤, 具体方法, 知识引用, 规则引用, 专业术语, 关键输出"
+
+        # Render prompt
+        prompt_path = Path("prompts/step2_generate_skill_md.txt")
+        prompt_tpl = prompt_path.read_text(encoding="utf-8")
+        ctx = {
+            "scenario_name": step1_form.get("scenario_name", pipeline.get("scenario", "")),
+            "scenario_desc": step1_form.get("scenario_content", ""),
+            "sub_scenarios": sub_text,
+            "knowledge_columns": col_text,
+            "source_text": source_text[:12000],
+        }
+        prompt = prompt_tpl
+        for k, v in ctx.items():
+            prompt = prompt.replace("{{" + k + "}}", str(v))
+
+        from llm_client import call_llm_with_retry
+        result = call_llm_with_retry(
+            model_cfg,
+            [{"role": "user", "content": prompt}],
+            stream=False,
+            temperature=0.2,
+            max_tokens=100000,
+        )
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "") if isinstance(result, dict) else str(result)
+
+        if not content.strip():
+            return jsonify({"status": "error", "error": "LLM 返回空内容"})
+
+        # Save SKILL.md
+        skill_name = f"skill_draft_{pipeline_id[:8]}_{uuid.uuid4().hex[:6]}.md"
+        skill_path = workspace_path_for(WORKSPACE, pipeline_id, "step2", skill_name)
+        skill_path.parent.mkdir(parents=True, exist_ok=True)
+        skill_path.write_text(content, encoding="utf-8")
+
+        with _pipelines_lock:
+            pipelines = load_pipelines()
+            for p in pipelines:
+                if p["id"] == pipeline_id:
+                    psd = p.setdefault("step_data", {})
+                    psd["step2_skill_md_file"] = skill_name
+                    psd["step2_skill_md_url"] = "/downloads/" + skill_name
+                    psd["step2_draft_file"] = skill_name
+                    psd["step2_draft_url"] = "/downloads/" + skill_name
+                    p.setdefault("step_status", {})
+                    p["step_status"]["2"] = "done"
+                    if p["step_status"].get("3", "pending") == "pending":
+                        p["step_status"]["3"] = "active"
+                    p["current_step"] = max(p.get("current_step", 1), 3)
+                    p["updated_at"] = datetime.datetime.now().isoformat()
+                    break
+            save_pipelines(pipelines)
+
+        return jsonify({
+            "status": "ok",
+            "skill_md": content,
+            "skill_md_file": skill_name,
+            "download_url": "/downloads/" + skill_name,
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"知识萃取失败: {str(e)}"})
 
 
 @app.route("/api/step2/multi_source_extract", methods=["POST"])

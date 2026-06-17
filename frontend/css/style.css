@@ -2626,3 +2626,14 @@ a { color: var(--red); text-decoration: none; }
 .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #9ca3af; line-height: 1; }
 .modal-close:hover { color: #111827; }
 .modal-body { padding: 20px; overflow: auto; }
+
+/* ===== MD Preview ===== */
+.md-preview { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:12px; }
+.md-preview h1 { font-size:20px; margin-bottom:8px; }
+.md-preview h2 { font-size:16px; margin:16px 0 8px; }
+.md-preview h3 { font-size:14px; margin:12px 0 4px; }
+.md-preview pre { background:#f9fafb; padding:8px; border-radius:4px; font-size:12px; overflow:auto; }
+.md-preview code { background:#f3f4f6; padding:2px 4px; border-radius:3px; font-size:12px; }
+.md-preview table { border-collapse:collapse; width:100%; margin:8px 0; }
+.md-preview th, .md-preview td { border:1px solid #e5e7eb; padding:4px 8px; font-size:12px; }
+.md-preview th { background:#f9fafb; }

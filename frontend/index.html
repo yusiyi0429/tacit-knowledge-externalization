@@ -446,8 +446,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>选择模型</label>
                 <select id="s2-model"></select>
               </div>
-              <button type="button" class="btn btn--primary btn--md" id="s2-extract-rules" onclick="step2ExtractRules()">生成规则</button>
-              <button type="button" class="btn btn--secondary btn--md" id="s2-generate-sql" onclick="step2GenerateSQL()" disabled style="margin-top:6px;">生成取数逻辑</button>
+              <button type="button" class="btn btn--primary btn--md" id="s2-extract-btn" onclick="step2ExtractSkillMd()">生成 SKILL.md</button>
               <button type="button" class="btn btn--primary btn--md" id="s2-skill-extract" onclick="step2Execute()" style="display:none;">
                 <span class="btn__icon btn__icon--left" data-lucide="play"></span>
                 <span class="btn__text" id="s2-btn-text">执行知识萃取</span>
@@ -459,15 +458,8 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <div class="col col-right">
             <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
             <div class="col-content output-area" id="s2-output">
-              <div class="s2-tabs">
-                <button type="button" class="s2-tab active" data-tab="tree" onclick="switchStep2Tab('tree')">IR 树</button>
-                <button type="button" class="s2-tab" data-tab="markdown" onclick="switchStep2Tab('markdown')">Markdown</button>
-                <button type="button" class="s2-tab" data-tab="table" onclick="switchStep2Tab('table')">表格</button>
-              </div>
-              <div id="s2-ir-tree" class="s2-tab-panel active"></div>
-              <div id="s2-ir-markdown" class="s2-tab-panel" style="display:none;"></div>
-              <div id="s2-ir-table" class="s2-tab-panel" style="display:none;"></div>
-              <button type="button" class="btn btn--outline btn--sm" onclick="downloadCurrentIR()" style="margin-top:12px;">下载 IR JSON</button>
+              <div id="s2-md-preview" class="md-preview" style="max-height:500px;overflow:auto;"></div>
+              <div id="s2-actions" style="margin-top:12px;"></div>
             </div>
           </div>
         </div>
@@ -563,13 +555,26 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               </div>
             </div>
             <div class="col col-right">
-              <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">状态</div><div class="col-label-en">Status</div></div></div>
+              <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
               <div class="col-content output-area" id="s3-output">
-                <div class="s3-align-header">
-                  <span class="s3-align-title">IR 规则 / SQL 对齐</span>
-                  <button type="button" class="btn btn--primary btn--sm" onclick="step3ConfirmAsIs()">确认对齐</button>
+                <div id="s3-md-editor-area" style="margin-bottom:12px;">
+                  <label style="font-size:12px;color:#6b7280;">修订 SKILL.md（可直接编辑代码块中的 SQL）：</label>
+                  <textarea id="s3-md-editor" rows="20" style="width:100%;font-family:monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:8px;"></textarea>
                 </div>
-                <div class="s3-ir-list" id="s3-ir-list"></div>
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                  <button type="button" class="btn btn--primary btn--sm" id="s3-ai-revise-btn" onclick="step3AIRevise()">AI 辅助修订</button>
+                  <button type="button" class="btn btn--secondary btn--sm" id="s3-save-btn" onclick="step3SaveMd()">保存修订</button>
+                  <button type="button" class="btn btn--outline btn--sm" id="s3-confirm-btn" onclick="step3ConfirmMd()">确认对齐</button>
+                </div>
+                <div id="s3-expert-input-area" style="margin-bottom:8px;display:none;">
+                  <label style="font-size:12px;">专家修订意见（自然语言）：</label>
+                  <textarea id="s3-expert-feedback" rows="3" style="width:100%;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:4px;" placeholder="例如：第3条规则的年限改为1年，SQL里的WHERE条件也要改"></textarea>
+                  <button type="button" class="btn btn--primary btn--sm" style="margin-top:4px;" onclick="step3SubmitFeedback()">提交反馈</button>
+                </div>
+                <div id="s3-md-preview" class="md-preview" style="display:none;max-height:400px;overflow:auto;border:1px solid #e5e7eb;padding:12px;border-radius:6px;">
+                  <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">预览：</div>
+                  <div id="s3-md-rendered"></div>
+                </div>
               </div>
             </div>
           </div>

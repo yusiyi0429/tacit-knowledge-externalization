@@ -1,0 +1,115 @@
+你是银行信贷知识工程师。请根据以下 SKILL.md，一次性生成三个交付物：QA对、思维链、Agent-Skill 可执行结构。
+
+## 输入 SKILL.md
+{{skill_md}}
+
+## 交付物 1：QA 对（JSON 数组）
+
+将 SKILL.md 中的每条知识规则转化为问答对，用于 RAG 检索和 Step5 验证。
+
+格式：
+```json
+[
+  {
+    "q": "在[场景]中，[具体问题描述]？",
+    "a": "[准确答案，引用规则原文]",
+    "rule_id": "对应 SKILL.md 中的规则名称",
+    "phase": "客户筛选|客户数据匹配|原因归因|决策建议",
+    "sql": "[对应的 SQL 参考语句]"
+  }
+]
+```
+
+要求：
+- 每条规则至少生成 1 个 QA 对
+- 问题要具体、可验证，不要泛泛而问
+- 答案必须引用规则原文关键部分
+- 包含 SQL 语句的规则必须把 SQL 也放进 QA 对
+
+## 交付物 2：思维链（Markdown）
+
+为整个决策流程生成分步推理链条，供 Agent 执行时参考。
+
+格式：
+```markdown
+# 思维链：{{scenario_name}}
+
+## 第一步：客户筛选
+[推理过程：根据哪些条件筛选、为什么这样筛选、预期筛出多少客户]
+
+## 第二步：客户数据匹配
+[推理过程：如何匹配客户数据、匹配哪些维度、匹配失败怎么处理]
+
+## 第三步：原因归因
+[推理过程：如何判断客户归属、分类逻辑是什么、边界情况怎么处理]
+
+## 第四步：决策建议
+[推理过程：针对不同归因给出什么建议、建议的优先级、例外情况处理]
+```
+
+要求：
+- 每个步骤写出 3-5 句推理
+- 推理必须基于 SKILL.md 中的规则
+- 标注关键决策点和判断条件
+
+## 交付物 3：Agent-Skill 可执行结构（JSON）
+
+生成 Agent-Skill 的可执行结构，包含每条规则的 SQL 和参数。
+
+格式：
+```json
+{
+  "ir_version": "2.0",
+  "skill_meta": {
+    "scenario_name": "{{scenario_name}}",
+    "domain": "{{domain}}",
+    "status": "aligned"
+  },
+  "anchors": {
+    "scenario": "{{scenario_name}}",
+    "scenario_desc": "{{scenario_desc}}"
+  },
+  "entries": [
+    {
+      "entry_id": "KN-001",
+      "sub_scenario": "子场景名称",
+      "step_phase": "客户筛选",
+      "fields": {
+        "knowledge_desc": "业务描述",
+        "knowledge_ref": "数据来源引用",
+        "rule_ref": "规则引用原文",
+        "output": "输出物描述",
+        "data_logic": {
+          "sql": "SELECT ...",
+          "tables": ["表名1", "表名2"],
+          "fields": ["字段1", "字段2"],
+          "confidence": "high|medium|low"
+        }
+      }
+    }
+  ]
+}
+```
+
+要求：
+- 从 SKILL.md 中提取每条规则的 SQL，填入 data_logic.sql
+- entry_id 按 KN-001 递增
+- 保持 step_phase 与 SKILL.md 的四个阶段对应
+- confidence 根据 SQL 的完整性和可执行性判断
+
+## 输出要求
+
+**一次性输出三个交付物**，使用以下分隔符：
+
+```
+===QA_PAIRS===
+[JSON 数组]
+
+===CHAIN_OF_THOUGHT===
+[Markdown]
+
+===AGENT_SKILL===
+[JSON]
+```
+
+不要有任何额外解释文字。每个分隔符独占一行。
