@@ -3104,26 +3104,48 @@ async function step3ApplySuggestions() {
   if (!pid) return;
   var ids = _s3CheckedSuggestionIds();
   if (!ids.length) { showToast('请先勾选要采纳的建议', 'error'); return; }
+
   var btn = document.getElementById('s3-suggestion-apply');
   if (btn) btn.disabled = true;
+
   try {
-    var result = await apiCallJSON('/api/step3/apply_suggestions', { pipeline_id: pid, accepted_ids: ids });
-    if (result.status !== 'ok') { showToast(result.error || '应用建议失败', 'error'); return; }
-    if (currentPipeline) {
-      currentPipeline.step_data = currentPipeline.step_data || {};
-      if (result.aligned_file) {
-        currentPipeline.step_data.step3_aligned_file = result.aligned_file;
-        currentPipeline.step_data.step3_aligned_url = result.aligned_url || '';
-        currentPipeline.step_data.step3_aligned_version = result.aligned_version || 0;
-        if (result.aligned_md_file) {
-          currentPipeline.step_data.step3_aligned_md_file = result.aligned_md_file;
-          currentPipeline.step_data.step3_aligned_md_url = result.aligned_md_url || '';
-        }
+    // Build feedback text from selected suggestions
+    var feedbackLines = [];
+    var suggestions = _s3SuggestionPool || [];
+    for (var i = 0; i < suggestions.length; i++) {
+      var s = suggestions[i];
+      if (ids.indexOf(String(s.id)) !== -1) {
+        var line = '建议 #' + s.id + '：';
+        if (s.note) line += s.note;
+        if (s.new_value) line += ' 修改为：' + s.new_value;
+        feedbackLines.push(line);
       }
     }
-    showToast('已应用 ' + (result.applied_count || 0) + ' 条建议，生成对齐稿 v' + (result.aligned_version || '?'));
-    loadStep3SuggestionPool();
-    refreshCurrentPipeline();
+    if (!feedbackLines.length) { showToast('未找到选中建议的内容', 'error'); return; }
+
+    var feedback = feedbackLines.join('\n');
+    var model = resolveModelName('s3-model');
+    var formData = new FormData();
+    formData.append('pipeline_id', pid);
+    formData.append('model', model);
+    formData.append('expert_feedback', feedback);
+
+    renderLoading('s3-output');
+    var resp = await fetch(API_BASE + '/api/step3/revision_with_expert', { method: 'POST', body: formData });
+    var result = await resp.json();
+
+    if (result.status === 'ok') {
+      document.getElementById('s3-md-editor').value = result.skill_md;
+      if (typeof marked !== 'undefined') {
+        document.getElementById('s3-md-rendered').innerHTML = marked.parse(result.skill_md);
+      }
+      document.getElementById('s3-md-preview').style.display = 'block';
+      showToast('已应用 ' + ids.length + ' 条建议，修订稿已更新', 'ok');
+      loadStep3SuggestionPool();
+      refreshCurrentPipeline();
+    } else {
+      showToast(result.error || '应用建议失败', 'error');
+    }
   } catch (e) {
     showToast('应用建议失败: ' + e.message, 'error');
   } finally {
