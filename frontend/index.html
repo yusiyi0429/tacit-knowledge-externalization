@@ -446,12 +446,14 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <label>选择模型</label>
                 <select id="s2-model"></select>
               </div>
-              <button type="button" class="btn btn--primary btn--md" id="s2-skill-extract" onclick="step2Execute()">
+              <button type="button" class="btn btn--primary btn--md" id="s2-extract-rules" onclick="step2ExtractRules()">生成规则</button>
+              <button type="button" class="btn btn--secondary btn--md" id="s2-generate-sql" onclick="step2GenerateSQL()" disabled style="margin-top:6px;">生成取数逻辑</button>
+              <button type="button" class="btn btn--primary btn--md" id="s2-skill-extract" onclick="step2Execute()" style="display:none;">
                 <span class="btn__icon btn__icon--left" data-lucide="play"></span>
                 <span class="btn__text" id="s2-btn-text">执行知识萃取</span>
               </button>
-              <div class="step-readiness info" id="s2-readiness">请补全 Skill、模型与文档输入后执行</div>
-              <div class="action-note">选择能力后点击执行，自动提取结构化知识</div>
+              <div class="step-readiness info" id="s2-readiness">请补全模型与文档后点击生成规则</div>
+              <div class="action-note">上传知识文档后点击生成规则，IR 生成后可点击生成 SQL</div>
             </div>
           </div>
           <div class="col col-right">
@@ -465,11 +467,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               <div id="s2-ir-tree" class="s2-tab-panel active"></div>
               <div id="s2-ir-markdown" class="s2-tab-panel" style="display:none;"></div>
               <div id="s2-ir-table" class="s2-tab-panel" style="display:none;"></div>
-              <div class="s2-actions">
-                <button type="button" class="btn btn--primary btn--sm" id="s2-extract-rules" onclick="step2ExtractRules()">生成规则</button>
-                <button type="button" class="btn btn--secondary btn--sm" id="s2-generate-sql" onclick="step2GenerateSQL()" disabled>生成取数逻辑</button>
-                <button type="button" class="btn btn--outline btn--sm" onclick="downloadCurrentIR()">下载 IR JSON</button>
-              </div>
+              <button type="button" class="btn btn--outline btn--sm" onclick="downloadCurrentIR()" style="margin-top:12px;">下载 IR JSON</button>
             </div>
           </div>
         </div>

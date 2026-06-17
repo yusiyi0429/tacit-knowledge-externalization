@@ -2617,3 +2617,12 @@ a { color: var(--red); text-decoration: none; }
 .s5-json-preview { max-height: 500px; overflow: auto; }
 .s5-json-header { font-weight: 600; margin-bottom: 8px; }
 .s5-json-body { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; font-size: 12px; font-family: monospace; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+
+/* ===== Modal (通用) ===== */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+.modal-dialog { background: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+.modal-lg { width: 800px; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #e5e7eb; font-weight: 600; }
+.modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #9ca3af; line-height: 1; }
+.modal-close:hover { color: #111827; }
+.modal-body { padding: 20px; overflow: auto; }

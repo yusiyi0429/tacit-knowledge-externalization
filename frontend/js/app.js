@@ -4589,14 +4589,19 @@ async function previewStep5InputJSON(url) {
   try {
     const resp = await fetch(API_BASE + url);
     const data = await resp.json();
-    var html = '<div class="s5-json-preview">';
-    html += '<div class="s5-json-header">验证输入 JSON（' + (data.count || 0) + ' 条 QA）</div>';
-    html += '<pre class="s5-json-body">' + escapeHtml(JSON.stringify(data, null, 2)) + '</pre>';
-    html += '</div>';
-    renderOutput('s5-output', html);
+    var html = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">';
+    html += '<div class="modal-dialog modal-lg">';
+    html += '<div class="modal-header"><span>验证输入 JSON（' + (data.count || 0) + ' 条 QA）</span><button class="modal-close" onclick="closeModal()">×</button></div>';
+    html += '<div class="modal-body"><pre class="s5-json-body" style="max-height:70vh;">' + escapeHtml(JSON.stringify(data, null, 2)) + '</pre></div>';
+    html += '</div></div>';
+    document.body.insertAdjacentHTML('beforeend', html);
   } catch (e) {
     showToast('加载 JSON 失败: ' + e.message, 'error');
   }
+}
+function closeModal() {
+  var overlay = document.querySelector('.modal-overlay');
+  if (overlay) overlay.remove();
 }
 
 async function step5RunReplay() {
