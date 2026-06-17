@@ -3158,10 +3158,10 @@ async function step3RejectSuggestions() {
   if (!pid) return;
   var ids = _s3CheckedSuggestionIds();
   if (!ids.length) { showToast('请先勾选要驳回的建议', 'error'); return; }
+  // Remove selected suggestions from pool via rejection API
   try {
     var result = await apiCallJSON('/api/step3/apply_suggestions', { pipeline_id: pid, rejected_ids: ids });
-    if (result.status !== 'ok') { showToast(result.error || '驳回失败', 'error'); return; }
-    showToast('已驳回 ' + ids.length + ' 条建议');
+    showToast('已驳回 ' + ids.length + ' 条建议', 'ok');
     loadStep3SuggestionPool();
   } catch (e) {
     showToast('驳回失败: ' + e.message, 'error');
