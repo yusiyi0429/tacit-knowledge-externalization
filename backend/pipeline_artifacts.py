@@ -132,7 +132,7 @@ def is_step3_final_filename(name: str) -> bool:
 
 
 def is_skill_draft_filename(name: str) -> bool:
-    """Skill IR 草稿文件（Step2 v1 draft / Step3 aligned vN）。"""
+    """Skill IR 草稿文件（Step2 v1 draft / Step3 aligned vN，.json 格式）。"""
     n = basename_only(name).lower()
     return n.endswith(".json") and n.startswith("skill_draft_")
 
@@ -305,6 +305,14 @@ def resolve_knowledge_ir_path(
     """
     if not isinstance(step_data, dict):
         return None, ""
+    # New markdown flow keys (check directly, skip is_skill_draft_filename)
+    for key in ("step3_skill_md_file", "step2_skill_md_file"):
+        raw = step_data.get(key, "")
+        if raw and raw.endswith(".md"):
+            resolved = locate_workspace_file(workspace, str(raw))
+            if resolved:
+                return resolved, key
+    # Old IR flow keys
     for key in ("step3_aligned_file", "step2_draft_file"):
         raw = step_data.get(key, "")
         if not raw or not is_skill_draft_filename(str(raw)):

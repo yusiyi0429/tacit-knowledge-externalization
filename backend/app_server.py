@@ -3943,6 +3943,9 @@ def api_step3_apply_suggestions():
         ir_path, _key = resolve_knowledge_ir_path(WORKSPACE, sd)
         if not ir_path:
             return jsonify({"status": "error", "error": "未找到 Skill 草稿（IR），请先完成知识萃取"})
+        # New markdown flow: suggestion pool is not applicable, use markdown editor
+        if str(ir_path).endswith(".md"):
+            return jsonify({"status": "error", "error": "当前为 Markdown 流程，请使用知识对齐节点的编辑器手动修订，或使用 AI 辅助修订功能"})
         try:
             from skill_ir import STATUS_ALIGNED, apply_revisions, load_ir, render_skill_md, save_ir
 
