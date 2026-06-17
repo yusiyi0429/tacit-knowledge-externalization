@@ -1623,8 +1623,11 @@ a { color: var(--red); text-decoration: none; }
   border: 1px solid var(--border-light);
 }
 .s2-result-actions {
-  display: flex; gap: 8px; margin-top: 10px;
+  display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
 }
+/* s2-actions bar in output panel */
+.s2-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.s2-actions .btn { white-space: nowrap; }
 
 /* Step 2/3/4 shared: previous output box */
 .s2-prev-box {

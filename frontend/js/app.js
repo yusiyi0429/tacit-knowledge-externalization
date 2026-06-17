@@ -453,7 +453,6 @@ function collectStepFormData(step) {
   } else if (step === 2) {
     data.doc_text = document.getElementById('s2-doc-text')?.value || '';
     data.extract_style = document.getElementById('s2-extract-style')?.value || '';
-    data.output_format = document.getElementById('s2-output-format')?.value || 'excel';
   } else if (step === 3) {
     data.expert_text = document.getElementById('s3-expert-text')?.value || '';
     data.revision_style = document.getElementById('s3-revision-style')?.value || '';
@@ -497,10 +496,8 @@ function restoreStepFormData(step, data) {
   } else if (step === 2) {
     const docEl = document.getElementById('s2-doc-text');
     const styleEl = document.getElementById('s2-extract-style');
-    const fmtEl = document.getElementById('s2-output-format');
     if (docEl) docEl.value = data.doc_text || '';
     if (styleEl) styleEl.value = data.extract_style || '';
-    if (fmtEl) fmtEl.value = data.output_format || 'excel';
   } else if (step === 3) {
     const expertEl = document.getElementById('s3-expert-text');
     const styleEl = document.getElementById('s3-revision-style');
@@ -636,9 +633,6 @@ function step2Execute() {
     fd.append('text_inputs', JSON.stringify(textInputs));
   }
 
-  var outputFmt = document.getElementById('s2-output-format')?.value || 'excel';
-  fd.append('output_format', outputFmt);
-
   // 知识库继承
   if (document.getElementById('s2-kb-inherit')?.checked) {
     fd.append('kb_inherit', '1');
@@ -727,16 +721,8 @@ function step2Execute() {
       }
 
       html += '<div class="s2-result-actions" style="margin-top:12px;">';
-      var step2Fmt = document.getElementById('s2-output-format')?.value || 'excel';
-      var mdFlow = step2Fmt === 'markdown';
-      // Markdown group
-      if (mdFlow && mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
-      if (!mdFlow && mdFile) html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
+      if (mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
       if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
-      // Excel group
-      if (!mdFlow && dlName) html += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-      if (mdFlow && dlName) html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-      if (dlUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + dlUrl + '" download>下载 Excel</a>';
       html += '</div>';
       html += '</div>';
 
@@ -840,12 +826,11 @@ function setupFormAutoSave() {
   if (subBox) subBox.addEventListener('input', () => scheduleFormSave(1));
   const kBox = document.getElementById('s1-knowledge-columns');
   if (kBox) kBox.addEventListener('input', () => scheduleFormSave(1));
-  ['s2-doc-text', 's2-extract-style', 's2-output-format'].forEach(id => bind(id, 2));
+  ['s2-doc-text', 's2-extract-style'].forEach(id => bind(id, 2));
   ['s3-expert-text', 's3-revision-style'].forEach(id => bind(id, 3));
   const s2Model = document.getElementById('s2-model');
   const s2SourceFiles = document.getElementById('s2-source-files');
   const s2TextInputs = document.getElementById('s2-text-inputs');
-  const s2OutputFormat = document.getElementById('s2-output-format');
   const s3Expert = document.getElementById('s3-expert-text');
   const s3File = document.getElementById('s3-expert-file');
   if (s2Model) s2Model.addEventListener('change', updateStep2Readiness);
@@ -958,8 +943,6 @@ function restoreStep2Output() {
     out.innerHTML = '';
     return;
   }
-  const dlName = sd.step2_output_file || '';
-  const dlUrl = sd.step2_download_url || '/downloads/' + dlName;
   const mdFile = sd.step2_md_file || '';
   const mdUrl = sd.step2_md_download_url || '';
   const extractedCount = sd.step2_extracted_count || 0;
@@ -989,14 +972,9 @@ function restoreStep2Output() {
   }
 
   html += '<div class="s2-result-actions" style="margin-top:12px;">';
-  const step2Fmt = document.getElementById('s2-output-format')?.value || 'excel';
-  const mdFlow = step2Fmt === 'markdown';
-  if (mdFlow && mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
-  if (!mdFlow && mdFile) html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
-  if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
-  if (!mdFlow && dlName) html += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-  if (mdFlow && dlName) html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-  if (dlUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + dlUrl + '" download>下载 Excel</a>';
+  if (mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Skill 草稿预览\')">预览 Skill 草稿</button>';
+  if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载草稿 Markdown</a>';
+  if (draftUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + draftUrl + '" download>下载草稿 JSON (IR)</a>';
   html += '</div></div>';
 
   renderOutput('s2-output', html);
@@ -1028,8 +1006,6 @@ function restoreStep3Output() {
   if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
   if (!mdFlow && mdName) html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
   if (mdUrl) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>下载 Markdown</a>';
-  if (!mdFlow && dlName) html += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-  if (dlUrl) html += '<a href="' + escapeHtml(dlUrl) + '" class="btn btn--outline btn--sm" download>下载 Excel</a>';
   html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">重新对齐</button>';
   html += '</div>';
   resultCard.innerHTML = html;
@@ -1414,7 +1390,6 @@ function clearCurrentPipeline() {
 
     resetSelect('s3-revision-style', '标准修订');
     resetSelect('s1-output-format', 'excel');
-    resetSelect('s2-output-format', 'excel');
     resetSelect('s1-legacy-template', '');
     step1RenderKnowledgeColumns([]);
     resetSelect('s2-model', '');
@@ -2856,13 +2831,6 @@ async function loadStep3PrevOutput() {
         if (data.markdown_download_url) {
           actionBtns += `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>`;
         }
-        // Excel group
-        if (data.download_url && !mdFlow) {
-          actionBtns += `<button type="button" class="btn btn--outline btn--sm" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>`;
-        }
-        if (data.download_url) {
-          actionBtns += `<a class="btn btn--outline btn--sm" href="${API_BASE + data.download_url}" download>下载 Excel</a>`;
-        }
         var actionsEl = document.getElementById('s3-prev-actions');
         if (actionsEl) actionsEl.innerHTML = actionBtns;
       }
@@ -3401,9 +3369,6 @@ async function showStep3AlignComplete(result, options) {
   // Markdown group
   if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
   if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>下载 Markdown</a>';
-  // Excel group
-  if (!mdFlow && dlName) html += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(dlName) + '\')">预览 Excel</button>';
-  if (dlUrl) html += '<a href="' + escapeHtml(dlUrl) + '" class="btn btn--outline btn--sm" download>下载 Excel</a>';
   html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">重新对齐</button>';
   html += '</div>';
   document.getElementById('s3-result-card').innerHTML = html;
@@ -3603,10 +3568,6 @@ async function loadStep4PrevOutput() {
         if (mdFlow && mdName) btns += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
         if (!mdFlow && mdName) btns += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
         if (mdUrl) btns += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
-        // Excel group
-        if (!mdFlow && excelName) btns += '<button class="btn btn--primary btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
-        if (mdFlow && excelName) btns += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(excelName) + '\')">预览 Excel</button>';
-        if (excelUrl) btns += '<a class="btn btn--outline btn--sm" href="' + API_BASE + excelUrl + '" download>下载 Excel</a>';
         actionsEl.innerHTML = btns;
       }
     } else {

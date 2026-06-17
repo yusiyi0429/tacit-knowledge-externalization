@@ -64,3 +64,4 @@ custom_models.json
 preset_overrides.json
 settings.local.json
 .worktrees/
+.venv

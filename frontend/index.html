@@ -443,15 +443,6 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               </div><!-- /s2-single-controls -->
 
               <div class="form-group" style="margin-bottom:12px">
-                <label>输出格式偏好</label>
-                <select id="s2-output-format">
-                  <option value="excel">优先 Excel 预览</option>
-                  <option value="markdown">优先 Markdown 预览</option>
-                </select>
-                <div class="file-hint">选择 Markdown 时侧重文本预览；Excel 时可在 Luckysheet 中内联编辑</div>
-              </div>
-
-              <div class="form-group" style="margin-bottom:12px">
                 <label>选择模型</label>
                 <select id="s2-model"></select>
               </div>

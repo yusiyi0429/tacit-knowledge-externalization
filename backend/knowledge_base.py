@@ -169,6 +169,11 @@ def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+def get_db_path() -> str:
+    """Return the path to the knowledge base database file."""
+    return str(DB_PATH)
+
+
 def get_db() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
