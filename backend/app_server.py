@@ -1785,7 +1785,7 @@ def api_step4_compile():
                     p["step_status"]["4"] = "done"
                     if p["step_status"].get("5", "pending") == "pending":
                         p["step_status"]["5"] = "active"
-                    p["current_step"] = max(p.get("current_step", 1), 4)
+                    p["current_step"] = max(p.get("current_step", 1), 5)
                     p["updated_at"] = datetime.datetime.now().isoformat()
                     save_pipelines(pipelines)
                     break
@@ -2525,7 +2525,7 @@ def api_excel_save():
     pipeline_id = data.get("pipeline_id", "")
     step = data.get("step", "3")
 
-    resolved = resolve_client_excel_path(WORKSPACE, file_path, file_name)
+    resolved = resolve_client_excel_path(WORKSPACE, file_path, file_name, pipeline_id=pipeline_id)
     if not resolved:
         return jsonify({"status": "error", "error": "源文件不存在或路径非法，请重新打开编辑"})
     file_path = str(resolved)
@@ -2681,12 +2681,6 @@ def api_skill_execute():
         return _execute_knowledge_extraction()
     elif skill_id == "knowledge-revision":
         return _execute_knowledge_revision()
-    elif skill_id == "knowledge-pattern-mining":
-        return _execute_pattern_mining()
-    elif skill_id == "knowledge-gap-analysis":
-        return _execute_gap_analysis()
-    elif skill_id == "knowledge-freshness-audit":
-        return _execute_freshness_audit()
     else:
         return jsonify({"status": "error", "error": f"Skill '{skill_id}' 暂无执行处理器"})
 
@@ -3184,36 +3178,12 @@ def _execute_knowledge_extraction():
     if target_columns:
         max_tokens = max(max_tokens, 6144 if len(target_columns) > 10 else 5120)
 
-    # ── 案例复盘模式：提取隐性信号 + 可执行知识 ──
+    # ── 仅支持 doc 模式 ──
     content_type = (request.form.get("content_type", "") or "").strip()
-    if content_type == "case_review":
-        system_prompt = (
-            f"你是一位资深银行知识工程专家，正在从「案例复盘」中同时提取两类内容：\n"
-            f"萃取风格：{style}\n\n"
-            f"## 任务一：识别隐性信号（重点）\n"
-            f"案例复盘中的隐性知识往往不是直接说出来的。请你特别注意以下四类信号：\n"
-            f"1. **规则覆盖不到的地方**：专家提到了哪些标准流程中没有的检查步骤？哪些「多余的动作」？\n"
-            f"2. **情感/直觉表达**：专家用了哪些不安/不对劲/怪怪的情感词汇？这些情感背后对应了什么可观测信号？\n"
-            f"3. **破例逻辑**：专家在哪次决策中突破了标准规则？他用来合理化的理由是什么？是否值得固化为例外条件？\n"
-            f"4. **关系依赖**：专家提到「问了某某人」吗？那个人知道什么别人不知道的东西？\n\n"
-            f"## 任务二：抽取可执行知识条目\n"
-            f"同时从案例中提取以下格式的结构化知识条目。\n\n"
-            f"请按以下JSON格式输出（一个数组，不要Markdown代码块，不要任何前后说明文字）：\n"
-            f'[{{\"隐性信号\": \"描述一个规则覆盖不到的场景或直觉信号（一句话）\", '
-            f'\"信号类型\": \"反模式|破例|直觉|关系依赖\", '
-            f'\"可执行知识\": \"从这个信号中可以提炼出什么可操作的知识？\", '
-            f'\"触发条件\": \"什么情况下应该特别关注这个信号？\", '
-            f'\"来源\": \"来自本案例复盘的哪个部分（标题/背景/判断/结果/重来/习惯）\", '
-            f'\"置信度\": \"高|中|低\"}}]\n\n'
-            f"要求：\n"
-            f"1. 每条隐性信号必须是完整、自包含的陈述\n"
-            f"2. 优先提取反模式和破例逻辑——这些是隐性知识的关键入口\n"
-            f"3. 输出条数尽量 {style_rule['min_items']}~{style_rule['max_items']} 条\n"
-            f"4. 可执行知识要具体——不能只写「注意风险」，要写「注意什么风险、怎么看、看哪里」"
-        )
-        # Override target columns for case review output
-        target_columns = ["隐性信号", "信号类型", "可执行知识", "触发条件", "来源", "置信度"]
-    elif target_columns:
+    if content_type and content_type != "doc":
+        return jsonify({"status": "error", "error": f"不支持的内容类型 '{content_type}'，仅支持 'doc' 模式"})
+
+    if target_columns:
         target_cols_json = json.dumps(target_columns, ensure_ascii=False)
         example_obj = {k: "" for k in target_columns}
         content_key = next(
@@ -4256,540 +4226,12 @@ def _execute_knowledge_revision():
     return jsonify(result)
 
 
-# ─── 新 Skill: 跨案例模式发现 ─────────────────────────────────
-
-def _execute_pattern_mining():
-    """跨案例模式发现：对多个案例复盘进行交叉分析，发现反复出现的隐性信号。"""
-    skill_id = request.form.get("skill_id", "knowledge-pattern-mining")
-    info = SKILL_REGISTRY.get(skill_id, {})
-    model_name = request.form.get("model", "")
-    pipeline_id = request.form.get("pipeline_id", "")
-    content = request.form.get("content", "")
-    style = request.form.get("style", "标准模式发现")
-    # 支持多文件上传
-    uploaded_files = request.files.getlist("files")
-
-    if not content and not uploaded_files:
-        return jsonify({"status": "error", "error": "请提供至少两个案例复盘的文本，或上传案例文件"})
-
-    if not model_name:
-        models_list = load_llm_config()
-        if models_list:
-            model_name = models_list[0]["name"]
-    model_cfg = get_model_by_name(model_name)
-    if not model_cfg:
-        return jsonify({"status": "error", "error": f"模型 '{model_name}' 不存在"})
-
-    # 汇总所有案例文本
-    all_cases = []
-    if content:
-        all_cases.append(content)
-    for uf in uploaded_files:
-        try:
-            case_text = extract_text_from_file(uf)
-            if case_text.strip():
-                all_cases.append(f"=== 案例文件: {uf.filename} ===\n{case_text.strip()}")
-        except Exception:
-            pass
-
-    if len(all_cases) < 2:
-        return jsonify({"status": "error", "error": "跨案例分析需要至少 2 个案例，请补充更多案例复盘内容"})
-
-    combined = "\n\n---分隔线---\n\n".join(all_cases)
-
-    system_prompt = (
-        f"你是一位资深银行风控专家，正在对多个案例复盘进行交叉分析，寻找**跨案例涌现的隐性知识模式**。\n\n"
-        f"## 分析任务\n"
-        f"请仔细阅读以下 {len(all_cases)} 个案例复盘，执行以下五步分析：\n\n"
-        f"### 第一步：识别重复出现的预警信号\n"
-        f"哪些具体的信号在多个案例中反复出现？请逐一列出，标注每个信号出现在哪几个案例中。\n"
-        f"优先关注：财务指标之外的信号（水电费变化、人员变动、工商变更、关联交易、非正式信息源等）。\n\n"
-        f"### 第二步：发现系统性风险盲区\n"
-        f"这些案例共同揭示了一个什么样的**规则/流程层面**的盲区？\n"
-        f"即：为什么多个案例中，按标准流程操作仍然没能提前发现风险？\n\n"
-        f"### 第三步：提炼跨案例隐性知识\n"
-        f"从这些案例中能提炼出哪些**可操作的新知识**？\n"
-        f"这些知识不是来自单个案例，而是来自案例之间的共同模式。\n\n"
-        f"### 第四步：信号优先级排序\n"
-        f"按\"出现频率 × 损失严重度\"给所有信号排序，标注哪个信号是最早出现的（即最有预警价值的）。\n\n"
-        f"### 第五步：生成行动建议\n"
-        f"基于以上分析，给出三条具体的、可落地的行动建议。\n\n"
-        f"## 输出格式\n"
-        f"请严格按以下 JSON 输出（不要 Markdown 代码块，不要任何前后说明）：\n"
-        f'{{\n'
-        f'  "recurring_signals": [\n'
-        f'    {{"signal": "信号描述", "cases": ["案例1标题", "案例2标题"], "frequency": 2, "earliest_indicator": true/false}}\n'
-        f'  ],\n'
-        f'  "systemic_blind_spots": ["盲区描述1", "盲区描述2"],\n'
-        f'  "cross_case_knowledge": [\n'
-        f'    {{"knowledge": "可执行知识", "source_signals": ["信号A", "信号B"], "actionable": "具体怎么做"}}\n'
-        f'  ],\n'
-        f'  "priority_ranking": [\n'
-        f'    {{"rank": 1, "signal": "信号", "rationale": "为什么排第一"}}\n'
-        f'  ],\n'
-        f'  "action_recommendations": ["建议1", "建议2", "建议3"]\n'
-        f'}}'
-    )
-
-    try:
-        result = call_llm_with_retry(model_cfg, [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"以下是要交叉分析的 {len(all_cases)} 个案例复盘：\n\n{combined[:14000]}"}
-        ], stream=False, temperature=0.3, max_tokens=4096)
-
-        llm_text = extract_assistant_content(result) if isinstance(result, dict) else ""
-        llm_text = _extract_json_from_text(llm_text)
-        analysis = json.loads(_repair_json_text(llm_text))
-
-        # 生成可下载的 Markdown 报告
-        report_name = f"pattern_mining_{uuid.uuid4().hex[:8]}.md"
-        report_path = workspace_path_for(WORKSPACE, pipeline_id, infer_file_step(report_name) or "step4", report_name)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        _write_pattern_mining_report(report_path, analysis, len(all_cases))
-
-        # 持久化到 pipeline，供 Step3 修订上下文使用
-        if pipeline_id:
-            with _pipelines_lock:
-                pipelines = load_pipelines()
-                for p in pipelines:
-                    if p["id"] == pipeline_id:
-                        sd = p.setdefault("step_data", {})
-                        sd["step2_pattern_mining_report"] = report_name
-                        sd["step2_pattern_mining_url"] = f"/downloads/{report_name}"
-                        sd["step2_pattern_mining_summary"] = {
-                            "case_count": len(all_cases),
-                            "top_signals": [
-                                s.get("signal", "") for s in (analysis.get("recurring_signals") or [])[:5]
-                            ],
-                            "blind_spots": (analysis.get("systemic_blind_spots") or [])[:3],
-                        }
-                        save_pipelines(pipelines)
-                        break
-
-        return jsonify({
-            "status": "ok",
-            "skill_name": info.get("name", skill_id),
-            "skill_id": skill_id,
-            "model": model_name,
-            "case_count": len(all_cases),
-            "analysis": analysis,
-            "report_name": report_name,
-            "download_url": f"/downloads/{report_name}",
-        })
-    except json.JSONDecodeError as e:
-        return jsonify({"status": "error", "error": f"LLM输出解析失败: {str(e)}", "raw": (llm_text or "")[:500]})
-    except LlmApiError as e:
-        return jsonify({"status": "error", "error": str(e)})
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"模式发现失败: {str(e)}"})
-
-
-def _write_pattern_mining_report(path: Path, analysis: dict, case_count: int) -> None:
-    lines = [
-        f"# 跨案例模式发现报告",
-        f"",
-        f"- 分析案例数：**{case_count}**",
-        f"- 生成时间：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"",
-        f"## 一、重复出现的预警信号",
-        f"",
-    ]
-    for s in (analysis.get("recurring_signals") or []):
-        cases_str = "、".join(s.get("cases", []))
-        early = " ⚡最早信号" if s.get("earliest_indicator") else ""
-        lines.append(f"- **{s.get('signal', '')}**（出现 {s.get('frequency', 0)} 次）{early}")
-        lines.append(f"  - 涉及案例：{cases_str}")
-        lines.append("")
-
-    lines.append("## 二、系统性风险盲区")
-    lines.append("")
-    for b in (analysis.get("systemic_blind_spots") or []):
-        lines.append(f"- {b}")
-    lines.append("")
-
-    lines.append("## 三、跨案例隐性知识")
-    lines.append("")
-    for k in (analysis.get("cross_case_knowledge") or []):
-        lines.append(f"### {k.get('knowledge', '')}")
-        lines.append(f"- 来源信号：{'、'.join(k.get('source_signals', []))}")
-        lines.append(f"- 具体做法：{k.get('actionable', '')}")
-        lines.append("")
-
-    lines.append("## 四、信号优先级排序")
-    lines.append("")
-    for r in (analysis.get("priority_ranking") or []):
-        lines.append(f"{r.get('rank', '?')}. **{r.get('signal', '')}** — {r.get('rationale', '')}")
-    lines.append("")
-
-    lines.append("## 五、行动建议")
-    lines.append("")
-    for i, a in enumerate((analysis.get("action_recommendations") or []), 1):
-        lines.append(f"{i}. {a}")
-
-    path.write_text("\n".join(lines), encoding="utf-8")
-
-
-# ─── 新 Skill: 知识盲区检测 ─────────────────────────────────
-
-def _execute_gap_analysis():
-    """知识盲区检测：对比 Schema 定义的知识列与实际填充率，识别空白区域。"""
-    skill_id = request.form.get("skill_id", "knowledge-gap-analysis")
-    info = SKILL_REGISTRY.get(skill_id, {})
-    pipeline_id = request.form.get("pipeline_id", "")
-    model_name = request.form.get("model", "")
-    excel_file = request.files.get("excel")
-
-    if not pipeline_id and not excel_file:
-        return jsonify({"status": "error", "error": "请提供 pipeline_id 或上传知识 Excel 文件"})
-
-    # 解析输入文件
-    input_path = None
-    schema_cols = []
-    if pipeline_id:
-        with _pipelines_lock:
-            pipelines = load_pipelines()
-            for p in pipelines:
-                if p["id"] == pipeline_id:
-                    sd = p.get("step_data", {})
-                    schema_cols = sd.get("step1_knowledge_columns") or []
-                    resolved, _src = resolve_knowledge_workbook_path(WORKSPACE, sd, purpose="compile")
-                    if resolved:
-                        input_path = str(resolved)
-                    break
-    if excel_file:
-        input_path = save_upload(excel_file, prefix="gap_analysis", pipeline_id=pipeline_id)
-
-    if not input_path or not os.path.exists(input_path):
-        return jsonify({"status": "error", "error": "未找到知识 Excel 文件"})
-
-    if not schema_cols and SCHEMA_PATH.exists():
-        from scenario_schema import load_scenario_schema, resolve_knowledge_columns
-        schema_cols = resolve_knowledge_columns(load_scenario_schema(SCHEMA_PATH))
-
-    # 程序化统计每列填充率（不需要 LLM）
-    col_stats = {}
-    total_rows = 0
-    try:
-        with _safe_workbook(input_path) as wb:
-            for ws in wb.worksheets:
-                headers = [str(c.value or "") for c in next(ws.iter_rows(min_row=1, max_row=1))]
-                col_indices = {h: i for i, h in enumerate(headers) if h}
-                for r, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
-                    if not any(row):
-                        continue
-                    total_rows += 1
-                    for col_name, ci in col_indices.items():
-                        val = str(row[ci] or "").strip() if ci < len(row or ()) else ""
-                        stat = col_stats.setdefault(col_name, {"filled": 0, "total": 0, "samples": []})
-                        stat["total"] += 1
-                        if len(val) >= 4:
-                            stat["filled"] += 1
-                            if len(stat["samples"]) < 3:
-                                stat["samples"].append(val[:80])
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"读取 Excel 失败: {str(e)}"})
-
-    # 生成盲区清单
-    gaps = []
-    for col, st in col_stats.items():
-        rate = st["filled"] / max(st["total"], 1)
-        if rate < 0.5:
-            gaps.append({
-                "column": col,
-                "fill_rate": round(rate * 100, 1),
-                "filled": st["filled"],
-                "total": st["total"],
-                "severity": "high" if rate < 0.2 else "medium",
-            })
-
-    gaps.sort(key=lambda g: g["fill_rate"])
-
-    # 用 LLM 生成盲区解读和建议
-    narrative = ""
-    if gaps and model_name:
-        model_cfg = get_model_by_name(model_name)
-        if not model_cfg:
-            models_list = load_llm_config()
-            model_cfg = models_list[0] if models_list else None
-        if model_cfg:
-            gap_summary = "\n".join(
-                f"- {g['column']}: 填充率 {g['fill_rate']}%（{g['filled']}/{g['total']}）" for g in gaps[:10]
-            )
-            schema_summary = "、".join(schema_cols) if schema_cols else "未获取到Schema列定义"
-            try:
-                llm_result = call_llm_with_retry(model_cfg, [
-                    {"role": "system", "content": "你是一位知识工程专家，正在分析知识库的盲区。请用简洁的语言给出3-5条可操作的补全建议。"},
-                    {"role": "user", "content": (
-                        f"知识库schema定义了以下列：{schema_summary}\n\n"
-                        f"以下是填充率低于50%的列（即知识盲区）：\n{gap_summary}\n"
-                        f"请给出3-5条具体的补全建议，每条建议说明：（1）应该补充什么类型的知识？"
-                        f"（2）建议找谁（什么背景的专家）来补充？（3）为什么这些盲区是高风险的？"
-                    )}
-                ], stream=False, temperature=0.3, max_tokens=1024)
-                narrative = extract_assistant_content(llm_result) if isinstance(llm_result, dict) else ""
-            except Exception:
-                narrative = "（LLM 解读生成失败，请手动查看盲区统计）"
-
-    # 生成 Markdown 报告
-    report_name = f"gap_analysis_{uuid.uuid4().hex[:8]}.md"
-    report_path = workspace_path_for(WORKSPACE, pipeline_id, infer_file_step(report_name) or "step4", report_name)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        f"# 知识盲区检测报告",
-        f"",
-        f"- 总条目数：**{total_rows}**",
-        f"- 检测列数：**{len(col_stats)}**",
-        f"- 盲区列数（填充率<50%）：**{len(gaps)}**",
-        f"- 生成时间：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"",
-        f"## 一、各列填充率",
-        f"",
-        f"| 列名 | 填充率 | 已填充 | 总计 |",
-        f"|------|--------|--------|------|",
-    ]
-    for col, st in sorted(col_stats.items(), key=lambda x: x[1]["filled"] / max(x[1]["total"], 1)):
-        rate = st["filled"] / max(st["total"], 1) * 100
-        lines.append(f"| {col} | {rate:.0f}% | {st['filled']} | {st['total']} |")
-    lines.append("")
-
-    if gaps:
-        lines.append("## 二、盲区清单（按严重度排序）")
-        lines.append("")
-        for g in gaps:
-            sev = "🔴 高危" if g["severity"] == "high" else "🟡 中危"
-            lines.append(f"- {sev} **{g['column']}**：填充率 {g['fill_rate']}%（{g['filled']}/{g['total']}）")
-        lines.append("")
-
-    if narrative:
-        lines.append("## 三、补全建议")
-        lines.append("")
-        lines.append(narrative)
-
-    report_path.write_text("\n".join(lines), encoding="utf-8")
-
-    # 持久化到 pipeline，供 Step3 修订上下文使用
-    if pipeline_id:
-        with _pipelines_lock:
-            pipelines = load_pipelines()
-            for p in pipelines:
-                if p["id"] == pipeline_id:
-                    sd = p.setdefault("step_data", {})
-                    sd["step2_gap_analysis_report"] = report_name
-                    sd["step2_gap_analysis_url"] = f"/downloads/{report_name}"
-                    sd["step2_gap_analysis_summary"] = {
-                        "total_rows": total_rows,
-                        "gaps": [{"column": g["column"], "fill_rate": g["fill_rate"], "severity": g["severity"]} for g in gaps[:5]],
-                    }
-                    save_pipelines(pipelines)
-                    break
-
-    return jsonify({
-        "status": "ok",
-        "skill_name": info.get("name", skill_id),
-        "skill_id": skill_id,
-        "total_rows": total_rows,
-        "columns_analyzed": len(col_stats),
-        "gaps_found": len(gaps),
-        "gaps": gaps,
-        "column_stats": {k: {"fill_rate": round(v["filled"] / max(v["total"], 1) * 100, 1)} for k, v in col_stats.items()},
-        "narrative": narrative,
-        "report_name": report_name,
-        "download_url": f"/downloads/{report_name}",
-    })
-
-
-# ─── 新 Skill: 知识保鲜度审计 ─────────────────────────────────
-
-def _execute_freshness_audit():
-    """知识保鲜度审计：基于 golden 知识库，检测过时规则、完整性缺口和案例突破信号。"""
-    import sqlite3
-
-    skill_id = request.form.get("skill_id", "knowledge-freshness-audit")
-    info = SKILL_REGISTRY.get(skill_id, {})
-    model_name = request.form.get("model", "")
-    pipeline_id = request.form.get("pipeline_id", "")
-
-    golden_path = Path(__file__).resolve().parent.parent / "data" / "golden" / "golden_test.db"
-    if not golden_path.exists():
-        return jsonify({"status": "error", "error": "golden 知识库不存在"})
-
-    db = sqlite3.connect(str(golden_path))
-    db.row_factory = sqlite3.Row
-
-    rows = db.execute("""
-        SELECT gi.*, gd.filename AS doc_filename, gd.source_type AS doc_source_type
-        FROM golden_items gi
-        LEFT JOIN golden_documents gd ON gi.document_id = gd.id
-        ORDER BY gi.知识编号
-    """).fetchall()
-
-    if not rows:
-        db.close()
-        return jsonify({"status": "error", "error": "golden 知识库中无有效条目"})
-
-    records = [dict(r) for r in rows]
-    db.close()
-
-    total = len(records)
-    high_conf = sum(1 for r in records if str(r.get("置信度", "")).strip() == "高")
-    mid_conf = sum(1 for r in records if str(r.get("置信度", "")).strip() == "中")
-    low_conf = sum(1 for r in records if str(r.get("置信度", "")).strip() == "低")
-
-    has_evidence = sum(1 for r in records if (r.get("证据数") or 0) > 0)
-    has_breakthrough = sum(1 for r in records if (r.get("突破数") or 0) > 0)
-    has_boundary = sum(1 for r in records if str(r.get("适用边界", "")).strip())
-    has_exception = sum(1 for r in records if str(r.get("例外情形", "")).strip())
-    has_logic = sum(1 for r in records if str(r.get("判断逻辑", "")).strip())
-    has_antipattern = sum(1 for r in records if str(r.get("反模式踩坑提示", "")).strip())
-    has_experience = sum(1 for r in records if str(r.get("经验判断", "")).strip())
-
-    case_sources = sum(1 for r in records if r.get("doc_source_type") == "案例")
-    doc_sources = sum(1 for r in records if r.get("doc_source_type") == "制度")
-    meeting_sources = sum(1 for r in records if r.get("doc_source_type") == "纪要")
-
-    stale_indicators = []
-    if has_breakthrough > 0:
-        stale_indicators.append(f"{has_breakthrough}/{total} 条目被案例突破（突破数>0）——相关规则需复核有效性")
-    if total - has_boundary > 20:
-        stale_indicators.append(f"{total - has_boundary}/{total} 条目缺少适用边界——知识适用范围不明确")
-    if total - has_exception > 20:
-        stale_indicators.append(f"{total - has_exception}/{total} 条目缺少例外情形——缺少决策盲区覆盖")
-    if total - has_logic > 10:
-        stale_indicators.append(f"{total - has_logic}/{total} 条目缺少判断逻辑——无法结构化执行")
-    if high_conf / total < 0.5:
-        stale_indicators.append(f"高置信度条目仅占 {round(high_conf/total*100)}%——大量知识缺乏充分验证")
-    if has_evidence / total < 0.3:
-        stale_indicators.append(f"仅 {round(has_evidence/total*100)}% 条目有实证支撑——知识可信度存疑")
-    if case_sources > 0 and doc_sources / total > 0.5:
-        stale_indicators.append(
-            f"制度文档来源占比 {round(doc_sources/total*100)}%，案例复盘占比 {round(case_sources/total*100)}%"
-            "——理论与实战可能存在 gap，建议增加案例复盘知识覆盖"
-        )
-
-    narrative = ""
-    if model_name:
-        model_cfg = get_model_by_name(model_name)
-        if not model_cfg:
-            models_list = load_llm_config()
-            model_cfg = models_list[0] if models_list else None
-        if model_cfg:
-            item_sample = []
-            for r in records[:20]:
-                item_sample.append(
-                    f"- [{r.get('环节', '未分类')}] [{r.get('知识类型', '')}] {r.get('知识编号', '')}: "
-                    f"{str(r.get('具体方法', ''))[:100]}"
-                    f"（置信度：{r.get('置信度', '未标')} 证据：{r.get('证据数', 0)} 突破：{r.get('突破数', 0)}"
-                    f"{' 缺边界' if not str(r.get('适用边界', '')).strip() else ''}"
-                    f"{' 缺例外' if not str(r.get('例外情形', '')).strip() else ''}"
-                    f"{' 缺逻辑' if not str(r.get('判断逻辑', '')).strip() else ''}"
-                    f"）"
-                )
-            breakthrough_items = []
-            for r in records:
-                if (r.get("突破数") or 0) > 0:
-                    breakthrough_items.append(
-                        f"- {r.get('知识编号')}: {str(r.get('具体方法', ''))[:100]} "
-                        f"（来源：{r.get('doc_filename', r.get('来源文档', ''))}）"
-                    )
-
-            try:
-                llm_result = call_llm_with_retry(model_cfg, [
-                    {"role": "system", "content": (
-                        "你是一位银行知识管理专家，正在审计 golden 知识库的保鲜度。"
-                        "请从以下维度评估知识质量："
-                        "（1）被案例突破标记的规则是否真的过时了？"
-                        "（2）缺少适用边界/例外情形的知识会影响 Agent 决策的准确性吗？"
-                        "（3）制度文档来源 vs 案例复盘来源的知识是否存在「理论-实战」gap？"
-                        "（4）哪些环节（客户筛选/贷前尽调/审批决策/贷后监控等）的知识最不完整？"
-                    )},
-                    {"role": "user", "content": (
-                        f"golden 知识库全量扫描（共{total}条）：\n"
-                        + "\n".join(item_sample) + "\n\n"
-                        + f"保鲜风险指标：\n" + "\n".join(f"- {s}" for s in stale_indicators) + "\n\n"
-                        + ("被案例突破的条目：\n" + "\n".join(breakthrough_items) + "\n\n" if breakthrough_items else "")
-                        + "请给出 3-5 条保鲜建议，标注最需要更新的环节和知识类型，"
-                        + "评估 Agent Skill 直接使用此知识库的可靠性（高/中/低），并给出改进优先级排序。"
-                    )}
-                ], stream=False, temperature=0.3, max_tokens=1536)
-                narrative = extract_assistant_content(llm_result) if isinstance(llm_result, dict) else ""
-            except Exception:
-                narrative = "（LLM 深度审计生成失败，请参考统计数据）"
-
-    report_name = f"freshness_audit_{uuid.uuid4().hex[:8]}.md"
-    report_path = workspace_path_for(WORKSPACE, pipeline_id, infer_file_step(report_name) or "step4", report_name)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        "# 知识保鲜度审计报告（golden 知识库）",
-        "",
-        f"## 审计数据源",
-        f"- 数据源：**golden 知识库**（{golden_path}）",
-        f"- 知识条目总数：**{total}**",
-        f"- 来源分布：制度 {doc_sources} · 案例复盘 {case_sources} · 纪要 {meeting_sources}",
-        "",
-        "## 置信度分布",
-        f"- 高：**{high_conf}**（{round(high_conf/total*100) if total else 0}%）",
-        f"- 中：**{mid_conf}**（{round(mid_conf/total*100) if total else 0}%）",
-        f"- 低：**{low_conf}**（{round(low_conf/total*100) if total else 0}%）",
-        "",
-        "## 完整性审计",
-        f"- 有实证支撑：**{has_evidence}**/{total}（{round(has_evidence/total*100) if total else 0}%）",
-        f"- 有判断逻辑：**{has_logic}**/{total}（{round(has_logic/total*100) if total else 0}%）",
-        f"- 有反模式：**{has_antipattern}**/{total}（{round(has_antipattern/total*100) if total else 0}%）",
-        f"- 有经验判断：**{has_experience}**/{total}（{round(has_experience/total*100) if total else 0}%）",
-        f"- 有适用边界：**{has_boundary}**/{total}（{round(has_boundary/total*100) if total else 0}%）",
-        f"- 有例外情形：**{has_exception}**/{total}（{round(has_exception/total*100) if total else 0}%）",
-        f"- 被案例突破：**{has_breakthrough}**/{total}",
-        f"- 生成时间：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        "",
-        "## 保鲜风险指标",
-        "",
-    ]
-    for s in stale_indicators:
-        lines.append(f"- ⚠️ {s}")
-    if not stale_indicators:
-        lines.append("- ✅ 当前未检测到明显保鲜风险")
-
-    if narrative:
-        lines.append("")
-        lines.append("## LLM 深度审计与保鲜建议")
-        lines.append("")
-        lines.append(narrative)
-
-    lines.append("")
-    lines.append("## Agent Skill 可靠性提示")
-    lines.append("")
-    if has_logic / total >= 0.5 and has_boundary / total >= 0.3 and has_breakthrough == 0:
-        lines.append("- ✅ 知识库整体质量较高，Agent Skill 可直接部署使用")
-    elif has_logic / total >= 0.3 and has_breakthrough <= 3:
-        lines.append("- ⚠️ 知识库存在中等缺口，建议补充适用边界和例外情形后部署 Agent Skill")
-    else:
-        lines.append("- 🔴 知识库完整性较低，建议先按保鲜建议整改，再生成 Agent Skill")
-    lines.append(f"- 建议：部署前确认 {total - has_logic} 条缺失判断逻辑的条目已人工补全")
-
-    report_path.write_text("\n".join(lines), encoding="utf-8")
-
-    return jsonify({
-        "status": "ok",
-        "skill_name": info.get("name", skill_id),
-        "skill_id": skill_id,
-        "total_items": total,
-        "high_confidence_pct": round(high_conf / total * 100, 1) if total else 0,
-        "source_coverage_pct": round(has_evidence / total * 100, 1) if total else 0,
-        "breakthrough_count": has_breakthrough,
-        "completeness_score": round((has_logic + has_boundary + has_exception) / (total * 3) * 100, 1),
-        "stale_indicators": stale_indicators,
-        "narrative": narrative,
-        "report_name": report_name,
-        "download_url": f"/downloads/{report_name}",
-    })
-
-
 # ─── Step 3/4 pipeline outputs ────────────────────────────────────
 
 
 @app.route("/api/step3/revision_context", methods=["GET"])
 def api_step3_revision_context():
-    """返回 Step3 修订上下文：模式发现 + 盲区检测的关键发现，供专家修订时参考。"""
+    """返回 Step3 修订上下文：隐性注释等关键发现，供专家修订时参考。"""
     pipeline_id = request.args.get("pipeline_id", "")
     if not pipeline_id:
         return jsonify({"status": "error", "error": "缺少 pipeline_id"})
@@ -4803,43 +4245,6 @@ def api_step3_revision_context():
                 break
 
     ctx = {"status": "ok", "insights": [], "warnings": []}
-
-    # 模式发现洞察
-    pm = sd.get("step2_pattern_mining_summary")
-    if pm:
-        top = pm.get("top_signals") or []
-        if top:
-            ctx["insights"].append({
-                "source": "跨案例模式发现",
-                "icon": "🔬",
-                "text": f"跨 {pm.get('case_count', '?')} 个案例发现 {len(top)} 个高频信号",
-                "details": top,
-            })
-        blind = pm.get("blind_spots") or []
-        if blind:
-            ctx["warnings"].append({
-                "source": "系统性风险盲区",
-                "icon": "⚠️",
-                "details": blind,
-            })
-
-    # 盲区检测洞察
-    ga = sd.get("step2_gap_analysis_summary")
-    if ga:
-        gaps = ga.get("gaps") or []
-        high_gaps = [g for g in gaps if g.get("severity") == "high"]
-        if high_gaps:
-            ctx["warnings"].append({
-                "source": "知识盲区检测",
-                "icon": "🎯",
-                "text": f"发现 {len(high_gaps)} 个高危盲区列",
-                "details": [f"{g['column']}（填充率 {g['fill_rate']}%）" for g in high_gaps],
-            })
-        ctx["insights"].append({
-            "source": "知识盲区检测",
-            "icon": "📊",
-            "text": f"共 {ga.get('total_rows', '?')} 条知识，{len(gaps)} 列填充不足",
-        })
 
     # 隐性注释提醒
     ta = sd.get("step3_tacit_annotations") or []
@@ -5973,99 +5378,6 @@ def api_interview_probe():
         return jsonify({"status": "error", "error": f"访谈追问生成失败: {str(e)}"})
 
 
-# ─── Validation Replay API (方案四) ──────────────────────────────
-
-@app.route("/api/validate/replay", methods=["POST"])
-def api_validate_replay():
-    """显性化校验闭环：上传历史案例，用知识库判断，与专家结论对比。"""
-    model_name = request.form.get("model", "")
-    pipeline_id = request.form.get("pipeline_id", "")
-    cases_json = request.form.get("cases", "")
-    cases_file = request.files.get("cases_file")
-
-    # 加载案例
-    cases = []
-    if cases_json:
-        try:
-            cases = json.loads(cases_json)
-        except json.JSONDecodeError:
-            return jsonify({"status": "error", "error": "案例 JSON 格式错误"})
-    elif cases_file:
-        try:
-            cases = json.load(cases_file)
-        except json.JSONDecodeError:
-            text = cases_file.read().decode("utf-8", errors="replace")
-            try:
-                cases = json.loads(text)
-            except json.JSONDecodeError:
-                return jsonify({"status": "error", "error": "案例文件 JSON 格式错误"})
-    if not cases:
-        return jsonify({"status": "error", "error": "请提供至少 1 个历史案例"})
-
-    # 加载知识库文本
-    knowledge_text = ""
-    if pipeline_id:
-        with _pipelines_lock:
-            pipelines = load_pipelines()
-            for p in pipelines:
-                if p["id"] == pipeline_id:
-                    sd = p.get("step_data", {})
-                    resolved, _src = resolve_knowledge_workbook_path(WORKSPACE, sd, purpose="compile")
-                    if resolved:
-                        from excel_to_skill import read_excel_knowledge
-                        records, _ = read_excel_knowledge(str(resolved))
-                        from excel_to_skill import format_knowledge_item
-                        knowledge_text = "\n\n".join(format_knowledge_item(r) for r in records)
-                    break
-    if not knowledge_text:
-        return jsonify({"status": "error", "error": "未找到知识库内容，请提供 pipeline_id"})
-
-    if not model_name:
-        models_list = load_llm_config()
-        if models_list:
-            model_name = models_list[0]["name"]
-    model_cfg = get_model_by_name(model_name)
-    if not model_cfg:
-        return jsonify({"status": "error", "error": "模型未配置"})
-
-    from validation_replay import build_validation_prompt, compare_predictions, generate_replay_report
-    system_prompt, user_prompt = build_validation_prompt(knowledge_text, cases)
-
-    try:
-        result = call_llm_with_retry(model_cfg, [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ], stream=False, temperature=0.1, max_tokens=4096)
-        raw = extract_assistant_content(result) if isinstance(result, dict) else str(result)
-        try:
-            predictions = json.loads(raw)
-            if not isinstance(predictions, list):
-                predictions = [{"case_id": "unknown", "prediction": raw[:200]}]
-        except json.JSONDecodeError:
-            predictions = [{"case_id": "unknown", "prediction": raw[:200]}]
-
-        comparison = compare_predictions(predictions, cases)
-        report = generate_replay_report(comparison, cases, predictions)
-
-        report_name = f"validation_replay_{uuid.uuid4().hex[:8]}.md"
-        report_path = workspace_path_for(WORKSPACE, pipeline_id, "step5", report_name)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(report, encoding="utf-8")
-
-        return jsonify({
-            "status": "ok",
-            "hit_rate": comparison["hit_rate"],
-            "hits": comparison["hits"],
-            "total": comparison["total_cases"],
-            "mismatch_count": comparison["mismatch_count"],
-            "mismatches": comparison["mismatches"],
-            "report_name": report_name,
-            "download_url": f"/downloads/{report_name}",
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"校验回放失败: {str(e)}"})
-
-
 # ─── Step5 验证环节（回放 + 回流） ────────────────────────────────
 
 def _resolve_skill_text_for_validation(pipeline_id: str) -> tuple[str, str]:
@@ -6682,125 +5994,6 @@ def api_delete_test_customers():
         return jsonify({"status": "error", "error": str(e)})
 
 
-@app.route("/api/validate/run_case", methods=["POST"])
-def api_validate_run_case():
-    """运行单个验证用例。"""
-    data = request.get_json(force=True) or {}
-    case_uid = data.get("case_uid", "")
-    pipeline_id = data.get("pipeline_id", "")
-    skill_file = data.get("skill_file", "")
-    model_name = data.get("model", "")
-
-    if not case_uid:
-        return jsonify({"status": "error", "error": "缺少 case_uid"})
-
-    import knowledge_base as kb
-    case = kb.get_verification_case(case_uid)
-    if not case:
-        return jsonify({"status": "error", "error": "用例不存在"})
-
-    skill_text, source_kind = _resolve_skill_text_for_verification(pipeline_id, skill_file)
-    if not skill_text:
-        return jsonify({"status": "error", "error": "未找到可验证的 SKILL/知识稿"})
-
-    model_cfg = get_model_by_name(model_name)
-    if not model_cfg:
-        model_cfg = load_llm_config()[0] if load_llm_config() else None
-    if not model_cfg:
-        return jsonify({"status": "error", "error": "无可用 LLM 模型"})
-
-    try:
-        from validation_replay import run_verification_case
-        result = run_verification_case(case, skill_text, model_cfg)
-        run_uid = kb.add_verification_run(
-            case_id=case.get("id", 0),
-            skill_id=case.get("skill_id", ""),
-            skill_version=pipeline_id or skill_file,
-            result_status=result.get("status", ""),
-            actual_output=result.get("actual_output", {}),
-            diff=result.get("diff", {}),
-            score=result.get("score", 0.0),
-            judge_model=model_cfg.get("name", ""),
-        )
-        return jsonify({"status": "ok", "run_uid": run_uid, "result": result})
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"运行失败: {str(e)}"})
-
-
-@app.route("/api/validate/run_suite", methods=["POST"])
-def api_validate_run_suite():
-    """批量运行验证用例。"""
-    data = request.get_json(force=True) or {}
-    case_uids = data.get("case_uids") or []
-    pipeline_id = data.get("pipeline_id", "")
-    skill_file = data.get("skill_file", "")
-    model_name = data.get("model", "")
-
-    if not case_uids:
-        return jsonify({"status": "error", "error": "缺少 case_uids"})
-
-    skill_text, source_kind = _resolve_skill_text_for_verification(pipeline_id, skill_file)
-    if not skill_text:
-        return jsonify({"status": "error", "error": "未找到可验证的 SKILL/知识稿"})
-
-    model_cfg = get_model_by_name(model_name)
-    if not model_cfg:
-        model_cfg = load_llm_config()[0] if load_llm_config() else None
-    if not model_cfg:
-        return jsonify({"status": "error", "error": "无可用 LLM 模型"})
-
-    import knowledge_base as kb
-    cases = []
-    for uid in case_uids:
-        case = kb.get_verification_case(uid)
-        if case:
-            cases.append(case)
-    if not cases:
-        return jsonify({"status": "error", "error": "未找到有效用例"})
-
-    try:
-        from validation_replay import run_verification_suite, generate_verification_report
-        results = run_verification_suite(cases, skill_text, model_cfg)
-        run_uids = []
-        for case, result in zip(cases, results):
-            run_uid = kb.add_verification_run(
-                case_id=case.get("id", 0),
-                skill_id=case.get("skill_id", ""),
-                skill_version=pipeline_id or skill_file,
-                result_status=result.get("status", ""),
-                actual_output=result.get("actual_output", {}),
-                diff=result.get("diff", {}),
-                score=result.get("score", 0.0),
-                judge_model=model_cfg.get("name", ""),
-            )
-            run_uids.append(run_uid)
-        report = generate_verification_report(results)
-        return jsonify({"status": "ok", "run_uids": run_uids, "report": report, "results": results})
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"批量运行失败: {str(e)}"})
-
-
-@app.route("/api/validate/report/<run_uid>", methods=["GET"])
-def api_validate_report(run_uid):
-    try:
-        import knowledge_base as kb
-        from validation_replay import generate_verification_report, verification_report_to_markdown
-        run = kb.get_verification_run(run_uid)
-        if not run:
-            return jsonify({"status": "error", "error": "运行记录不存在"})
-        case_id = run.get("case_id", 0)
-        runs = kb.list_verification_runs(case_id=case_id, limit=1000)
-        report = generate_verification_report(runs)
-        return jsonify({
-            "status": "ok",
-            "run": run,
-            "report": report,
-            "markdown": verification_report_to_markdown(report),
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"获取报告失败: {str(e)}"})
-
-
 @app.route("/api/verify/import_result_data", methods=["POST"])
 def api_verify_import_result_data():
     """从 data/test-cases/ 和 golden_test.db 导入初始验证数据。"""
@@ -6994,8 +6187,6 @@ def step2_extract_unified():
       - pipeline_id: 流水线 ID
       - model: 模型名称
       - style: 萃取风格 (默认 标准萃取)
-      - content_type: 可选 "case_review" 触发案例复盘模式
-
     返回 JSON:
       {status, preextract_file, preextract_download_url,
        extracted_count, signal_report, source_count, dedup_count}
@@ -7007,6 +6198,9 @@ def step2_extract_unified():
     output_format = (request.form.get("output_format", "") or "").strip().lower()
     if output_format not in ("markdown", "excel"):
         output_format = "excel"
+
+    if content_type and content_type != "doc":
+        return jsonify({"status": "error", "error": f"不支持的内容类型 '{content_type}'，仅支持 'doc' 模式"})
 
     if not model_name:
         models_list = load_llm_config()
@@ -7043,34 +6237,8 @@ def step2_extract_unified():
         "style": style,
     })
 
-    # 构造 system_prompt（含案例复盘模式）
-    if content_type == "case_review":
-        system_prompt = (
-            f"你是一位资深银行知识工程专家，正在从「案例复盘」中同时提取两类内容：\n"
-            f"萃取风格：{style}\n\n"
-            f"## 任务一：识别隐性信号（重点）\n"
-            f"案例复盘中的隐性知识往往不是直接说出来的。请你特别注意以下四类信号：\n"
-            f"1. **规则覆盖不到的地方**：专家提到了哪些标准流程中没有的检查步骤？哪些「多余的动作」？\n"
-            f"2. **情感/直觉表达**：专家用了哪些不安/不对劲/怪怪的情感词汇？这些情感背后对应了什么可观测信号？\n"
-            f"3. **破例逻辑**：专家在哪次决策中突破了标准规则？他用来合理化的理由是什么？是否值得固化为例外条件？\n"
-            f"4. **关系依赖**：专家提到「问了某某人」吗？那个人知道什么别人不知道的东西？\n\n"
-            f"## 任务二：抽取可执行知识条目\n"
-            f"同时从案例中提取以下格式的结构化知识条目。\n\n"
-            f"请按以下JSON格式输出（一个数组，不要Markdown代码块，不要任何前后说明文字）：\n"
-            f'[{{\"隐性信号\": \"描述一个规则覆盖不到的场景或直觉信号（一句话）\", '
-            f'\"信号类型\": \"反模式|破例|直觉|关系依赖\", '
-            f'\"可执行知识\": \"从这个信号中可以提炼出什么可操作的知识？\", '
-            f'\"触发条件\": \"什么情况下应该特别关注这个信号？\", '
-            f'\"来源\": \"来自本案例复盘的哪个部分（标题/背景/判断/结果/重来/习惯）\", '
-            f'\"置信度\": \"高|中|低\"}}]\n\n'
-            f"要求：\n"
-            f"1. 每条隐性信号必须是完整、自包含的陈述\n"
-            f"2. 优先提取反模式和破例逻辑——这些是隐性知识的关键入口\n"
-            f"3. 输出条数尽量 {style_rule['min_items']}~{style_rule['max_items']} 条\n"
-            f"4. 可执行知识要具体——不能只写「注意风险」，要写「注意什么风险、怎么看、看哪里」"
-        )
-        target_columns = ["隐性信号", "信号类型", "可执行知识", "触发条件", "来源", "置信度"]
-    elif target_columns:
+    # 构造 system_prompt
+    if target_columns:
         target_cols_json = json.dumps(target_columns, ensure_ascii=False)
         example_obj = {k: "" for k in target_columns}
         content_key = next(
@@ -7332,7 +6500,7 @@ def step2_extract_unified():
         draft_info = _persist_step2_skill_draft(
             pipeline_id, items,
             signals={"signal_report": signal_report},
-            origin="case_review" if content_type == "case_review" else "doc_extract",
+            origin="doc_extract",
         )
 
         return jsonify({
@@ -7441,7 +6609,7 @@ def step2_extract_unified():
     draft_info = _persist_step2_skill_draft(
         pipeline_id, fused.get("records", []),
         signals={"signal_report": signal_report},
-        origin="case_review" if content_type == "case_review" else "doc_extract",
+        origin="doc_extract",
     )
 
     return jsonify({

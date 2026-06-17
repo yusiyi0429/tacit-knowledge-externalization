@@ -371,20 +371,8 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 </div>
               </div>
 
-              <!-- 输入模式切换 -->
-              <div class="s2-mode-tabs" id="s2-mode-tabs">
-                <button type="button" class="s2-mode-tab btn btn--primary btn--sm active" data-mode="doc" onclick="switchStep2Mode('doc')">
-                  <span class="btn__icon btn__icon--left" data-lucide="file-text"></span>
-                  <span class="btn__text">文档萃取</span>
-                </button>
-                <button type="button" class="s2-mode-tab btn btn--ghost btn--sm" data-mode="case" onclick="switchStep2Mode('case')">
-                  <span class="btn__icon btn__icon--left" data-lucide="clipboard-list"></span>
-                  <span class="btn__text">案例复盘</span>
-                </button>
-              </div>
-
-              <!-- 模式一：文档萃取 -->
-              <div class="s2-mode-panel" id="s2-panel-doc">
+              <!-- 文档萃取 -->
+              <div id="s2-panel-doc">
                 <div class="form-group">
                   <label>知识来源文件（可多选）</label>
                   <input type="file" id="s2-source-files" accept=".txt,.md,.docx,.pdf" multiple>
@@ -417,34 +405,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 </div>
               </div>
 
-              <!-- 模式二：案例复盘 -->
-              <div class="s2-mode-panel hidden" id="s2-panel-case">
-                <div class="form-group">
-                  <label>案例标题 <span style="color:var(--red)">*</span></label>
-                  <input type="text" id="s2-case-title" placeholder="如：某芯片设计企业流水异常预警">
-                </div>
-                <div class="form-group">
-                  <label>背景 / 情境 <span style="color:var(--red)">*</span></label>
-                  <textarea id="s2-case-context" rows="3" placeholder="当时是什么样的业务场景？涉及哪些关键信息？你是怎么发现这个问题的？"></textarea>
-                </div>
-                <div class="form-group">
-                  <label>你当时怎么判断的？采取了什么行动？</label>
-                  <textarea id="s2-case-decision" rows="3" placeholder="你做了什么决策？依据是什么？（可以是数据、经验、直觉，越真实越好）"></textarea>
-                </div>
-                <div class="form-group">
-                  <label>结果是什么？</label>
-                  <textarea id="s2-case-outcome" rows="2" placeholder="最终结果如何？和你的预期一致吗？有什么意外吗？"></textarea>
-                </div>
-                <div class="form-group">
-                  <label>如果重来一次，你会怎么做？</label>
-                  <textarea id="s2-case-redo" rows="2" placeholder="有没有更好的处理方式？当时忽略了什么信号？"></textarea>
-                </div>
-                <div class="form-group">
-                  <label>这次经历让你养成了什么习惯 / 条件反射？</label>
-                  <textarea id="s2-case-habit" rows="2" placeholder="比如：从此以后每次看报表都会先翻到某一页、每次见新客户都会先问某一个问题..."></textarea>
-                </div>
-                <div class="file-hint" style="margin-top:4px">案例复盘帮你把"只有你知道"的判断经验沉淀为团队可复用的隐性信号</div>
-              </div>
+
             </div>
           </div>
           <div class="col col-center">
@@ -458,21 +419,10 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   <div class="s2-skill-card active" data-skill="knowledge-extraction" onclick="selectStep2Skill('knowledge-extraction')">
                     <span class="s2-skill-card-icon" data-lucide="search"></span>
                     <span class="s2-skill-card-name">知识萃取</span>
-                    <span class="s2-skill-card-desc">文档→结构化知识</span>
-                    <span class="s2-skill-card-hint">制度文件、操作手册、案例复盘</span>
+                    <span class="s2-skill-card-desc">Excel模板 → Skill预萃稿</span>
+                    <span class="s2-skill-card-hint">上传标准萃取模板，生成 IR 预萃稿（Markdown）</span>
                   </div>
-                  <div class="s2-skill-card" data-skill="knowledge-pattern-mining" onclick="selectStep2Skill('knowledge-pattern-mining')">
-                    <span class="s2-skill-card-icon" data-lucide="microscope"></span>
-                    <span class="s2-skill-card-name">模式发现</span>
-                    <span class="s2-skill-card-desc">跨案例交叉分析</span>
-                    <span class="s2-skill-card-hint">≥2 个相关案例的对比分析</span>
-                  </div>
-                  <div class="s2-skill-card" data-skill="knowledge-gap-analysis" onclick="selectStep2Skill('knowledge-gap-analysis')">
-                    <span class="s2-skill-card-icon" data-lucide="target"></span>
-                    <span class="s2-skill-card-name">盲区检测</span>
-                    <span class="s2-skill-card-desc">Schema覆盖率</span>
-                    <span class="s2-skill-card-hint">已萃取后检查知识覆盖空白</span>
-                  </div>
+
                 </div>
                 <select id="s2-skill-select" class="hidden">
                   <option value="">-- 选择 Skill --</option>
@@ -489,41 +439,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 </select>
               </div>
 
-              <!-- 模式发现多文件上传（仅模式发现时显示） -->
-              <div class="form-group s2-conditional hidden" id="s2-group-pattern-files" style="margin-bottom:12px">
-                <label>案例文件（可多选，至少2个）</label>
-                <div class="s2-pattern-dropzone" id="s2-pattern-dropzone">
-                  <div class="s2-pattern-dropzone-icon">📂</div>
-                  <div class="s2-pattern-dropzone-text">点击选择文件，或拖拽案例文件到此处</div>
-                  <div class="s2-pattern-dropzone-hint">支持 Ctrl+点击 多选，或按住 Shift 连选</div>
-                  <input type="file" id="s2-pattern-files" accept=".txt,.md" multiple>
-                </div>
-                <div class="s2-pattern-filelist hidden" id="s2-pattern-filelist">
-                  <div class="s2-pattern-filelist-header">
-                    <span class="s2-pattern-filelist-count" id="s2-pattern-filecount">0 个文件</span>
-                    <button type="button" class="s2-pattern-filelist-clear btn btn--ghost btn--sm" onclick="clearPatternFiles()">
-                      <span class="btn__text">清空</span>
-                    </button>
-                  </div>
-                  <div class="s2-pattern-filelist-items" id="s2-pattern-fileitems"></div>
-                  <div class="s2-pattern-filelist-status" id="s2-pattern-filestatus"></div>
-                </div>
-              </div>
-              <div class="form-group s2-conditional hidden" id="s2-group-pattern-text" style="margin-bottom:12px">
-                <label>或粘贴多个案例文本</label>
-                <textarea id="s2-pattern-text" rows="4" placeholder="粘贴多个案例复盘文本，案例之间用「===」分隔&#10;&#10;===&#10;&#10;案例2内容..."></textarea>
-              </div>
 
-              <!-- 盲区检测说明（仅盲区检测时显示） -->
-              <div class="form-group s2-conditional hidden" id="s2-group-gap-info" style="margin-bottom:12px">
-                <div class="s2-info-card">
-                  <div class="s2-info-card-icon">🎯</div>
-                  <div class="s2-info-card-text">
-                    <strong>自动读取当前流水线的知识Excel</strong><br>
-                    <span class="file-hint">对比Step1的Schema列定义与Step2实际填充的条目，无需额外输入</span>
-                  </div>
-                </div>
-              </div>
               </div><!-- /s2-single-controls -->
 
               <div class="form-group" style="margin-bottom:12px">
@@ -582,7 +498,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         </div>
         <div class="slide-subtitle-bar">
           <span class="subtitle-tag">核心要点</span>
-          <div class="slide-subtitle">专家逐条审核萃取稿，接受/修订/驳回，生成最终定稿</div>
+          <div class="slide-subtitle">对 Step2 生成的 Skill 预萃稿逐条审核与修订</div>
         </div>
 
         <!-- Phase 1: 输入区 -->

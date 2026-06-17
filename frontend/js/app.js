@@ -8,7 +8,6 @@ const MAX_FORM_STEP = 3;
 const STEP_NAMES = { 1: "场景锚定", 2: "知识萃取", 3: "知识对齐", 4: "智能转化", 5: "验证回放" };
 let _formSaveTimer = null;
 let _lastStep2ExtractedText = '';
-let _step2InputMode = 'doc'; // 'doc' | 'case'
 let _step2ActiveSkill = 'knowledge-extraction'; // 当前选中的 Skill
 let _alignTacitAnnotations = {}; // { noteId: { question, answer } } — Step3 修订经验批注缓存
 
@@ -52,79 +51,11 @@ function selectStep2Skill(skillId) {
   var sel = document.getElementById('s2-skill-select');
   if (sel) sel.value = skillId;
 
-  // 显示/隐藏条件元素
-  var isExtraction = (skillId === 'knowledge-extraction');
-  var isPattern = (skillId === 'knowledge-pattern-mining');
-  var isGap = (skillId === 'knowledge-gap-analysis');
-
-  // 萃取风格（仅知识萃取）
-  var styleGroup = document.getElementById('s2-group-style');
-  if (styleGroup) styleGroup.classList.toggle('hidden', !isExtraction);
-
-  // 模式发现多文件
-  var patternFiles = document.getElementById('s2-group-pattern-files');
-  var patternText = document.getElementById('s2-group-pattern-text');
-  if (patternFiles) patternFiles.classList.toggle('hidden', !isPattern);
-  if (patternText) patternText.classList.toggle('hidden', !isPattern);
-
-  // 盲区检测说明
-  var gapInfo = document.getElementById('s2-group-gap-info');
-  if (gapInfo) gapInfo.classList.toggle('hidden', !isGap);
-
-  // 模式切换 Tab（仅知识萃取时显示）
-  var modeTabs = document.getElementById('s2-mode-tabs');
-  if (modeTabs) modeTabs.classList.toggle('hidden', !isExtraction);
-
-  // 文档输入面板（非知识萃取时隐藏文档/案例面板，使用skill自有输入）
-  var docPanel = document.getElementById('s2-panel-doc');
-  var casePanel = document.getElementById('s2-panel-case');
-  if (docPanel) docPanel.classList.toggle('hidden', !isExtraction);
-  if (casePanel) casePanel.classList.toggle('hidden', !isExtraction || _step2InputMode !== 'case');
-
   // 更新按钮文字
   var btnText = document.getElementById('s2-btn-text');
-  var labels = {
-    'knowledge-extraction': '执行知识萃取',
-    'knowledge-pattern-mining': '执行模式发现',
-    'knowledge-gap-analysis': '执行盲区检测'
-  };
-  if (btnText) btnText.textContent = labels[skillId] || '执行';
+  if (btnText) btnText.textContent = '执行知识萃取';
 
   updateStep2Readiness();
-}
-
-/* ===== 模式发现：文件列表展示 ===== */
-function refreshPatternFileList() {
-  var input = document.getElementById('s2-pattern-files');
-  var list = document.getElementById('s2-pattern-filelist');
-  var items = document.getElementById('s2-pattern-fileitems');
-  var count = document.getElementById('s2-pattern-filecount');
-  var status = document.getElementById('s2-pattern-filestatus');
-  if (!input || !list || !items) return;
-
-  var files = input.files || [];
-  if (files.length === 0) { list.classList.add('hidden'); return; }
-  list.classList.remove('hidden');
-
-  count.textContent = files.length + ' 个文件';
-  var html = '';
-  for (var i = 0; i < files.length; i++) {
-    var size = files[i].size > 1024 ? (files[i].size / 1024).toFixed(1) + ' KB' : files[i].size + ' B';
-    html += '<div class="s2-pattern-fileitem"><span class="s2-pattern-fileitem-icon">📄</span><span class="s2-pattern-fileitem-name">' + escapeHtml(files[i].name) + '</span><span class="s2-pattern-fileitem-size">' + size + '</span></div>';
-  }
-  items.innerHTML = html;
-
-  if (status) {
-    if (files.length >= 2) { status.className = 's2-pattern-filelist-status ok'; status.textContent = '✅ 已满足最低要求（≥2个案例）'; }
-    else { status.className = 's2-pattern-filelist-status warn'; status.textContent = '⚠️ 至少需要 2 个案例文件，请继续添加'; }
-  }
-  updateStep2Readiness();
-}
-
-function clearPatternFiles() {
-  var input = document.getElementById('s2-pattern-files');
-  if (input) input.value = '';
-  refreshPatternFileList();
 }
 
 /** 各步骤产出物字段：保存表单时不得覆盖丢失 */
@@ -666,23 +597,6 @@ function toggleSignalPanel() {
   if (toggle) toggle.style.transform = isHidden ? '' : 'rotate(180deg)';
 }
 
-/* ===== Step2 输入模式切换（文档萃取 / 案例复盘） ===== */
-function switchStep2Mode(mode) {
-  _step2InputMode = mode;
-  var tabs = document.querySelectorAll('.s2-mode-tab');
-  tabs.forEach(function (t) {
-    var isActive = t.dataset.mode === mode;
-    t.classList.toggle('active', isActive);
-    t.classList.toggle('btn--primary', isActive);
-    t.classList.toggle('btn--ghost', !isActive);
-  });
-  var panelDoc = document.getElementById('s2-panel-doc');
-  var panelCase = document.getElementById('s2-panel-case');
-  if (panelDoc) panelDoc.classList.toggle('hidden', mode !== 'doc');
-  if (panelCase) panelCase.classList.toggle('hidden', mode !== 'case');
-  updateStep2Readiness();
-}
-
 /* ===== Step2 执行 ===== */
 function step2Execute() {
   var btn = document.getElementById('s2-skill-extract');
@@ -939,9 +853,6 @@ function setupFormAutoSave() {
   if (s2TextInputs) s2TextInputs.addEventListener('input', updateStep2Readiness);
   if (s3Expert) s3Expert.addEventListener('input', updateStep3AlignModeHint);
   if (s3File) s3File.addEventListener('change', updateStep3AlignModeHint);
-  // 模式发现文件列表
-  var pfInput = document.getElementById('s2-pattern-files');
-  if (pfInput) pfInput.addEventListener('change', refreshPatternFileList);
 }
 
 /* ===== File upload name display ===== */
@@ -1934,9 +1845,6 @@ let allSkills = [];
 const SKILL_META = {
   'knowledge-extraction': { icon: '🔍', iconCls: 'icon-purple', step: 2 },
   'knowledge-revision': { icon: '📝', iconCls: 'icon-orange', step: 3 },
-  'knowledge-pattern-mining': { icon: '🔬', iconCls: 'icon-teal', step: 2 },
-  'knowledge-gap-analysis': { icon: '🎯', iconCls: 'icon-blue', step: 2 },
-  'knowledge-freshness-audit': { icon: '🔄', iconCls: 'icon-green', step: 5 },
 };
 
 async function loadSkills() {
@@ -2261,7 +2169,7 @@ function resolveModelName(selectId) {
 }
 
 function refreshModelSelects() {
-  const selects = ['s2-model', 's3-model', 's4-model', 's4-validate-model', 's5-model'];
+  const selects = ['s2-model', 's3-model', 's4-model', 's5-model'];
   selects.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -2279,9 +2187,8 @@ function refreshModelSelects() {
 
 // Skill step mapping: which skills are relevant to which step
 const SKILL_STEP_MAP = {
-  2: ['knowledge-extraction', 'knowledge-pattern-mining', 'knowledge-gap-analysis'],
+  2: ['knowledge-extraction'],
   3: ['knowledge-revision'],
-  5: ['knowledge-freshness-audit'],
 };
 
 async function loadStepSkillSelects(step) {
@@ -3736,51 +3643,6 @@ function renderStep4ArtifactCard(key, title, desc, countLabel, downloads, previe
   return html;
 }
 
-async function step4FreshnessAudit() {
-  var output = document.getElementById('s4-output');
-  if (!output) return; // safety guard
-  var btn = document.getElementById('s4-freshness-btn');
-  if (!btn || btn._locked || !currentPipeline) return;
-  var origBtnHtml = btn.innerHTML;
-  btn._locked = true;
-  btn.disabled = true;
-  btn.classList.add('loading');
-  btn.innerHTML = '<span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span><span class="btn__text">审计中...</span>';
-  var fd = new FormData();
-  fd.append('skill_id', 'knowledge-freshness-audit');
-  fd.append('pipeline_id', currentPipeline.id);
-  fd.append('model', resolveModelName('s4-model') || (allModels.length ? allModels[0].name : ''));
-  try {
-    var resp = await fetch(API_BASE + '/api/skills/execute', { method: 'POST', body: fd });
-    var result = await resp.json();
-    output.style.display = 'block';
-    if (result.status === 'ok') {
-      var dl = result.download_url || '';
-      output.innerHTML =
-        '<div class="s2-result-success"><div class="s2-result-header">保鲜度审计完成</div>' +
-        '<div class="s2-result-meta">共 ' + (result.total_items || 0) + ' 条知识 · 高置信度占比 ' + (result.high_confidence_pct || 0) + '%' +
-        (result.completeness_score ? ' · 完整性得分 ' + result.completeness_score + '%' : '') + '</div>' +
-        (result.stale_indicators && result.stale_indicators.length ?
-          '<div style="margin-top:8px">' + result.stale_indicators.map(function(s){return '<div style="font-size:12px;color:#8b6914;margin:2px 0">⚠️ '+escapeHtml(s)+'</div>';}).join('') + '</div>' : '') +
-        '<div class="s2-result-actions" style="margin-top:12px">' +
-        '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.report_name || '') + '\',\'保鲜度审计报告\')">&#128065; 预览报告</button>' +
-        (dl ? '<a class="btn btn--outline btn--sm" href="'+API_BASE+dl+'" download>下载报告</a>' : '') +
-        '</div>' +
-        '</div>';
-    } else {
-      output.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '审计失败') + '</div></div>';
-    }
-  } catch (e) {
-    output.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
-  } finally {
-    btn._locked = false;
-    btn.disabled = false;
-    btn.classList.remove('loading');
-    btn.innerHTML = origBtnHtml;
-    refreshIcons();
-  }
-}
-
 
 async function step4GenerateCOT() {
   // Deprecated: functionality merged into step4Compile
@@ -4616,82 +4478,6 @@ async function saveExcelEditor() {
     persistPipeline = function(extraStepData, extraFields) { return A.PipelineState.persist(extraStepData, extraFields); };
   }
 })();
-
-// ═══════════════════════════════════════════════════════════════════
-// 方案四: 显性化校验回放
-// ═══════════════════════════════════════════════════════════════════
-
-function openValidatePanel() {
-  var panel = document.getElementById('s4-validate-panel');
-  panel.classList.toggle('hidden');
-  if (!panel.classList.contains('hidden')) {
-    if (allModels.length) refreshModelSelects();
-  }
-}
-
-async function runValidateReplay() {
-  var btn = document.getElementById('s4-validate-run-btn');
-  var resultEl = document.getElementById('s4-validate-result');
-  var text = document.getElementById('s4-validate-cases').value.trim();
-  if (!text) { showToast('请输入历史案例', 'error'); return; }
-  if (!currentPipeline) { showToast('请先进入一条流水线', 'error'); return; }
-
-  // 解析案例文本
-  var lines = text.split('\n').filter(function (l) { return l.trim(); });
-  var cases = [];
-  lines.forEach(function (line) {
-    var parts = line.split(/[,，]/);
-    if (parts.length >= 3) {
-      cases.push({
-        case_id: parts[0].trim(),
-        description: parts[1].trim(),
-        conclusion: parts[2].trim(),
-      });
-    }
-  });
-  if (cases.length === 0) { showToast('案例格式错误，每行为: 案例ID,场景描述,专家结论', 'error'); return; }
-
-  var model = document.getElementById('s4-validate-model')?.value || resolveModelName('s4-model');
-  if (!model) { showToast('请选择模型', 'error'); return; }
-
-  btn.disabled = true;
-  btn.innerHTML = '<span class="btn__icon btn__icon--left" data-lucide="loader-2"></span><span class="btn__text">校验中...</span>';
-  resultEl.innerHTML = '<div class="loading"><div class="spinner"></div>正在用知识库判断 ' + cases.length + ' 个案例...</div>';
-
-  try {
-    var fd = new FormData();
-    fd.append('pipeline_id', currentPipeline.id);
-    fd.append('model', model);
-    fd.append('cases', JSON.stringify(cases));
-    var resp = await fetch(API_BASE + '/api/validate/replay', { method: 'POST', body: fd });
-    var data = await resp.json();
-    if (data.status === 'ok') {
-      var pct = Math.round(data.hit_rate * 100);
-      var fillColor = pct >= 80 ? '#16a34a' : pct >= 60 ? '#f59e0b' : '#ef4444';
-      var html = '<div class="validate-result">';
-      html += '<h4>校验结果</h4>';
-      html += '<div style="font-size:24px;font-weight:700;color:' + fillColor + '">' + pct + '% 命中率</div>';
-      html += '<div style="font-size:12px;color:var(--text-muted)">' + data.hits + '/' + data.total + ' 一致 · ' + data.mismatch_count + ' 分歧</div>';
-      html += '<div class="validate-hit-bar"><div class="validate-hit-fill" style="width:' + pct + '%;background:' + fillColor + '"></div></div>';
-      if (data.mismatches && data.mismatches.length) {
-        html += '<h4 style="margin-top:12px;">分歧案例</h4>';
-        data.mismatches.forEach(function (m) {
-          html += '<div class="validate-mismatch"><strong>' + escapeHtml(m.case_id) + '</strong>: LLM判「' + escapeHtml(m.prediction) + '」→ 专家判「' + escapeHtml(m.expert_conclusion) + '」<br><span style="color:var(--text-muted);font-size:11px">推理: ' + escapeHtml((m.reasoning || '').substring(0, 120)) + '</span></div>';
-        });
-        html += '<div class="file-hint" style="margin-top:8px">💡 这些分歧条目可反推为 Step3 修订建议来源</div>';
-      }
-      html += '</div>';
-      resultEl.innerHTML = html;
-    } else {
-      resultEl.innerHTML = '<div style="color:var(--error);font-size:12px;margin-top:8px">' + escapeHtml(data.error || '校验失败') + '</div>';
-    }
-  } catch (e) {
-    resultEl.innerHTML = '<div style="color:var(--error);font-size:12px;margin-top:8px">网络错误: ' + escapeHtml(e.message) + '</div>';
-  }
-  btn.disabled = false;
-  btn.innerHTML = '<span class="btn__icon btn__icon--left" data-lucide="zap"></span><span class="btn__text">执行校验</span>';
-  refreshIcons();
-}
 
 /* ===== Step4: 一键编译交付包（确定性主路径）===== */
 async function step4Compile() {

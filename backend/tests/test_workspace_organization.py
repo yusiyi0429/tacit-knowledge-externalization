@@ -36,9 +36,6 @@ def test_infer_file_step():
     assert pa.infer_file_step("QA_abc.json") == "step4"
     assert pa.infer_file_step("openclaw_abc.json") == "step4"
     assert pa.infer_file_step("delivery_abc") == "step4"
-    assert pa.infer_file_step("pattern_mining_abc.json") == "step4"
-    assert pa.infer_file_step("gap_analysis_abc.json") == "step4"
-    assert pa.infer_file_step("freshness_audit_abc.json") == "step4"
 
     assert pa.infer_file_step("validation_result_abc.json") == "step5"
     assert pa.infer_file_step("quality_report_abc.md") == "step5"

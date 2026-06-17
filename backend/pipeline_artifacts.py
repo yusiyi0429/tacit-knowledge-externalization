@@ -32,10 +32,6 @@ DOWNLOAD_ALLOWED_PREFIXES = (
     "quality_report_",
     "report_",
     "cache_",
-    # 新 Skill 产出报告
-    "pattern_mining_",
-    "gap_analysis_",
-    "freshness_audit_",
     # 多源融合
     "fusion_",
     "interview_",
@@ -139,7 +135,7 @@ _STEP_PREFIX_RULES = [
     (re.compile(r"^(?:edited_step1_|template_)"), "step1"),
     (re.compile(r"^(?:edited_step2_|preextract_|fusion_|signal_report_|interview_|skill_draft_.*_v1_)"), "step2"),
     (re.compile(r"^(?:edited_step3_|final_|revision_|skill_draft_.*_v(?!1\b)\d+_)"), "step3"),
-    (re.compile(r"^(?:SKILL_|SKILL_DIR_|COT_|QA_|openclaw_|delivery_|pattern_mining_|gap_analysis_|freshness_audit_)"), "step4"),
+    (re.compile(r"^(?:SKILL_|SKILL_DIR_|COT_|QA_|openclaw_|delivery_)"), "step4"),
     (re.compile(r"^(?:validation_|quality_report_)"), "step5"),
     (re.compile(r"^(?:cache_s\d+|upload|edit_read|upload_tpl)_"), "uploads"),
 ]
@@ -378,17 +374,26 @@ def safe_workspace_path(workspace: Path, name: str, *, must_exist: bool = True) 
     return path
 
 
-def resolve_client_excel_path(workspace: Path, file_path: str, file_name: str = "") -> Path | None:
-    """Resolve excel editor path: prefer basename file_name under workspace."""
+def resolve_client_excel_path(workspace: Path, file_path: str, file_name: str = "", *, pipeline_id: str = "") -> Path | None:
+    """Resolve excel editor path: prefer basename under workspace, then pipeline subdirs."""
     if file_name:
-        return safe_workspace_path(workspace, file_name, must_exist=True)
+        candidate = safe_workspace_path(workspace, file_name, must_exist=True)
+        if candidate:
+            return candidate
     raw = (file_path or "").strip()
     if not raw:
         return None
     base = basename_only(raw)
+    # 1) workspace root
     candidate = safe_workspace_path(workspace, base, must_exist=True)
     if candidate:
         return candidate
+    # 2) pipeline subdirectory (matches locate_workspace_file read-side)
+    if pipeline_id:
+        candidate = locate_workspace_file(workspace, base, pipeline_id=pipeline_id)
+        if candidate:
+            return candidate
+    # 3) absolute path fallback
     try:
         p = Path(raw).resolve()
         p.relative_to(workspace.resolve())

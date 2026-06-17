@@ -2207,29 +2207,6 @@ a { color: var(--red); text-decoration: none; }
   display: flex; gap: 8px; margin-top: 16px;
 }
 
-/* ===== Step2 输入模式切换 ===== */
-.s2-mode-tabs {
-  display: flex; gap: 0; margin-bottom: 16px; border-radius: var(--radius);
-  border: 1px solid var(--border); overflow: hidden;
-}
-.s2-mode-tab {
-  flex: 1; border-radius: 0;
-}
-.s2-mode-tab:not(:last-child) { border-right: 1px solid var(--border); }
-.s2-mode-panel { }
-.s2-mode-panel.hidden { display: none !important; }
-
-/* ===== 案例复盘表单 ===== */
-.s2-case-field { margin-bottom: 12px; }
-.s2-case-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
-.s2-case-field textarea,
-.s2-case-field input[type=text] {
-  width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
-  font-size: 13px; font-family: var(--font-cn); resize: vertical; transition: border-color 0.2s;
-}
-.s2-case-field textarea:focus,
-.s2-case-field input[type=text]:focus { border-color: var(--red); outline: none; }
-
 /* ===== 对齐追问卡片 ===== */
 .tacit-followup {
   margin-top: 8px; padding: 10px 12px; background: #fef7e0; border-left: 3px solid var(--warning);
@@ -2349,40 +2326,6 @@ a { color: var(--red); text-decoration: none; }
 .s2-info-card-icon { font-size: 20px; flex-shrink: 0; }
 .s2-info-card-text { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
 
-/* ===== 模式发现文件上传区 ===== */
-.s2-pattern-dropzone {
-  position: relative; padding: 24px 16px; border: 2px dashed var(--border);
-  border-radius: var(--radius); text-align: center; cursor: pointer;
-  transition: border-color 0.2s, background 0.2s; background: #fafbfc;
-}
-.s2-pattern-dropzone:hover { border-color: var(--red); background: #fef5f5; }
-.s2-pattern-dropzone input[type="file"] {
-  position: absolute; inset: 0; opacity: 0; cursor: pointer;
-}
-.s2-pattern-dropzone-icon { font-size: 28px; margin-bottom: 4px; }
-.s2-pattern-dropzone-text { font-size: 13px; color: var(--text-secondary); }
-.s2-pattern-dropzone-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-.s2-pattern-filelist { margin-top: 8px; }
-.s2-pattern-filelist-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 6px;
-}
-.s2-pattern-filelist-count { font-size: 12px; font-weight: 600; color: var(--text); }
-.s2-pattern-filelist-clear { display: inline-flex; }
-.s2-pattern-filelist-clear:hover { color: var(--red); }
-.s2-pattern-filelist-items { display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
-.s2-pattern-fileitem {
-  display: flex; align-items: center; gap: 6px; padding: 4px 8px;
-  background: #f0f9ff; border-radius: 3px; font-size: 12px; color: var(--text);
-}
-.s2-pattern-fileitem-icon { font-size: 14px; flex-shrink: 0; }
-.s2-pattern-fileitem-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.s2-pattern-fileitem-size { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
-.s2-pattern-filelist-status { margin-top: 6px; font-size: 11px; font-weight: 600; }
-.s2-pattern-filelist-status.ok { color: var(--green); }
-.s2-pattern-filelist-status.warn { color: var(--warning); }
-.s2-pattern-filelist-status.error { color: var(--error); }
-
 /* ===== 修订上下文侧栏 ===== */
 .revision-context {
   margin-bottom: 12px; background: #fafafa; border: 1px solid var(--border);
@@ -2448,16 +2391,6 @@ a { color: var(--red); text-decoration: none; }
 .interview-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
 .interview-loading { text-align: center; padding: 30px; color: var(--text-muted); }
 
-/* ===== Validation Replay (方案四) ===== */
-.validate-section { margin-top: 14px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: #fafbfc; }
-.validate-section h4 { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
-.validate-case-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-.validate-case-row input { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; }
-.validate-case-row select { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; width: 120px; }
-.validate-cases { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
-.validate-result { margin-top: 12px; }
-.validate-hit-bar { height: 8px; background: var(--border-light); border-radius: 4px; overflow: hidden; margin: 8px 0; }
-
 /* ===== 多源融合 UI ===== */
 .s2-fusion-text-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: flex-start; }
 .s2-fusion-filelist { margin-top: 6px; padding: 8px; background: #f9fafb; border: 1px solid var(--border-color, #e5e7eb); border-radius: 6px; }
@@ -2487,8 +2420,6 @@ a { color: var(--red); text-decoration: none; }
 .fusion-tag { display: inline-block; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-right: 4px; }
 .fusion-tag-dup { background: #fef3c7; color: #92400e; }
 .fusion-tag-conflict { background: #fef2f2; color: #991b1b; }
-.validate-hit-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
-.validate-mismatch { padding: 8px 10px; margin: 6px 0; border-radius: var(--radius); border-left: 3px solid var(--error); background: #fef2f2; font-size: 12px; }
 
 /* ===== Step2 知识深挖区块 ===== */
 .s2-deep-probe-section {
