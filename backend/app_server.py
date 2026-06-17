@@ -5802,7 +5802,7 @@ def api_step5_replay():
         return jsonify({"status": "error", "error": "流水线不存在"})
 
     sd = pipeline.get("step_data") or {}
-    skill_zip = sd.get("step4_skill_dir_zip_file", "")
+    skill_zip = sd.get("step4_skill_zip_file") or sd.get("step4_skill_dir_zip_file", "")
     if not skill_zip:
         return jsonify({"status": "error", "error": "请先完成 Step4 智能转化"})
 
