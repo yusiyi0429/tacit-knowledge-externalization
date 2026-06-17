@@ -660,7 +660,11 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
             <div class="col col-right">
               <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">状态</div><div class="col-label-en">Status</div></div></div>
               <div class="col-content output-area" id="s3-output">
-                <div class="output-placeholder">输入专家意见后点击「生成对齐建议」</div>
+                <div class="s3-align-header">
+                  <span class="s3-align-title">IR 规则 / SQL 对齐</span>
+                  <button type="button" class="btn btn--primary btn--sm" onclick="step3ConfirmAsIs()">确认对齐</button>
+                </div>
+                <div class="s3-ir-list" id="s3-ir-list"></div>
               </div>
             </div>
           </div>

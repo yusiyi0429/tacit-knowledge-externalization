@@ -2649,3 +2649,19 @@ a { color: var(--red); text-decoration: none; }
 .ir-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .ir-table th, .ir-table td { border: 1px solid #e5e7eb; padding: 6px; text-align: left; }
 .ir-table code { background: #f3f4f6; padding: 2px 4px; border-radius: 3px; }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   Step 3: IR rule / SQL dual-view alignment
+   ═══════════════════════════════════════════════════════════════════ */
+.s3-align-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.s3-align-title { font-weight: 600; }
+.s3-ir-list { max-height: 500px; overflow: auto; }
+.s3-ir-card { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; margin-bottom: 12px; background: #fff; }
+.s3-ir-header { display: flex; gap: 12px; margin-bottom: 8px; font-size: 13px; color: #6b7280; }
+.s3-ir-id { font-weight: 700; color: #111827; }
+.s3-ir-row { margin-bottom: 8px; }
+.s3-ir-row label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+.s3-ir-row .s3-field { width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px; }
+.s3-ir-row .s3-sql { font-family: monospace; background: #f9fafb; }
+.s3-ir-actions { display: flex; gap: 8px; margin-top: 8px; }

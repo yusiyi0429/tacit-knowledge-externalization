@@ -1264,6 +1264,7 @@ function switchPanel(step) {
     if (s3Draft) { s3Draft.style.display = ''; }
     if (s3Empty) { s3Empty.style.display = 'none'; }
     loadStep3PrevOutput();
+    loadStep3IRForAlignment();
     loadStep3RevisionContext();
     loadStep3SuggestionPool();
     updateStep3AlignModeHint();
@@ -1326,6 +1327,9 @@ function renderLoading(containerId) {
 function escapeHtml(str) {
   if (str == null) return '';
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function escapeJsString(s) {
+  return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 async function copyTextToClipboard(text) {
@@ -3006,6 +3010,28 @@ async function loadStep3PrevOutput() {
   }
 }
 
+async function loadStep3IRForAlignment() {
+  const pid = getCurrentPipelineId();
+  if (!pid) return;
+  try {
+    const resp = await fetch(API_BASE + '/api/pipeline/detail?pipeline_id=' + pid);
+    const data = await resp.json();
+    if (data.status !== 'ok' || !data.pipeline) return;
+    const sd = data.pipeline.step_data || {};
+    const irName = sd.step3_aligned_file || sd.step2_draft_file;
+    if (!irName) {
+      document.getElementById('s3-ir-list').innerHTML = '<div class="output-placeholder">请先完成 Step2 萃取</div>';
+      return;
+    }
+    const irResp = await fetch(API_BASE + '/downloads/' + irName);
+    const ir = await irResp.json();
+    renderStep3IRDualView(ir);
+  } catch (e) {
+    console.error('loadStep3IRForAlignment failed:', e);
+    document.getElementById('s3-ir-list').innerHTML = '<div class="output-placeholder">加载 IR 失败: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
 function renderStep3ChatHistory() {
   const box = document.getElementById('s3-chat-history');
   if (!box) return;
@@ -3550,25 +3576,106 @@ async function step3ApplyNotes() {
   }
 }
 
-async function step3ConfirmAsIs() {
-  const pid = currentPipeline ? currentPipeline.id : null;
-  if (!pid) { alert('请先进入流水线'); return; }
+function renderStep3IRDualView(ir) {
+  window.currentStep3IR = ir;
+  const list = document.getElementById('s3-ir-list');
+  if (!list) return;
+  if (!ir || !ir.entries || !ir.entries.length) {
+    list.innerHTML = '<div class="output-placeholder">暂无 IR 条目</div>';
+    return;
+  }
+  let html = '';
+  ir.entries.forEach(function (e) {
+    const fields = e.fields || {};
+    const dataLogic = fields.data_logic || {};
+    html += '<div class="s3-ir-card" data-entry-id="' + escapeHtml(e.entry_id) + '">';
+    html += '<div class="s3-ir-header">';
+    html += '<span class="s3-ir-id">' + escapeHtml(e.entry_id) + '</span>';
+    html += '<span class="s3-ir-phase">' + escapeHtml(e.step_phase) + '</span>';
+    html += '<span class="s3-ir-sub">' + escapeHtml(e.sub_scenario) + '</span>';
+    html += '</div>';
+    html += '<div class="s3-ir-row"><label>业务描述</label><textarea class="s3-field" data-field="knowledge_desc" rows="2">' + escapeHtml(fields.knowledge_desc || '') + '</textarea></div>';
+    html += '<div class="s3-ir-row"><label>数据来源</label><input type="text" class="s3-field" data-field="knowledge_ref" value="' + escapeHtml(fields.knowledge_ref || '') + '"></div>';
+    html += '<div class="s3-ir-row"><label>规则引用</label><textarea class="s3-field" data-field="rule_ref" rows="2">' + escapeHtml(fields.rule_ref || '') + '</textarea></div>';
+    html += '<div class="s3-ir-row"><label>SQL</label><textarea class="s3-field s3-sql" data-field="data_logic.sql" rows="3">' + escapeHtml(dataLogic.sql || '') + '</textarea></div>';
+    html += '<div class="s3-ir-actions">';
+    html += '<button type="button" class="btn btn--secondary btn--sm" onclick="step3SaveEntryRevision(\'' + escapeJsString(e.entry_id) + '\')">保存修订</button>';
+    html += '<button type="button" class="btn btn--outline btn--sm" onclick="step3RegenerateEntrySQL(\'' + escapeJsString(e.entry_id) + '\')">重新生成 SQL</button>';
+    html += '</div>';
+    html += '</div>';
+  });
+  list.innerHTML = html;
+}
+
+async function step3SaveEntryRevision(entryId) {
+  const pipelineId = getCurrentPipelineId();
+  if (!pipelineId) { showToast('流水线未加载', 'error'); return; }
+  const card = document.querySelector('.s3-ir-card[data-entry-id="' + entryId + '"]');
+  if (!card) return;
+  const updates = [];
+  card.querySelectorAll('.s3-field').forEach(function (el) {
+    const field = el.getAttribute('data-field');
+    updates.push({ field: field, value: el.value });
+  });
   try {
-    const resp = await fetch(API_BASE + '/api/step3/confirm_as_is', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pipeline_id: pid }),
-    });
-    const result = await resp.json();
-    if (result.status !== 'ok') {
-      alert(result.error || '确认失败');
-      return;
+    let errors = [];
+    for (let u of updates) {
+      const r = await apiCallJSON('/api/step3/align_ir', {
+        pipeline_id: pipelineId,
+        entry_id: entryId,
+        field: u.field,
+        new_value: u.value,
+      });
+      if (r.status !== 'ok') errors.push(u.field);
     }
-    await showStep3AlignComplete(result, { noRevision: true });
-    renderOutput('s3-output', '<div class="s2-result-success"><div class="s2-result-header">' +
-      escapeHtml(result.message || '已确认当前稿为对齐稿') + '</div></div>');
+    if (errors.length) {
+      showToast('部分字段保存失败: ' + errors.join(', '), 'error');
+    } else {
+      showToast('修订已保存', 'ok');
+    }
   } catch (e) {
-    alert('确认对齐稿出错: ' + e.message);
+    console.error('step3SaveEntryRevision failed:', e);
+    showToast('保存失败: ' + e.message, 'error');
+  }
+}
+
+async function step3RegenerateEntrySQL(entryId) {
+  const pipelineId = getCurrentPipelineId();
+  const model = resolveModelName('s3-model');
+  const entry = (window.currentStep3IR.entries.find(function (e) { return e.entry_id === entryId; }) || {});
+  const result = await apiCallJSON('/api/step3/align_ir', {
+    pipeline_id: pipelineId,
+    entry_id: entryId,
+    field: 'rule_ref',
+    new_value: entry.fields ? entry.fields.rule_ref : '',
+    regenerate_sql: true,
+    model: model,
+  });
+  if (result.status === 'ok') {
+    if (result.entry && window.currentStep3IR && window.currentStep3IR.entries) {
+      const idx = window.currentStep3IR.entries.findIndex(function (e) { return e.entry_id === entryId; });
+      if (idx >= 0) window.currentStep3IR.entries[idx] = result.entry;
+    }
+    renderStep3IRDualView(window.currentStep3IR);
+    showToast('SQL 已重新生成', 'ok');
+  } else {
+    showToast(result.error || '生成失败', 'error');
+  }
+}
+
+async function step3ConfirmAsIs() {
+  const pipelineId = getCurrentPipelineId();
+  if (!pipelineId) { showToast('流水线未加载', 'error'); return; }
+  try {
+    const result = await apiCallJSON('/api/step3/confirm_as_is', { pipeline_id: pipelineId });
+    if (result.status === 'ok') {
+      await showStep3AlignComplete(result, { noRevision: true });
+    } else {
+      renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '确认失败') + '</div></div>');
+    }
+  } catch (e) {
+    console.error('step3ConfirmAsIs failed:', e);
+    renderOutput('s3-output', '<div class="error-list"><div class="error-item">确认失败: ' + escapeHtml(e.message) + '</div></div>');
   }
 }
 
