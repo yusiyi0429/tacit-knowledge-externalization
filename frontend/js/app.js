@@ -3149,93 +3149,56 @@ async function step3RejectSuggestions() {
 // Phase 1: Generate alignment preview (AI suggestions only)
 async function step3GeneratePreview() {
   const pid = currentPipeline ? currentPipeline.id : null;
-  if (!pid) { alert('请先进入流水线'); return; }
-  const expertTextEl = document.getElementById('s3-expert-text');
-  const expertText = expertTextEl.value.trim();
-  const expertFileEl = document.getElementById('s3-expert-file');
-  const cachedExpertFile = currentPipeline?.step_data?.step3_cached_file || '';
-  let finalMessage = expertText;
-
-  if (!finalMessage && expertFileEl.files.length > 0) {
-    finalMessage = await expertFileEl.files[0].text();
-  }
-  const style = document.getElementById('s3-revision-style').value;
-  const model = document.getElementById('s3-model').value;
+  if (!pid) { showToast('请先进入流水线', 'error'); return; }
+  const expertText = (document.getElementById('s3-expert-text')?.value || '').trim();
+  const model = document.getElementById('s3-model')?.value || resolveModelName('s3-model');
 
   const btn = document.getElementById('s3-revise-btn');
-  btn._locked = true;
-  btn.disabled = true;
-  btn.classList.add('loading');
+  btn._locked = true; btn.disabled = true; btn.classList.add('loading');
   btn.innerHTML = '<span class="btn__text">处理中...</span>';
-  clearTimeout(_formSaveTimer);
   renderLoading('s3-output');
 
-  const fd = new FormData();
-  fd.append('pipeline_id', pid);
-  if (finalMessage) fd.append('message', finalMessage);
-  fd.append('style', style);
-  if (model) fd.append('model', model);
-  if (expertFileEl && expertFileEl.files && expertFileEl.files.length > 0) {
-    fd.append('expert_file', expertFileEl.files[0]);
-  } else if (!finalMessage && cachedExpertFile) {
-    fd.append('expert_cached_file', cachedExpertFile);
-  }
   try {
-    const resp = await fetch(API_BASE + '/api/step3/align_chat', { method: 'POST', body: fd });
-    const result = await resp.json();
-
-    if (result.status === 'ok') {
-      if (Array.isArray(result.chat_history)) {
-        _alignChatHistory = result.chat_history;
+    // "无意见" or empty → confirm as-is
+    if (!expertText || expertText === '无意见' || expertText === '暂无意见') {
+      const resp = await fetch(API_BASE + '/api/step3/confirm_as_is', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pipeline_id: pid }),
+      });
+      const data = await resp.json();
+      if (data.status === 'ok') {
+        renderOutput('s3-output', '<div class="s2-result-success"><div class="s2-result-header">已确认对齐（无修订）</div></div>');
+        await refreshCurrentPipeline();
       } else {
-        _alignChatHistory = _alignChatHistory || [];
-        if (finalMessage) _alignChatHistory.push({ role: 'user', content: finalMessage });
-        if (result.assistant_reply) _alignChatHistory.push({ role: 'assistant', content: result.assistant_reply });
+        renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '确认失败') + '</div></div>');
       }
-      renderStep3ChatHistory();
-      if (expertTextEl) expertTextEl.value = '';
-      _alignNotes = result.notes || [];
-      if (!(_alignNotes.length > 0)) {
-        const passThrough = result.auto_finalized || result.align_mode === 'pass_through' || result.no_opinion;
-        if (passThrough) {
-          await showStep3AlignComplete(result, { noRevision: true });
-          document.getElementById('s3-result-card').innerHTML = '<div class="s2-result-success"><div class="s2-result-header">' +
-            escapeHtml(result.message || '已按预萃稿生成对齐稿（无修订）') + '</div></div>';
-          return;
-        }
-        const msg = result.message || '未从专家意见/上传材料中解析出可执行的修订条目，请补充更明确的修改说明。';
-        document.getElementById('s3-result-card').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(msg) + '</div></div>';
-        document.getElementById('s3-input-section').style.display = '';
-        document.getElementById('s3-review-section').style.display = 'none';
-        document.getElementById('s3-result-section').style.display = '';
-        return;
-      }
-
-      _alignNoteStates = {};
-      _alignEditedValues = {};
-      _alignCurrentFilter = 'all';
-      _alignNotes.forEach(n => { _alignNoteStates[n.id] = 'pending'; });
-
-      const ruleHint = result.style_rule
-        ? `风格 ${result.style_rule.mode} · 原始 ${result.style_rule.raw_count} 条 → 过滤后 ${result.style_rule.processed_count} 条`
-        : '';
-      document.getElementById('s3-result-card').innerHTML = `<div class="s2-result-success"><div class="s2-result-header">AI 生成了 ${_alignNotes.length} 条对齐建议</div><div class="s2-result-meta">${escapeHtml(ruleHint)} · 请在下方逐条审核</div></div>`;
-
-      document.getElementById('s3-input-section').style.display = 'none';
-      document.getElementById('s3-review-section').style.display = '';
-      document.getElementById('s3-result-section').style.display = 'none';
-
-      renderAlignNotesList();
-      updateAlignStats();
     } else {
-      document.getElementById('s3-result-card').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '生成对齐建议失败') + '</div></div>';
+      // Has expert feedback → call LLM revision
+      const formData = new FormData();
+      formData.append('pipeline_id', pid);
+      formData.append('model', model);
+      formData.append('expert_feedback', expertText);
+
+      const resp = await fetch(API_BASE + '/api/step3/revision_with_expert', { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (data.status === 'ok') {
+        document.getElementById('s3-md-editor').value = data.skill_md;
+        if (typeof marked !== 'undefined') {
+          document.getElementById('s3-md-rendered').innerHTML = marked.parse(data.skill_md);
+        }
+        document.getElementById('s3-md-preview').style.display = 'block';
+        showToast('修订完成，请检查后点击保存', 'ok');
+      } else {
+        renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '修订失败') + '</div></div>');
+      }
     }
   } catch (e) {
-    document.getElementById('s3-result-card').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
+    renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
   } finally {
-    btn.disabled = false;
-    updateStep3AlignModeHint();
-    refreshIcons();
+    btn._locked = false; btn.disabled = false;
+    btn.classList.remove('loading');
+    btn.innerHTML = '<span class="btn__icon btn__icon--left" data-lucide="settings-2"></span><span class="btn__text">发送并智能修订</span>';
   }
 }
 
