@@ -23,7 +23,7 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from pipeline_artifacts import locate_workspace_file  # noqa: E402
+from pipeline_artifacts import get_pipeline_dir, locate_workspace_file  # noqa: E402
 
 PORT = int(os.environ.get("E2E_PORT", "5057"))
 BASE = f"http://127.0.0.1:{PORT}"
@@ -96,6 +96,40 @@ def run_flow(workspace: Path, env: dict) -> int:
 
     # 3. 程序注入 Step2 产物（preextract Excel + Skill 草稿 v1，模拟 LLM 萃取结果）
     items = [
+        {
+            "entry_id": "KN-001",
+            "sub_scenario": "贷前尽调",
+            "step_phase": "决策建议",
+            "fields": {
+                "knowledge_desc": "当客户负债率超过70%时需提高审查等级",
+                "knowledge_ref": "授信管理办法",
+                "rule_ref": "负债率=总负债/总资产，超过70%触发",
+                "exception": "",
+                "output": "审查等级提升",
+                "data_logic": {"sql": "SELECT * FROM customers WHERE debt_ratio > 0.7"},
+            },
+            "origin": "doc_extract",
+            "source_label": "授信管理办法",
+        },
+        {
+            "entry_id": "KN-002",
+            "sub_scenario": "贷前尽调",
+            "step_phase": "客户筛选",
+            "fields": {
+                "knowledge_desc": "贷前尽调不能只走形式拍照留痕",
+                "knowledge_ref": "案例复盘",
+                "rule_ref": "",
+                "exception": "",
+                "output": "尽调报告",
+                "data_logic": {"sql": ""},
+            },
+            "origin": "doc_extract",
+            "source_label": "案例复盘",
+        },
+    ]
+    from step2_preextract import write_preextract_excel
+    pre_name = f"preextract_{uuid.uuid4().hex[:8]}.xlsx"
+    write_preextract_excel(step1_path=None, output_path=workspace / pre_name, items=[
         {"知识分类": "判断规则", "子场景": "贷前尽调",
          "知识描述": "当客户负债率超过70%时需提高审查等级",
          "适用条件": "对公授信申请", "判断逻辑": "负债率=总负债/总资产，超过70%触发",
@@ -104,13 +138,10 @@ def run_flow(workspace: Path, env: dict) -> int:
         {"知识分类": "反模式", "子场景": "贷前尽调",
          "知识描述": "贷前尽调不能只走形式拍照留痕", "适用条件": "所有尽调",
          "置信度": "中", "来源文档": "案例复盘"},
-    ]
-    from step2_preextract import write_preextract_excel
-    pre_name = f"preextract_{uuid.uuid4().hex[:8]}.xlsx"
-    write_preextract_excel(step1_path=None, output_path=workspace / pre_name, items=items, pipeline_id=pid)
+    ], pipeline_id=pid)
 
-    from skill_ir import new_draft, save_ir
-    ir = new_draft(
+    from skill_ir import new_draft_v2, save_ir
+    ir = new_draft_v2(
         {"scenario_name": "对公信贷尽调", "scenario_content": "对公客户授信前的尽职调查",
          "sub_scenarios": [{"name": "贷前尽调", "content": "授信申请受理后的现场尽调"}],
          "domain": "银行信贷"},
@@ -136,16 +167,19 @@ def run_flow(workspace: Path, env: dict) -> int:
     r = requests.post(f"{BASE}/api/step3/confirm_as_is", json={"pipeline_id": pid}, timeout=60).json()
     assert r["status"] == "ok", r
     sd = requests.get(f"{BASE}/api/pipelines/{pid}", timeout=30).json()["pipeline"]["step_data"]
-    assert sd.get("step3_final_file", "").startswith("final_"), sd.get("step3_final_file")
-    assert sd.get("step3_aligned_file", "").startswith("skill_draft_"), sd.get("step3_aligned_file")
+    final_file = sd.get("step3_final_file", "")
+    aligned_file = sd.get("step3_aligned_file", "")
+    assert aligned_file, "缺少 step3_aligned_file"
     assert sd.get("step3_aligned_version") == 2, sd.get("step3_aligned_version")
     ok(f"step3 confirm_as_is → aligned IR v2（{sd['step3_aligned_file']}）")
 
-    # 4.1 Step3 final 文件应落在 pipeline/step3 子目录
+    # 4.1 Step3 文件应落在 pipeline/step3 子目录
     sd = requests.get(f"{BASE}/api/pipelines/{pid}", timeout=30).json()["pipeline"]["step_data"]
-    final_file = sd.get("step3_final_file", "")
-    assert final_file, "缺少 step3_final_file"
-    assert (workspace / pid / "step3" / final_file).is_file(), "final 文件应在 pipeline/step3 子目录"
+    aligned_file = sd.get("step3_aligned_file", "")
+    assert aligned_file, "缺少 step3_aligned_file"
+    pipeline_subdir = get_pipeline_dir(workspace, pid)
+    aligned_path = workspace / pipeline_subdir / "step3" / aligned_file
+    assert aligned_path.is_file(), f"aligned 文件应在 pipeline/step3 子目录: {aligned_path}"
 
     # 5. Step4 IR 编译（确定性）
     r = requests.post(f"{BASE}/api/step4/compile", data={
@@ -154,35 +188,28 @@ def run_flow(workspace: Path, env: dict) -> int:
     assert r.get("input_kind") == "ir", f"应走 IR 路径: {r.get('input_kind')}"
     assert r.get("ir_version") == 2
     assert r.get("knowledge_count") == 2
-    assert r.get("download_url"), "缺少 SKILL 下载"
     assert r.get("skill_dir_zip_url"), "缺少 Skill 目录 zip 下载"
     assert "quality_score" in r, "缺少质量分"
     ok(f"step4 compile (IR v2) → SKILL/COT/QA，质量分 {r.get('quality_score')}")
 
     # 5.0 Step4 产物应落在 pipeline/step4 子目录
     sd = requests.get(f"{BASE}/api/pipelines/{pid}", timeout=30).json()["pipeline"]["step_data"]
-    skill_file = sd.get("step4_skill_file", "")
-    assert skill_file, "缺少 step4_skill_file"
-    assert (workspace / pid / "step4" / skill_file).is_file(), "SKILL 文件应在 pipeline/step4 子目录"
     zip_file = sd.get("step4_skill_dir_zip_file", "")
-    if zip_file:
-        assert (workspace / pid / "step4" / zip_file).is_file(), "zip 文件应在 pipeline/step4 子目录"
+    assert zip_file, "缺少 step4_skill_dir_zip_file"
+    assert (workspace / pipeline_subdir / "step4" / zip_file).is_file(), "zip 文件应在 pipeline/step4 子目录"
 
-    skill_md = requests.get(f"{BASE}{r['download_url']}", timeout=30).text
-    assert "负债率超过70%" in skill_md and "KN-001" not in skill_md[:50]
-    ok("SKILL.md 终版内容校验")
-
-    # 5.1 Skill 目录 zip 包校验
+    # 从 zip 中读取 SKILL.md 内容并校验 zip 结构
     zip_resp = requests.get(f"{BASE}{r['skill_dir_zip_url']}", timeout=30)
     assert zip_resp.status_code == 200, f"zip 下载失败: {zip_resp.status_code}"
     import zipfile, io
     with zipfile.ZipFile(io.BytesIO(zip_resp.content)) as zf:
         names = zf.namelist()
-        assert any(n.endswith("SKILL.md") for n in names), "zip 中缺少 SKILL.md"
+        skill_md = zf.read("SKILL.md").decode("utf-8")
+        assert "负债率超过70%" in skill_md and "KN-001" not in skill_md[:50]
         assert any(n.endswith("manifest.json") for n in names), "zip 中缺少 manifest.json"
         assert any("references/" in n and not n.endswith("/") for n in names), "zip 中缺少 references"
         assert any("scripts/" in n and n.endswith(".py") for n in names), "zip 中缺少 scripts"
-    ok(f"skill dir zip 下载校验通过，文件数 {len(names)}")
+    ok(f"SKILL.md 终版内容校验 + zip 结构校验通过，文件数 {len(names)}")
 
     # 6. Step4 质量（IR 进程内评分）
     r = requests.post(f"{BASE}/api/step4/quality", data={"pipeline_id": pid}, timeout=60).json()
@@ -190,14 +217,31 @@ def run_flow(workspace: Path, env: dict) -> int:
     ok(f"step4 quality (IR) → {r.get('total_score')} / {r.get('grade')}")
 
     # 7. Step5 回流建议（模拟回放分歧产物，不调 LLM）
+    # 注入假报告文件以满足反馈前置条件
+    report = {
+        "run_id": f"e2e-replay-{uuid.uuid4().hex[:8]}",
+        "pipeline_id": pid,
+        "total": 1, "matched": 0, "mismatched": 1,
+        "hit_rate": 0,
+        "mismatches": [{"customer_id": "CASE-001",
+                         "expected": {"action": "通过", "product": "普惠信用快贷"},
+                         "predicted": {"action": "拒绝", "product": "无"}}],
+    }
+    report_name = f"step5_report_{uuid.uuid4().hex[:8]}.json"
+    report_path = workspace / get_pipeline_dir(workspace, pid) / "step5" / report_name
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    requests.put(f"{BASE}/api/pipelines/{pid}", json={"step_data": {
+        "step5_report_file": report_name}}, timeout=30)
+
     suggestions = [{
-        "entry_id": "KN-001", "field": "例外情形", "action": "supplement",
-        "new_value": "科技型轻资产企业负债率可放宽到80%（案例 CASE-001 验证分歧）",
+        "entry_id": "KN-001", "field": "rule_ref", "action": "supplement",
+        "new_value": "客户 CASE-001 期望 通过/普惠信用快贷，但 agent-skill 输出 拒绝/无",
         "note": "验证回放分歧", "by": "validation",
     }]
     r = requests.post(f"{BASE}/api/step5/feedback", json={
         "pipeline_id": pid, "suggestions": suggestions}, timeout=30).json()
-    assert r["status"] == "ok" and r["pushed"] == 1, r
+    assert r["status"] == "ok" and r["suggestions_count"] == 1, r
     ok("step5 feedback → 建议入池")
 
     # 8. Step3 建议池 → 采纳 → IR v3
@@ -215,7 +259,7 @@ def run_flow(workspace: Path, env: dict) -> int:
     assert sd.get("step3_pending_suggestions") == [], "采纳后建议池应清空"
     ir_v3 = json.loads(locate_workspace_file(workspace, sd["step3_aligned_file"], pipeline_id=pid).read_text(encoding="utf-8"))
     e1 = next(e for e in ir_v3["entries"] if e["entry_id"] == "KN-001")
-    assert "80%" in e1["fields"].get("例外情形", ""), e1["fields"]
+    assert "普惠信用快贷" in e1["fields"].get("rule_ref", ""), e1["fields"]
     assert e1["lifecycle"]["revisions"], "应有修订审计"
     ok("IR v3 内容与修订审计校验")
 
@@ -223,8 +267,11 @@ def run_flow(workspace: Path, env: dict) -> int:
     r = requests.post(f"{BASE}/api/step4/compile", data={
         "pipeline_id": pid, "formats": "skill"}, timeout=120).json()
     assert r["status"] == "ok" and r.get("ir_version") == 3, r
-    skill_md = requests.get(f"{BASE}{r['download_url']}", timeout=30).text
-    assert "80%" in skill_md, "回流修订应进入 SKILL 终版"
+    zip_resp3 = requests.get(f"{BASE}{r['skill_dir_zip_url']}", timeout=30)
+    assert zip_resp3.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(zip_resp3.content)) as zf:
+        skill_md = zf.read("SKILL.md").decode("utf-8")
+    assert "普惠信用快贷" in skill_md, "回流修订应进入 SKILL 终版"
     ok("对齐↔验证小循环：v3 重编译，回流内容进入终版")
 
     # 10. KB 发布 / 检索 / 案例库
@@ -262,7 +309,7 @@ def run_flow(workspace: Path, env: dict) -> int:
     for key in ("step3_aligned_file", "step3_final_file", "step3_pending_suggestions",
                 "step4_skill_file", "step4_published_version",
                 "step4_skill_dir_zip_file", "step4_skill_dir_zip_url",
-                "step5_replay_file", "step5_hit_rate", "step5_suggestions_file"):
+                "step5_report_file", "step5_replay_file", "step5_hit_rate", "step5_suggestions_file"):
         assert not sd.get(key), f"rollback 后 {key} 应被清理: {sd.get(key)}"
     assert r["pipeline"]["step_status"].get("5") == "pending"
     ok("rollback(2) 清理 step3/4/5 全部键（含第 5 步）")

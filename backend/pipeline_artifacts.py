@@ -101,6 +101,7 @@ STEP_OUTPUT_KEYS_BY_STEP = {
         "step5_replay_file", "step5_replay_url",
         "step5_result_file", "step5_result_url",
         "step5_suggestions_file", "step5_suggestions_url",
+        "step5_report_file",
         "step5_hit_rate", "step5_case_source", "step5_run_id",
         "step5_golden_report_file", "step5_golden_report_url",
     ),

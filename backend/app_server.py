@@ -3661,7 +3661,6 @@ def _publish_final_from_source(
     style: str = "标准修订",
 ):
     """将当前对齐输入稿复制为 final_*.xlsx（无修订）。"""
-    from datetime import datetime
     import shutil
 
     output_name = f"final_{pipeline_id[:8]}_{datetime.datetime.now().strftime('%H%M%S')}.xlsx"
@@ -4296,7 +4295,6 @@ def _run_knowledge_revision(pipeline_id: str, expert_text: str, style: str, mode
 
     try:
         from revision_processor import process_workbook
-        from datetime import datetime
 
         output_name = f"revision_{pipeline_id[:8]}_{datetime.datetime.now().strftime('%H%M%S')}.xlsx"
         output_path = os.path.join(WORKSPACE, output_name)
@@ -4756,7 +4754,6 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
     # 调用 revision_processor 生成最终稿
     try:
         from revision_processor import process_workbook
-        from datetime import datetime
 
         output_name = f"final_{pipeline_id[:8]}_{datetime.datetime.now().strftime('%H%M%S')}.xlsx"
         output_path_obj = workspace_path_for(WORKSPACE, pipeline_id, "step3", output_name)
@@ -5275,7 +5272,6 @@ def api_step3_apply_notes():
         from workbook_layout import build_revision_context, normalize_revision_notes
         _, layout_map = build_revision_context(source_file_path)
         from revision_processor import process_workbook
-        from datetime import datetime
 
         output_name = f"final_{pipeline_id[:8]}_{datetime.datetime.now().strftime('%H%M%S')}.xlsx"
         output_path = os.path.join(WORKSPACE, output_name)
@@ -5691,56 +5687,6 @@ def api_interview_probe():
 
 
 # ─── Step5 验证环节（回放 + 回流） ────────────────────────────────
-
-def _resolve_skill_text_for_validation(pipeline_id: str) -> tuple[str, str]:
-    """验证对象解析：优先 Step4 SKILL 终版文本 → IR 渲染 → Excel 知识文本。
-
-    返回 (knowledge_text, source_kind)。
-    """
-    sd = {}
-    with _pipelines_lock:
-        pipelines = load_pipelines()
-        for p in pipelines:
-            if p["id"] == pipeline_id:
-                sd = p.get("step_data", {}) or {}
-                break
-    if not sd:
-        return "", ""
-
-    # 1) Step4 已发布的 SKILL 终版（验证最终交付物本身）
-    skill_file = sd.get("step4_skill_file", "")
-    if skill_file:
-        skill_path = safe_workspace_path(WORKSPACE, skill_file, must_exist=True)
-        if skill_path:
-            try:
-                return skill_path.read_text(encoding="utf-8"), "skill_final"
-            except Exception:
-                pass
-
-    # 2) Skill IR 渲染（对齐版 → 萃取稿）
-    ir_path, ir_key = resolve_knowledge_ir_path(WORKSPACE, sd)
-    if ir_path:
-        try:
-            from skill_ir import load_ir, render_skill_md
-            config = {}
-            if SCHEMA_PATH.exists():
-                from excel_to_skill import load_scenario_config
-                config = load_scenario_config(str(SCHEMA_PATH))
-            return render_skill_md(load_ir(ir_path), config), ir_key
-        except Exception:
-            pass
-
-    # 3) 过渡期回退：Excel 知识文本
-    resolved, _src = resolve_knowledge_workbook_path(WORKSPACE, sd, purpose="compile")
-    if resolved:
-        try:
-            from excel_to_skill import format_knowledge_item, read_excel_knowledge
-            records, _ = read_excel_knowledge(str(resolved))
-            return "\n\n".join(format_knowledge_item(r) for r in records), "excel"
-        except Exception:
-            pass
-    return "", ""
-
 
 def _load_step5_cases(case_source: str):
     """加载 Step5 验证案例集。返回 (cases, error)。"""
@@ -6264,126 +6210,6 @@ def api_kb_skills():
         return jsonify({"status": "error", "error": str(e)})
 
 
-# ─── 验证知识库路由（本地知识库验证 agent-skill）───────────────────────
-
-def _resolve_skill_text_for_verification(pipeline_id: str, skill_file: str = "") -> tuple[str, str]:
-    """解析待验证 SKILL 文本：显式 skill_file > pipeline step4_skill_file > IR 渲染 > Excel。"""
-    if skill_file:
-        # 优先在工作区内查找
-        skill_path = safe_workspace_path(WORKSPACE, skill_file, must_exist=True)
-        if skill_path:
-            try:
-                return skill_path.read_text(encoding="utf-8"), "skill_file"
-            except Exception:
-                pass
-        # 允许项目内相对路径（如 data/deliveries/SKILL.md）。这是项目固定资源目录的回退查找，
-        # 不替代 safe_workspace_path 的安全沙箱，仅用于加载已发布产物。
-        project_skill = PROJECT_DIR / skill_file
-        if project_skill.exists():
-            try:
-                return project_skill.read_text(encoding="utf-8"), "skill_file"
-            except Exception:
-                pass
-    return _resolve_skill_text_for_validation(pipeline_id)
-
-
-@app.route("/api/kb/verification_cases", methods=["GET"])
-def api_kb_list_verification_cases():
-    try:
-        import knowledge_base as kb
-        cases = kb.list_verification_cases(
-            skill_id=request.args.get("skill_id", ""),
-            source=request.args.get("source", ""),
-            tags=request.args.get("tags", ""),
-            limit=int(request.args.get("limit", "100") or 100),
-        )
-        return jsonify({"status": "ok", "cases": cases, "total": len(cases)})
-    except Exception as e:
-        return jsonify({"status": "error", "error": str(e)})
-
-
-@app.route("/api/kb/verification_cases", methods=["POST"])
-def api_kb_add_verification_case():
-    data = request.get_json(force=True) or {}
-    try:
-        import knowledge_base as kb
-        case_uid = kb.add_verification_case(
-            name=data.get("name", ""),
-            input_data=data.get("input") or data.get("input_json") or {},
-            description=data.get("description", ""),
-            expected_output=data.get("expected_output") or data.get("expected_output_json") or {},
-            tags=data.get("tags", ""),
-            source=data.get("source", "manual"),
-            skill_id=data.get("skill_id", ""),
-        )
-        return jsonify({"status": "ok", "case_uid": case_uid})
-    except ValueError as ve:
-        return jsonify({"status": "error", "error": str(ve)})
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"创建失败: {str(e)}"})
-
-
-@app.route("/api/kb/verification_cases/<case_uid>", methods=["PUT"])
-def api_kb_update_verification_case(case_uid):
-    data = request.get_json(force=True) or {}
-    try:
-        import knowledge_base as kb
-        updates = {}
-        for k in ("name", "description", "tags", "source", "skill_id"):
-            if k in data:
-                updates[k] = data[k]
-        if "input" in data or "input_json" in data:
-            updates["input_json"] = data.get("input") or data.get("input_json") or {}
-        if "expected_output" in data or "expected_output_json" in data:
-            updates["expected_output_json"] = data.get("expected_output") or data.get("expected_output_json") or {}
-        ok = kb.update_verification_case(case_uid, **updates)
-        if not ok:
-            return jsonify({"status": "error", "error": "用例不存在或无有效更新"})
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"更新失败: {str(e)}"})
-
-
-@app.route("/api/kb/verification_cases/<case_uid>", methods=["DELETE"])
-def api_kb_delete_verification_case(case_uid):
-    try:
-        import knowledge_base as kb
-        ok = kb.delete_verification_case(case_uid)
-        if not ok:
-            return jsonify({"status": "error", "error": "用例不存在"})
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"删除失败: {str(e)}"})
-
-
-@app.route("/api/kb/verification_runs", methods=["GET"])
-def api_kb_list_verification_runs():
-    try:
-        import knowledge_base as kb
-        runs = kb.list_verification_runs(
-            case_id=int(request.args.get("case_id", "0") or 0),
-            skill_id=request.args.get("skill_id", ""),
-            limit=int(request.args.get("limit", "100") or 100),
-        )
-        return jsonify({"status": "ok", "runs": runs, "total": len(runs)})
-    except Exception as e:
-        return jsonify({"status": "error", "error": str(e)})
-
-
-@app.route("/api/kb/verification_rules", methods=["GET"])
-def api_kb_list_verification_rules():
-    try:
-        import knowledge_base as kb
-        rules = kb.list_verification_rules(
-            rule_type=request.args.get("rule_type", ""),
-            enabled_only=request.args.get("enabled_only", "false").lower() == "true",
-            limit=int(request.args.get("limit", "100") or 100),
-        )
-        return jsonify({"status": "ok", "rules": rules, "total": len(rules)})
-    except Exception as e:
-        return jsonify({"status": "error", "error": str(e)})
-
-
 @app.route("/api/kb/test_customers", methods=["GET"])
 def api_list_test_customers():
     try:
@@ -6421,19 +6247,6 @@ def api_delete_test_customers():
         return jsonify({"status": "ok", "deleted": count})
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)})
-
-
-@app.route("/api/verify/import_result_data", methods=["POST"])
-def api_verify_import_result_data():
-    """从 data/test-cases/ 和 golden_test.db 导入初始验证数据。"""
-    data = request.get_json(force=True) or {}
-    skill_id = data.get("skill_id", "")
-    try:
-        from tools.import_verification_data import import_result_data
-        stats = import_result_data(skill_id=skill_id)
-        return jsonify({"status": "ok", "stats": stats})
-    except Exception as e:
-        return jsonify({"status": "error", "error": f"导入失败: {str(e)}"})
 
 
 # ─── 多源知识融合路由 ────────────────────────────────────────
