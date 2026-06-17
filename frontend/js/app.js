@@ -4572,7 +4572,7 @@ async function loadStep5PrevOutput() {
       if (actions) {
         let actionHtml = '';
         if (data.step5_input_url) {
-          actionHtml += '<a class="btn btn--primary btn--sm" href="' + API_BASE + data.step5_input_url + '" download>下载验证输入 (.json)</a>';
+          actionHtml += '<button type="button" class="btn btn--primary btn--sm" onclick="previewStep5InputJSON(\'' + escapeHtml(data.step5_input_url) + '\')">预览验证输入</button>';
         }
         actions.innerHTML = actionHtml;
       }
@@ -4582,6 +4582,20 @@ async function loadStep5PrevOutput() {
     }
   } catch (e) {
     console.error('loadStep5PrevOutput failed:', e);
+  }
+}
+
+async function previewStep5InputJSON(url) {
+  try {
+    const resp = await fetch(API_BASE + url);
+    const data = await resp.json();
+    var html = '<div class="s5-json-preview">';
+    html += '<div class="s5-json-header">验证输入 JSON（' + (data.count || 0) + ' 条 QA）</div>';
+    html += '<pre class="s5-json-body">' + escapeHtml(JSON.stringify(data, null, 2)) + '</pre>';
+    html += '</div>';
+    renderOutput('s5-output', html);
+  } catch (e) {
+    showToast('加载 JSON 失败: ' + e.message, 'error');
   }
 }
 

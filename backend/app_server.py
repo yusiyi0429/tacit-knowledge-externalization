@@ -3497,7 +3497,7 @@ def _publish_final_from_source(
     from datetime import datetime
     import shutil
 
-    output_name = f"final_{pipeline_id[:8]}_{datetime.now().strftime('%H%M%S')}.xlsx"
+    output_name = f"final_{pipeline_id[:8]}_{datetime.datetime.now().strftime('%H%M%S')}.xlsx"
     output_path = workspace_path_for(WORKSPACE, pipeline_id, "step3", output_name)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_file_path, str(output_path))
@@ -3510,7 +3510,7 @@ def _publish_final_from_source(
     )
     if not md_name:
         # 非 markdown 模式也生成预览用 MD
-        md_name = f"final_{pipeline_id[:8]}_{datetime.now().strftime('%H%M%S')}.md"
+        md_name = f"final_{pipeline_id[:8]}_{datetime.datetime.now().strftime('%H%M%S')}.md"
         md_path = workspace_path_for(WORKSPACE, pipeline_id, "step3", md_name)
         md_path.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -3544,7 +3544,7 @@ def _publish_final_from_source(
                 if p["step_status"].get("4", "pending") == "pending":
                     p["step_status"]["4"] = "active"
                 p["current_step"] = max(p.get("current_step", 1), 4)
-                p["updated_at"] = datetime.now().isoformat()
+                p["updated_at"] = datetime.datetime.now().isoformat()
                 save_pipelines(pipelines)
                 break
     # 对齐版 Skill IR（vN, status=aligned）— Step4/Step5 首选输入
@@ -4128,7 +4128,7 @@ def _run_knowledge_revision(pipeline_id: str, expert_text: str, style: str, mode
         from revision_processor import process_workbook
         from datetime import datetime
 
-        output_name = f"revision_{pipeline_id[:8]}_{datetime.now().strftime('%H%M%S')}.xlsx"
+        output_name = f"revision_{pipeline_id[:8]}_{datetime.datetime.now().strftime('%H%M%S')}.xlsx"
         output_path = os.path.join(WORKSPACE, output_name)
         revision_count = process_workbook(excel_file, expert_notes, output_path, layouts=layout_map)
 
@@ -4564,7 +4564,7 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
         from revision_processor import process_workbook
         from datetime import datetime
 
-        output_name = f"final_{pipeline_id[:8]}_{datetime.now().strftime('%H%M%S')}.xlsx"
+        output_name = f"final_{pipeline_id[:8]}_{datetime.datetime.now().strftime('%H%M%S')}.xlsx"
         output_path_obj = workspace_path_for(WORKSPACE, pipeline_id, "step3", output_name)
         output_path_obj.parent.mkdir(parents=True, exist_ok=True)
         output_path = str(output_path_obj)
@@ -4598,7 +4598,7 @@ sheet, row（excel_row）, col（1-based）, action, old_value, new_value, note
                     if p["step_status"].get("4", "pending") == "pending":
                         p["step_status"]["4"] = "active"
                     p["current_step"] = max(p.get("current_step", 1), 4)
-                    p["updated_at"] = datetime.now().isoformat()
+                    p["updated_at"] = datetime.datetime.now().isoformat()
                     save_pipelines(pipelines)
                     break
 
@@ -5083,7 +5083,7 @@ def api_step3_apply_notes():
         from revision_processor import process_workbook
         from datetime import datetime
 
-        output_name = f"final_{pipeline_id[:8]}_{datetime.now().strftime('%H%M%S')}.xlsx"
+        output_name = f"final_{pipeline_id[:8]}_{datetime.datetime.now().strftime('%H%M%S')}.xlsx"
         output_path = os.path.join(WORKSPACE, output_name)
         revision_count = process_workbook(source_file_path, final_notes, output_path, layouts=layout_map, tacit_annotations=tacit_annotations)
         md_name, md_url = _maybe_generate_markdown_artifact(
@@ -5129,7 +5129,7 @@ def api_step3_apply_notes():
                     if p["step_status"].get("4", "pending") == "pending":
                         p["step_status"]["4"] = "active"
                     p["current_step"] = max(p.get("current_step", 1), 4)
-                    p["updated_at"] = datetime.now().isoformat()
+                    p["updated_at"] = datetime.datetime.now().isoformat()
                     save_pipelines(pipelines)
                     break
         # region agent log
@@ -6172,7 +6172,7 @@ def api_step2_extract_sql():
                 push_sql_history(entry, sql, "llm")
 
         ir["skill_meta"]["draft_version"] = 2
-        ir["skill_meta"]["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        ir["skill_meta"]["updated_at"] = datetime.datetime.now().isoformat(timespec="seconds")
         ir["skill_meta"]["status"] = "draft"
 
         new_ir_path = save_ir(WORKSPACE, ir, pipeline_id=pipeline_id)
