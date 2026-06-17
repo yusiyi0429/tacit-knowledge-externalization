@@ -39,6 +39,10 @@ DOWNLOAD_ALLOWED_PREFIXES = (
     "signal_report_",
     # Skill IR 草稿（Skill 中心化流水线）
     "skill_draft_",
+    "skill_aligned_",
+    "skill_revised_",
+    # Step5 验证报告
+    "verification_report_",
     # Step5 验证环节
     "validation_",
     "revision_suggestions_",
