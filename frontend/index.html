@@ -841,80 +841,18 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <select id="s4-model"></select>
               </div>
 
-              <div style="display:flex;flex-direction:column;gap:8px;">
-                <button type="button" class="btn btn--primary btn--md" id="s4-compile-btn" onclick="step4Compile()">
-                  <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
-                  <span class="btn__text">一键编译交付包（确定性）</span>
-                </button>
-                <div class="action-note">从对齐版 Skill 草稿（IR）确定性生成 SKILL.md 终版 + 思维链 + QA，不经 LLM 二次发挥</div>
-
-                <button type="button" class="btn btn--primary btn--md" id="s4-cot-btn" onclick="step4GenerateCOT()" style="margin-top:4px;">
-                  <span class="btn__icon btn__icon--left" data-lucide="lightbulb"></span>
-                  <span class="btn__text">生成思维链 (COT)</span>
-                </button>
-                <div class="action-note">LLM 根据知识条目生成分步骤推理链条，供 Agent 决策时调用</div>
-
-                <button type="button" class="btn btn--primary btn--md" id="s4-qa-btn" onclick="step4GenerateQA()" style="margin-top:4px;">
-                  <span class="btn__icon btn__icon--left" data-lucide="message-circle"></span>
-                  <span class="btn__text">生成 QA 对</span>
-                </button>
-                <div class="action-note">LLM 将知识条目转化为 QA 对，用于 RAG 检索或 few-shot 示例</div>
-
-                <button type="button" class="btn btn--primary btn--md" id="s4-exec-skill-btn" onclick="step4GenerateExecSkill()" style="margin-top:4px;">
-                  <span class="btn__icon btn__icon--left" data-lucide="bot"></span>
-                  <span class="btn__text">生成可执行 Agent Skill</span>
-                </button>
-                <div class="action-note">结合 golden 知识库，LLM 生成含 SQL 匹配引擎 + 决策链的可部署 Skill</div>
-              </div>
-
-              <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-                <div class="file-hint" style="margin-bottom:6px">&#128203; 知识库健康检查</div>
-                <button type="button" class="btn btn--outline btn--md" id="s4-freshness-btn" onclick="step4FreshnessAudit()" style="width:100%;">
-                  <span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span>
-                  <span class="btn__text">知识保鲜度审计</span>
-                </button>
-                <div class="file-hint" style="margin-top:4px">检测知识时效性、置信度衰减和被案例突破的规则</div>
-              </div>
-
-              <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-                <div class="file-hint" style="margin-bottom:6px">&#128270; 显性化校验</div>
-                <button type="button" class="btn btn--outline btn--md" id="s4-validate-btn" onclick="openValidatePanel()" style="width:100%;">
-                  <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
-                  <span class="btn__text">显性化校验回放</span>
-                </button>
-                <div class="file-hint" style="margin-top:4px">上传历史案例，用知识库判断，与专家结论比对命中率</div>
-                <div class="validate-section hidden" id="s4-validate-panel">
-                  <div class="file-hint">输入历史案例（每行格式：案例ID，场景描述，专家结论）</div>
-                  <textarea id="s4-validate-cases" rows="4" placeholder="CASE-001，芯片设计企业成立1年申请授信500万，通过&#10;CASE-002，传统制造企业成立3年流水稳定申请续贷，通过&#10;CASE-003，贸易企业无抵押物但有关联担保申请授信，拒绝"></textarea>
-                  <div class="file-hint" style="margin-top:6px">选择模型后点击执行，系统将用知识库判断每个案例并与专家结论比对</div>
-                  <div class="form-group" style="margin-top:8px;">
-                    <select id="s4-validate-model"></select>
-                  </div>
-                  <button type="button" class="btn btn--outline btn--sm" id="s4-validate-run-btn" onclick="runValidateReplay()">
-                    <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
-                    <span class="btn__text">执行校验</span>
-                  </button>
-                  <div id="s4-validate-result"></div>
-                </div>
-              </div>
+              <button type="button" class="btn btn--primary btn--md" id="s4-compile-btn" onclick="step4Compile()">
+                一键编译交付包
+              </button>
+              <div class="action-note">从对齐 IR 生成 agent-skill 可执行包 + Step5 验证输入</div>
 
             </div>
           </div>
           <!-- 输出 -->
           <div class="col col-right">
             <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
-            <div class="col-content output-area">
-              <div class="s4-artifact-panel" id="s4-output-skill" style="display:none;">
-                <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px;">点击「生成可执行 Agent Skill」按钮生成</div>
-              </div>
-              <div class="s4-artifact-panel" id="s4-output-cot" style="display:none;">
-                <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px;">点击「生成思维链」按钮生成</div>
-              </div>
-              <div class="s4-artifact-panel" id="s4-output-qa" style="display:none;">
-                <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px;">点击「生成 QA 对」按钮生成</div>
-              </div>
-              <div class="s4-artifact-panel" id="s4-output-compile" style="display:none;"></div>
-              <div class="s4-artifact-panel" id="s4-output-freshness" style="display:none;"></div>
+            <div class="col-content output-area" id="s4-output">
+              <div class="output-placeholder">点击「一键编译」生成交付包</div>
             </div>
           </div>
         </div>
@@ -947,38 +885,6 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   <div class="s2-prev-meta">加载中...</div>
                 </div>
               </div>
-              <div class="form-group" style="margin-top:12px;">
-                <label>案例来源</label>
-                <select id="s5-case-source" onchange="step5OnCaseSourceChange()">
-                  <option value="upload">手动输入 / 上传 JSON</option>
-                  <option value="kb">知识库案例库</option>
-                </select>
-              </div>
-              <div id="s5-upload-area">
-                <div class="form-group">
-                  <label>历史案例（JSON 数组）</label>
-                  <textarea id="s5-cases-text" rows="7" placeholder='[
-  {"case_id": "CASE-001", "description": "芯片设计企业成立1年申请授信500万", "结论": "通过"},
-  {"case_id": "CASE-002", "description": "贸易企业无抵押物申请授信", "结论": "拒绝"}
-]'></textarea>
-                </div>
-                <div class="form-group">
-                  <label>或上传案例文件（.json）</label>
-                  <input type="file" id="s5-cases-file" accept=".json">
-                </div>
-              </div>
-              <div id="s5-kb-area" style="display:none;">
-                <div class="form-group">
-                  <label>案例难度过滤（可选）</label>
-                  <select id="s5-kb-difficulty">
-                    <option value="">全部</option>
-                    <option value="hard">hard（疑难）</option>
-                    <option value="edge">edge（极端/破例）</option>
-                    <option value="easy">easy（常规）</option>
-                  </select>
-                </div>
-                <div class="file-hint" id="s5-kb-hint">将按当前流水线的领域/场景从案例库抽取（最多 10 条）</div>
-              </div>
             </div>
           </div>
           <!-- 操作 -->
@@ -986,30 +892,28 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
             <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn">操作</div><div class="col-label-en">Action</div></div></div>
             <div class="col-content action-area">
               <div class="form-group" style="margin-bottom:12px">
-                <label>判官模型（建议与萃取模型分离，避免自评偏置）</label>
-                <select id="s5-model"></select>
+                <label>测试数据来源</label>
+                <select id="s5-source">
+                  <option value="">全部 test_customers</option>
+                </select>
               </div>
               <button type="button" class="btn btn--primary btn--md" id="s5-replay-btn" onclick="step5RunReplay()">
-                <span class="btn__icon btn__icon--left" data-lucide="zap"></span>
-                <span class="btn__text">执行决策回放</span>
+                执行 P/R/F1 验证
               </button>
-              <div class="action-note">用 SKILL 终版逐案判断，与专家结论比对命中率；分歧自动生成 entry 级修订建议</div>
+              <div class="action-note">在 test_customers 表上执行 agent-skill，对照期望结果计算精度/召回/F1</div>
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-                <div class="file-hint" style="margin-bottom:6px">&#127942; Golden 基准验证</div>
-                <button type="button" class="btn btn--outline btn--md" id="s5-golden-btn" onclick="step5GoldenVerify()" style="width:100%;">
-                  <span class="btn__icon btn__icon--left" data-lucide="award"></span>
-                  <span class="btn__text">对比黄金条目（P/R/F1）</span>
+                <button type="button" class="btn btn--outline btn--md" id="s5-feedback-btn" onclick="step5RunFeedback()" style="width:100%;">
+                  反馈分歧到 Step3
                 </button>
-                <div class="file-hint" style="margin-top:4px">衡量萃取结果与人工精标基准的接近程度</div>
+                <div class="file-hint" style="margin-top:4px">将验证分歧推入 Step3 建议池，专家可重新审核</div>
               </div>
-              <div class="step-readiness info" id="s5-readiness" style="margin-top:12px;">完成智能转化后即可执行验证</div>
             </div>
           </div>
           <!-- 输出 -->
           <div class="col col-right">
             <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
             <div class="col-content output-area" id="s5-output">
-              <div class="output-placeholder">执行决策回放后查看命中率、分歧清单与回流建议</div>
+              <div class="output-placeholder">执行 P/R/F1 验证后查看度量结果</div>
             </div>
           </div>
         </div>

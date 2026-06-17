@@ -1125,78 +1125,53 @@ function restoreStep3Output() {
 }
 
 function restoreStep4Output() {
-  if (!currentPipeline) return;
-  const sd = currentPipeline.step_data || {};
-  const panel = document.getElementById('s4-output-compile');
-  if (!sd.step4_download_url || !panel) return;
+  if (!currentPipeline || !currentPipeline.id) return;
+  var sd = currentPipeline.step_data || {};
 
-  // Compile 结果主面板
-  let html = '<div class="s4-compile-result">';
-  html += '<div class="s4-compile-header"><div class="s4-compile-icon">&#127919;</div><div class="s4-compile-title">交付包编译完成</div>';
-  html += '<div class="s4-compile-subtitle">输入：Skill 草稿 v' + (sd.step4_published_version || '?') + '（IR） · 已生成交付物</div></div>';
-  html += '<div class="s2-result-actions" style="margin-top:8px;">';
-  if (sd.step4_download_url) html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + sd.step4_download_url + '" download>下载 SKILL.md 终版</a>';
-  if (sd.step4_cot_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_cot_download_url + '" download>下载思维链</a>';
-  if (sd.step4_qa_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_qa_download_url + '" download>下载 QA 对</a>';
-  if (sd.step4_manifest_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_manifest_url + '" download>下载 manifest</a>';
-  if (sd.step4_skill_dir_zip_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_skill_dir_zip_url + '" download>下载 Skill 目录 zip</a>';
-  html += '</div></div>';
-  panel.style.display = 'block';
-  panel.innerHTML = html;
-
-  // 同步更新右侧 Skill/COT/QA 独立面板，与后端产物一一对应
-  const skillPanel = document.getElementById('s4-output-skill');
-  const cotPanel = document.getElementById('s4-output-cot');
-  const qaPanel = document.getElementById('s4-output-qa');
-
-  if (skillPanel && sd.step4_skill_file) {
-    skillPanel.style.display = 'block';
-    skillPanel.innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>可执行 Agent Skill</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">一键编译生成</span></div>' +
-      '<div class="s2-result-success"><div class="s2-result-header">SKILL.md 终版</div>' +
-      '<div class="s2-result-meta">文件：' + escapeHtml(sd.step4_skill_file) + '</div>' +
-      '<div class="s2-result-actions">' +
-      '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(sd.step4_skill_file) + '\',\'SKILL.md 终版\')">&#128065; 预览</button>' +
-      '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_download_url + '" download>下载</a>' +
-      '</div></div></div>';
+  // New contract: step4_skill_dir_zip_file + step4_step5_input_file
+  if (sd.step4_skill_dir_zip_file) {
+    var html = '<div class="s2-result-success"><div class="s2-result-header">编译完成</div><div class="s2-result-meta">版本 ' + (sd.step4_published_version || '') + '</div></div>';
+    html += '<div class="s4-downloads">';
+    if (sd.step4_skill_dir_zip_file) {
+      html += '<a class="s4-download-link" href="' + API_BASE + (sd.step4_skill_dir_zip_url || '/downloads/' + sd.step4_skill_dir_zip_file) + '" download>Agent-Skill 可执行包 (.zip)</a>';
+    }
+    if (sd.step4_step5_input_file) {
+      html += '<a class="s4-download-link" href="' + API_BASE + (sd.step4_step5_input_url || '/downloads/' + sd.step4_step5_input_file) + '" download>Step5 验证输入 (.json)</a>';
+    }
+    html += '</div>';
+    document.getElementById('s4-output').innerHTML = html;
+    return;
   }
-  if (cotPanel && sd.step4_cot_file) {
-    cotPanel.style.display = 'block';
-    cotPanel.innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>思维链 (COT)</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">一键编译生成</span></div>' +
-      '<div class="s2-result-success"><div class="s2-result-header">思维链</div>' +
-      '<div class="s2-result-meta">文件：' + escapeHtml(sd.step4_cot_file) + '</div>' +
-      '<div class="s2-result-actions">' +
-      '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(sd.step4_cot_file) + '\',\'思维链 COT\')">&#128065; 预览</button>' +
-      '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_cot_download_url + '" download>下载</a>' +
-      '</div></div></div>';
-  }
-  if (qaPanel && sd.step4_qa_file) {
-    qaPanel.style.display = 'block';
-    qaPanel.innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>QA 对</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">一键编译生成</span></div>' +
-      '<div class="s2-result-success"><div class="s2-result-header">QA 对</div>' +
-      '<div class="s2-result-meta">文件：' + escapeHtml(sd.step4_qa_md_file || sd.step4_qa_file) + '</div>' +
-      '<div class="s2-result-actions">' +
-      '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(sd.step4_qa_md_file || sd.step4_qa_file) + '\',\'QA 对\')">&#128065; 预览</button>' +
-      '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step4_qa_download_url + '" download>下载</a>' +
-      '</div></div></div>';
+
+  // Fallback: check old contract
+  if (sd.step4_download_url || sd.step4_compile_result) {
+    document.getElementById('s4-output').innerHTML = '<div class="s2-result-success"><div class="s2-result-header">交付包已生成</div></div>';
+    return;
   }
 }
 
 function restoreStep5Output() {
-  if (!currentPipeline) return;
-  const sd = currentPipeline.step_data || {};
-  const out = document.getElementById('s5-output');
-  if (!out || !sd.step5_run_id || sd.step5_hit_rate == null) return;
+  if (!currentPipeline || !currentPipeline.id) return;
+  var sd = currentPipeline.step_data || {};
 
-  const pct = Math.round(sd.step5_hit_rate * 100);
-  const passed = sd.step5_hit_rate >= (sd.step5_hit_threshold || 0.8);
-  const fillColor = passed ? '#16a34a' : (pct >= 60 ? '#f59e0b' : '#ef4444');
-  let html = '<div class="validate-result">';
-  html += '<h4>决策回放结果</h4>';
-  html += '<div style="font-size:24px;font-weight:700;color:' + fillColor + '">' + pct + '% 命中率 ' + (passed ? '✅ 达标' : '⚠️ 未达门槛') + '</div>';
-  if (sd.step5_replay_url) html += '<div style="margin-top:6px;"><a href="' + API_BASE + sd.step5_replay_url + '" target="_blank">查看完整回放报告</a></div>';
-  if (sd.step5_suggestions_url) html += '<div><a href="' + API_BASE + sd.step5_suggestions_url + '" target="_blank">查看修订建议</a></div>';
-  html += '</div>';
-  renderOutput('s5-output', html);
+  // New contract: step5_report_file + step5_precision/recall/f1
+  if (sd.step5_report_file) {
+    var html = '<div class="s5-metrics">';
+    html += '<div class="s5-metric"><span class="s5-metric-label">Precision</span><span class="s5-metric-value">' + (sd.step5_precision != null ? sd.step5_precision : '-') + '</span></div>';
+    html += '<div class="s5-metric"><span class="s5-metric-label">Recall</span><span class="s5-metric-value">' + (sd.step5_recall != null ? sd.step5_recall : '-') + '</span></div>';
+    html += '<div class="s5-metric"><span class="s5-metric-label">F1</span><span class="s5-metric-value">' + (sd.step5_f1 != null ? sd.step5_f1 : '-') + '</span></div>';
+    html += '</div>';
+    var reportUrl = sd.step5_report_url || ('/downloads/' + sd.step5_report_file);
+    html += '<a class="s4-download-link" href="' + API_BASE + reportUrl + '" download>验证报告 (.json)</a>';
+    document.getElementById('s5-output').innerHTML = html;
+    return;
+  }
+
+  // Fallback: old hit_rate contract
+  if (sd.step5_run_id && sd.step5_hit_rate != null) {
+    document.getElementById('s5-output').innerHTML = '<div class="s2-result-success">已执行验证回放（旧版）</div>';
+    return;
+  }
 }
 
 function switchPanel(step) {
@@ -1543,7 +1518,7 @@ function clearCurrentPipeline() {
 
     // Clear output display areas
     document.querySelectorAll(
-      '#s1-output, #s2-output, #s3-output, #s4-output-skill, #s4-output-cot, #s4-output-qa, #s4-output-freshness'
+      '#s1-output, #s2-output, #s3-output, #s4-output, #s5-output'
     ).forEach(el => {
       if (el) { el.innerHTML = ''; el.style.display = 'none'; }
     });
@@ -3762,6 +3737,8 @@ function renderStep4ArtifactCard(key, title, desc, countLabel, downloads, previe
 }
 
 async function step4FreshnessAudit() {
+  var output = document.getElementById('s4-output');
+  if (!output) return; // safety guard
   var btn = document.getElementById('s4-freshness-btn');
   if (!btn || btn._locked || !currentPipeline) return;
   var origBtnHtml = btn.innerHTML;
@@ -3776,11 +3753,10 @@ async function step4FreshnessAudit() {
   try {
     var resp = await fetch(API_BASE + '/api/skills/execute', { method: 'POST', body: fd });
     var result = await resp.json();
-    var s5out = document.getElementById('s4-output-freshness');
-    s5out.style.display = 'block';
+    output.style.display = 'block';
     if (result.status === 'ok') {
       var dl = result.download_url || '';
-      s5out.innerHTML =
+      output.innerHTML =
         '<div class="s2-result-success"><div class="s2-result-header">保鲜度审计完成</div>' +
         '<div class="s2-result-meta">共 ' + (result.total_items || 0) + ' 条知识 · 高置信度占比 ' + (result.high_confidence_pct || 0) + '%' +
         (result.completeness_score ? ' · 完整性得分 ' + result.completeness_score + '%' : '') + '</div>' +
@@ -3792,10 +3768,10 @@ async function step4FreshnessAudit() {
         '</div>' +
         '</div>';
     } else {
-      s5out.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '审计失败') + '</div></div>';
+      output.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '审计失败') + '</div></div>';
     }
   } catch (e) {
-    document.getElementById('s4-output-freshness').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
+    output.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
   } finally {
     btn._locked = false;
     btn.disabled = false;
@@ -3807,122 +3783,15 @@ async function step4FreshnessAudit() {
 
 
 async function step4GenerateCOT() {
-  if (!currentPipeline) { showToast('请先进入流水线', 'error'); return; }
-  const btn = document.getElementById('s4-cot-btn');
-  if (!btn || btn._locked) return;
-  btn._locked = true; btn.disabled = true;
-  const origHtml = btn.innerHTML;
-  btn.classList.add('loading');
-  btn.innerHTML = 'LLM 生成中<span class="btn-estimate">· 约 15-30s</span>';
-
-  try {
-    const fd = new FormData();
-    fd.append('pipeline_id', currentPipeline.id);
-    const model = resolveModelName('s4-model') || '';
-    if (model) fd.append('model', model);
-
-    const resp = await fetch(API_BASE + '/api/step4/generate-cot', { method: 'POST', body: fd });
-    const result = await resp.json();
-    if (result.status !== 'ok') { showToast(result.error || '生成失败', 'error'); return; }
-
-    var html = '<div class="s2-result-success"><div class="s2-result-header">思维链 (COT) 已生成</div>';
-    html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
-    html += '<div class="s2-result-actions">';
-    html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.filename) + '\',\'COT\')">预览/编辑 Markdown</button>';
-    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>下载 Markdown</a>';
-    html += '</div></div>';
-    document.getElementById('s4-output-cot').style.display = 'block';
-    document.getElementById('s4-output-cot').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>思维链 (COT)</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
-    await markStepDone(4);
-  } catch (e) {
-    showToast('生成失败: ' + e.message, 'error');
-  } finally {
-    btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
-    btn.classList.remove('loading');
-    refreshIcons();
-  }
+  // Deprecated: functionality merged into step4Compile
 }
 
 async function step4GenerateQA() {
-  if (!currentPipeline) { showToast('请先进入流水线', 'error'); return; }
-  const btn = document.getElementById('s4-qa-btn');
-  if (!btn || btn._locked) return;
-  btn._locked = true; btn.disabled = true;
-  const origHtml = btn.innerHTML;
-  btn.classList.add('loading');
-  btn.innerHTML = 'LLM 生成中<span class="btn-estimate">· 约 20-40s</span>';
-
-  try {
-    const fd = new FormData();
-    fd.append('pipeline_id', currentPipeline.id);
-    const model = resolveModelName('s4-model') || '';
-    if (model) fd.append('model', model);
-
-    const resp = await fetch(API_BASE + '/api/step4/generate-qa', { method: 'POST', body: fd });
-    const result = await resp.json();
-    if (result.status !== 'ok') { showToast(result.error || '生成失败', 'error'); return; }
-
-    var html = '<div class="s2-result-success"><div class="s2-result-header">QA 对已生成</div>';
-    html += '<div class="s2-result-meta">共 <strong>' + (result.qa_count || 0) + '</strong> 个问答对</div>';
-    html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
-    html += '<div class="s2-result-actions">';
-    html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.md_filename || '') + '\',\'QA\')">预览/编辑 Markdown</button>';
-    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.md_download_url + '" download>下载 Markdown</a>';
-    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>下载 JSON</a>';
-    html += '</div></div>';
-    document.getElementById('s4-output-qa').style.display = 'block';
-    document.getElementById('s4-output-qa').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>QA 对</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
-    await markStepDone(4);
-  } catch (e) {
-    showToast('生成失败: ' + e.message, 'error');
-  } finally {
-    btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
-    btn.classList.remove('loading');
-    refreshIcons();
-  }
+  // Deprecated: functionality merged into step4Compile
 }
 
 async function step4GenerateExecSkill() {
-  if (!currentPipeline) { showToast('请先进入流水线', 'error'); return; }
-  const btn = document.getElementById('s4-exec-skill-btn');
-  if (!btn || btn._locked) return;
-  btn._locked = true; btn.disabled = true;
-  const origHtml = btn.innerHTML;
-  btn.classList.add('loading');
-  btn.innerHTML = 'LLM 生成中<span class="btn-estimate">· 约 30-60s</span>';
-
-  try {
-    const fd = new FormData();
-    fd.append('pipeline_id', currentPipeline.id);
-    const model = resolveModelName('s4-model') || '';
-    if (model) fd.append('model', model);
-
-    const resp = await fetch(API_BASE + '/api/step4/generate-executable-skill', { method: 'POST', body: fd });
-    const result = await resp.json();
-    if (result.status !== 'ok') { showToast(result.error || '生成失败', 'error'); return; }
-
-    var html = '<div class="s2-result-success"><div class="s2-result-header">可执行 Agent Skill 已生成</div>';
-    html += '<div class="s2-result-meta">章节数: <strong>' + (result.section_count || 0) + '</strong>';
-    if (result.has_sql) html += ' · 含 SQL 查询';
-    if (result.golden_stats && result.golden_stats.available) {
-      html += ' · golden 库: ' + Object.keys(result.golden_stats.tables).length + ' 表可用';
-    }
-    html += '</div>';
-    html += '<div class="s2-result-content"><pre style="font-size:11px;">' + escapeHtml(result.preview || '') + '</pre></div>';
-    html += '<div class="s2-result-actions">';
-    html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.skill_filename) + '\',\'Agent Skill\')">预览/编辑 Markdown</button>';
-    html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>下载 SKILL.md</a>';
-    html += '</div></div>';
-    document.getElementById('s4-output-skill').style.display = 'block';
-    document.getElementById('s4-output-skill').innerHTML = '<div class="s4-artifact-panel"><div class="panel-header"><span>可执行 Agent Skill</span><span style="font-weight:400;font-size:11px;color:var(--text-muted);">LLM 生成</span></div>' + html + '</div>';
-    await markStepDone(4);
-  } catch (e) {
-    showToast('生成失败: ' + e.message, 'error');
-  } finally {
-    btn._locked = false; btn.disabled = false; btn.innerHTML = origHtml;
-    btn.classList.remove('loading');
-    refreshIcons();
-  }
+  // Deprecated: functionality merged into step4Compile
 }
 
 
@@ -3957,9 +3826,11 @@ function previewStep4Skill() {
 }
 
 async function step4Quality() {
+  var output = document.getElementById('s4-output');
+  if (!output) return; // safety guard
   if (!currentPipeline) { alert('请先进入流水线'); return; }
-  renderLoading('s4-output-freshness');
-  document.getElementById('s4-output-freshness').style.display = 'block';
+  renderLoading('s4-output');
+  output.style.display = 'block';
   try {
     const fd = new FormData();
     fd.append('pipeline_id', currentPipeline.id);
@@ -4004,9 +3875,9 @@ async function step4Quality() {
     } else {
       html += '<pre style="font-size:12px;overflow:auto;max-height:300px">' + escapeHtml(JSON.stringify(result, null, 2)) + '</pre>';
     }
-    document.getElementById('s4-output-freshness').innerHTML = '<div class="output-result">' + html + '</div>';
+    output.innerHTML = '<div class="output-result">' + html + '</div>';
   } catch (e) {
-    document.getElementById('s4-output-freshness').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
+    output.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
   }
 }
 
@@ -4824,54 +4695,49 @@ async function runValidateReplay() {
 
 /* ===== Step4: 一键编译交付包（确定性主路径）===== */
 async function step4Compile() {
-  if (!currentPipeline) { showToast('请先进入一条流水线', 'error'); return; }
-  var btn = document.getElementById('s4-compile-btn');
-  var panel = document.getElementById('s4-output-compile');
-  if (btn) { btn.disabled = true; btn.classList.add('loading'); }
-  if (panel) { panel.style.display = 'block'; panel.innerHTML = '<div class="loading"><div class="spinner"></div>正在确定性编译交付包...</div>'; }
+  const btn = document.getElementById('s4-compile-btn');
+  if (btn._locked) return;
+  btn._locked = true;
+  btn.disabled = true;
   try {
-    var fd = new FormData();
-    fd.append('pipeline_id', currentPipeline.id);
-    fd.append('formats', 'skill,cot,qa');
-    var resp = await fetch(API_BASE + '/api/step4/compile', { method: 'POST', body: fd });
-    var data = await resp.json();
-    if (data.status !== 'ok') {
-      if (panel) panel.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '编译失败') + '</div></div>';
-      showToast(data.error || '编译失败', 'error');
-      return;
-    }
-    if (currentPipeline) {
-      currentPipeline.step_data = currentPipeline.step_data || {};
-      if (data.download_name) { currentPipeline.step_data.step4_skill_file = data.download_name; currentPipeline.step_data.step4_download_url = data.download_url; }
-      if (data.cot_download_name) { currentPipeline.step_data.step4_cot_file = data.cot_download_name; currentPipeline.step_data.step4_cot_download_url = data.cot_download_url; }
-      if (data.qa_download_name) { currentPipeline.step_data.step4_qa_file = data.qa_download_name; currentPipeline.step_data.step4_qa_download_url = data.qa_download_url; }
-    }
-    var html = '<div class="s4-compile-result">';
-    html += '<div class="s4-compile-header"><div class="s4-compile-icon">&#127919;</div><div class="s4-compile-title">交付包编译完成</div>';
-    html += '<div class="s4-compile-subtitle">' + (data.input_kind === 'ir' ? ('输入：Skill 草稿 v' + (data.ir_version || '?') + '（IR）') : '输入：Excel 对齐稿（过渡兼容）') + ' · 共 ' + (data.knowledge_count || 0) + ' 条知识</div></div>';
-    if (typeof data.quality_score === 'number') {
-      var qColor = data.can_publish ? '#16a34a' : '#f59e0b';
-      html += '<div style="margin:8px 0;font-size:13px;">质量分 <strong style="color:' + qColor + '">' + data.quality_score + '</strong> / 100（' + escapeHtml(data.quality_grade || '') + '级，发布门槛 ' + (data.publish_threshold || 75) + '）';
-      html += data.can_publish ? ' · <span style="color:#16a34a">可发布到知识库</span>' : ' · <span style="color:#f59e0b">未达发布门槛</span>';
+    const pipelineId = getCurrentPipelineId();
+    if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
+    const model = resolveModelName('s4-model');
+    if (!model) { showToast('请先选择模型', 'error'); return; }
+
+    const formData = new FormData();
+    formData.append('pipeline_id', pipelineId);
+    formData.append('model', model);
+
+    renderOutput('s4-output', '<div class="loading">编译中...</div>');
+    try {
+      const resp = await fetch(API_BASE + '/api/step4/compile', { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (data.status !== 'ok') {
+        renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '编译失败') + '</div></div>');
+        return;
+      }
+      const downloads = data.artifacts_download || {};
+      let html = '<div class="s2-result-success"><div class="s2-result-header">编译完成</div><div class="s2-result-meta">生成 ' + (data.knowledge_count || 0) + ' 条知识</div></div>';
+      html += '<div class="s4-downloads">';
+      if (downloads.skill_zip) {
+        html += '<a class="s4-download-link" href="' + API_BASE + downloads.skill_zip.download_url + '" download>' + escapeHtml(downloads.skill_zip.label || 'Agent-Skill 可执行包') + ' (.zip)</a>';
+      }
+      if (downloads.step5_input) {
+        html += '<a class="s4-download-link" href="' + API_BASE + downloads.step5_input.download_url + '" download>' + escapeHtml(downloads.step5_input.label || 'Step5 验证输入') + ' (.json)</a>';
+      }
       html += '</div>';
+      renderOutput('s4-output', html);
+
+      // Refresh pipeline to advance step
+      await refreshCurrentPipeline();
+    } catch (e) {
+      console.error('step4Compile failed:', e);
+      renderOutput('s4-output', '<div class="error-list"><div class="error-item">编译失败: ' + escapeHtml(e.message) + '</div></div>');
     }
-    html += '<div class="s2-result-actions" style="margin-top:8px;">';
-    if (data.download_url) html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + data.download_url + '" download>下载 SKILL.md 终版</a>';
-    if (data.cot_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.cot_download_url + '" download>下载思维链</a>';
-    if (data.qa_download_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.qa_download_url + '" download>下载 QA 对</a>';
-    if (data.openclaw_manifest_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.openclaw_manifest_url + '" download>下载 manifest</a>';
-    if (data.can_publish) html += '<button class="btn btn--primary btn--sm" onclick="step4PublishToKb()">发布到知识库</button>';
-    html += '</div></div>';
-    if (panel) panel.innerHTML = html;
-    // 同步点亮右侧 Skill/COT/QA 面板，与后端产物一一对应
-    restoreStep4Output();
-    showToast('交付包编译完成');
-    try { await markStepDone(4); } catch (e) { /* ignore */ }
-  } catch (e) {
-    if (panel) panel.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
-    showToast('编译失败: ' + e.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
+    btn._locked = false;
+    btn.disabled = false;
   }
 }
 
@@ -4890,11 +4756,8 @@ async function step4PublishToKb() {
 var _s5LastSuggestions = [];
 
 function step5OnCaseSourceChange() {
-  var src = document.getElementById('s5-case-source')?.value || 'upload';
-  var up = document.getElementById('s5-upload-area');
-  var kb = document.getElementById('s5-kb-area');
-  if (up) up.style.display = src === 'upload' ? '' : 'none';
-  if (kb) kb.style.display = src === 'kb' ? '' : 'none';
+  // No-op: deprecated in favor of test_customers-based verification
+  return;
 }
 
 function loadStep5Context() {
@@ -4928,97 +4791,58 @@ function loadStep5Context() {
 }
 
 async function step5RunReplay() {
-  if (!currentPipeline) { showToast('请先进入一条流水线', 'error'); return; }
-  var btn = document.getElementById('s5-replay-btn');
-  var outEl = document.getElementById('s5-output');
-  var model = resolveModelName('s5-model');
-  if (!model) { showToast('请先配置并选择判官模型', 'error'); return; }
-  var caseSource = document.getElementById('s5-case-source')?.value || 'upload';
-
-  var fd = new FormData();
-  fd.append('pipeline_id', currentPipeline.id);
-  fd.append('judge_model', model);
-  fd.append('case_source', caseSource);
-
-  if (caseSource === 'kb') {
-    fd.append('kb_domain', currentPipeline.domain || '');
-    fd.append('kb_scenario', currentPipeline.scenario || '');
-    fd.append('kb_difficulty', document.getElementById('s5-kb-difficulty')?.value || '');
-  } else {
-    var casesText = document.getElementById('s5-cases-text')?.value.trim() || '';
-    var casesFile = document.getElementById('s5-cases-file');
-    if (casesText) {
-      try { JSON.parse(casesText); } catch (e) { showToast('案例 JSON 格式错误: ' + e.message, 'error'); return; }
-      fd.append('cases', casesText);
-    } else if (casesFile && casesFile.files.length > 0) {
-      fd.append('cases_file', casesFile.files[0]);
-    } else {
-      showToast('请输入案例 JSON 或上传案例文件', 'error');
-      return;
-    }
-  }
-
-  if (btn) { btn.disabled = true; btn.classList.add('loading'); }
-  renderLoading('s5-output');
+  const btn = document.getElementById('s5-replay-btn');
+  if (btn._locked) return;
+  btn._locked = true;
+  btn.disabled = true;
   try {
-    var resp = await fetch(API_BASE + '/api/step5/replay', { method: 'POST', body: fd });
-    var data = await resp.json();
-    if (data.status !== 'ok') {
-      renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '回放失败') + '</div></div>');
-      showToast(data.error || '回放失败', 'error');
-      return;
-    }
-    _s5LastSuggestions = data.suggestions || [];
-    if (currentPipeline) {
-      currentPipeline.step_data = currentPipeline.step_data || {};
-      currentPipeline.step_data.step5_hit_rate = data.hit_rate;
-      currentPipeline.step_data.step5_run_id = data.run_id;
-      currentPipeline.step_data.step5_replay_file = data.report_name || '';
-      currentPipeline.step_data.step5_replay_url = data.download_url || '';
-      if (data.suggestions_url) currentPipeline.step_data.step5_suggestions_url = data.suggestions_url;
-    }
-    var pct = Math.round(data.hit_rate * 100);
-    var fillColor = data.passed ? '#16a34a' : (pct >= 60 ? '#f59e0b' : '#ef4444');
-    var srcNames = { skill_final: 'SKILL 终版', step3_aligned_file: '对齐稿 IR 渲染', step2_draft_file: '萃取稿 IR 渲染', excel: 'Excel 知识文本（过渡）' };
-    var html = '<div class="validate-result">';
-    html += '<h4>决策回放结果 <span style="font-weight:400;font-size:11px;color:var(--text-muted)">（验证对象：' + escapeHtml(srcNames[data.knowledge_source] || data.knowledge_source) + ' · 判官：' + escapeHtml(data.judge_model || '') + '）</span></h4>';
-    html += '<div style="font-size:24px;font-weight:700;color:' + fillColor + '">' + pct + '% 命中率 ' + (data.passed ? '✅ 达标' : '⚠️ 未达门槛 ' + Math.round((data.hit_threshold || 0.8) * 100) + '%') + '</div>';
-    html += '<div style="font-size:12px;color:var(--text-muted)">' + data.hits + '/' + data.total + ' 一致 · ' + data.mismatch_count + ' 分歧</div>';
-    html += '<div class="validate-hit-bar"><div class="validate-hit-fill" style="width:' + pct + '%;background:' + fillColor + '"></div></div>';
-    if (data.download_url) html += '<div style="margin-top:6px;"><a href="' + API_BASE + data.download_url + '" target="_blank">查看完整回放报告</a></div>';
-    if (data.mismatches && data.mismatches.length) {
-      html += '<h4 style="margin-top:12px;">分歧案例</h4>';
-      data.mismatches.slice(0, 8).forEach(function (m) {
-        html += '<div class="validate-mismatch"><strong>' + escapeHtml(m.case_id) + '</strong>: Skill判「' + escapeHtml(m.prediction) + '」→ 专家判「' + escapeHtml(m.expert_conclusion) + '」';
-        if (m.referenced_rules && m.referenced_rules.length) html += '<br><span style="color:var(--text-muted);font-size:11px">引用规则: ' + escapeHtml(m.referenced_rules.join(', ')) + '</span>';
+    const pipelineId = getCurrentPipelineId();
+    if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
+    const testSource = document.getElementById('s5-source')?.value || '';
+
+    const formData = new FormData();
+    formData.append('pipeline_id', pipelineId);
+    formData.append('test_source', testSource);
+
+    renderOutput('s5-output', '<div class="loading">验证中...</div>');
+    try {
+      const resp = await fetch(API_BASE + '/api/step5/replay', { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (data.status !== 'ok') {
+        renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '验证失败') + '</div></div>');
+        return;
+      }
+      const m = data.metrics || {};
+      let html = '<div class="s5-metrics">';
+      html += '<div class="s5-metric"><span class="s5-metric-label">Precision</span><span class="s5-metric-value">' + m.precision + '</span></div>';
+      html += '<div class="s5-metric"><span class="s5-metric-label">Recall</span><span class="s5-metric-value">' + m.recall + '</span></div>';
+      html += '<div class="s5-metric"><span class="s5-metric-label">F1</span><span class="s5-metric-value">' + m.f1 + '</span></div>';
+      html += '<div class="s5-metric"><span class="s5-metric-label">TP</span><span class="s5-metric-value">' + (m.tp || 0) + '</span></div>';
+      html += '<div class="s5-metric"><span class="s5-metric-label">FP</span><span class="s5-metric-value">' + (m.fp || 0) + '</span></div>';
+      html += '<div class="s5-metric"><span class="s5-metric-label">FN</span><span class="s5-metric-value">' + (m.fn || 0) + '</span></div>';
+      html += '</div>';
+
+      if (data.mismatches && data.mismatches.length > 0) {
+        html += '<div class="s5-mismatches"><div class="s5-mismatch-header">分歧详情 (' + data.mismatches.length + ')</div>';
+        data.mismatches.forEach(function (mm) {
+          html += '<div class="s5-mismatch-item">';
+          html += '<span class="s5-mm-cid">' + escapeHtml(mm.customer_id) + '</span>';
+          html += ' 期望: ' + escapeHtml(JSON.stringify(mm.expected));
+          html += ' → 预测: ' + escapeHtml(JSON.stringify(mm.predicted));
+          html += '</div>';
+        });
         html += '</div>';
-      });
+      }
+      renderOutput('s5-output', html);
+
+      await refreshCurrentPipeline();
+    } catch (e) {
+      console.error('step5RunReplay failed:', e);
+      renderOutput('s5-output', '<div class="error-list"><div class="error-item">验证失败: ' + escapeHtml(e.message) + '</div></div>');
     }
-    if (_s5LastSuggestions.length) {
-      html += '<h4 style="margin-top:12px;">回流建议（' + _s5LastSuggestions.length + ' 条）</h4>';
-      _s5LastSuggestions.forEach(function (s) {
-        html += '<div class="validate-mismatch" style="border-left:3px solid #6366f1;">';
-        html += '<strong>' + escapeHtml(s.entry_id || '新增条目') + '</strong>' + (s.field ? ' / ' + escapeHtml(s.field) : '') + ' · ' + escapeHtml(s.action || '');
-        if (s.new_value) html += '<br><span style="font-size:11px;">' + escapeHtml(String(s.new_value).slice(0, 160)) + '</span>';
-        html += '</div>';
-      });
-      html += '<button type="button" class="btn btn--outline btn--md" style="margin-top:10px;" onclick="step5PushFeedback()">'
-        + '<span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span>'
-        + '<span class="btn__text">回流到知识对齐（建议池）</span></button>';
-      html += '<div class="file-hint" style="margin-top:4px;">建议不会自动应用——回流后请到第 3 步建议池逐条裁决</div>';
-    } else if (data.mismatch_count === 0) {
-      html += '<div style="margin-top:10px;color:#16a34a;">所有案例判断与专家结论一致，无需回流。</div>';
-    }
-    html += '</div>';
-    renderOutput('s5-output', html);
-    refreshIcons();
-    loadStep5Context();
-    try { await markStepDone(5); } catch (e) { /* ignore */ }
-  } catch (e) {
-    renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
-    showToast('回放失败: ' + e.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
+    btn._locked = false;
+    btn.disabled = false;
   }
 }
 
@@ -5036,31 +4860,29 @@ async function step5PushFeedback() {
   }
 }
 
-async function step5GoldenVerify() {
-  if (!currentPipeline) { showToast('请先进入一条流水线', 'error'); return; }
-  var btn = document.getElementById('s5-golden-btn');
-  if (btn) btn.disabled = true;
-  renderLoading('s5-output');
+async function step5RunFeedback() {
+  const pipelineId = getCurrentPipelineId();
+  if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
   try {
-    var result = await apiCallJSON('/api/step5/golden_verify', { pipeline_id: currentPipeline.id });
-    if (result.status === 'error') {
-      renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || result.message || 'Golden 验证失败') + '</div></div>');
-      return;
-    }
-    var html = '<div class="validate-result"><h4>Golden 基准验证</h4>';
-    var metrics = result.metrics || result;
-    ['precision', 'recall', 'f1'].forEach(function (k) {
-      if (metrics[k] != null) html += '<div style="font-size:13px;">' + k.toUpperCase() + '：<strong>' + (Math.round(metrics[k] * 1000) / 10) + '%</strong></div>';
+    const resp = await fetch(API_BASE + '/api/step5/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pipeline_id: pipelineId }),
     });
-    if (result.matched_count != null) html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">匹配 ' + result.matched_count + ' / 黄金 ' + (result.golden_total || '?') + ' · 流水线 ' + (result.pipeline_total || '?') + ' 条</div>';
-    if (result.download_url) html += '<div style="margin-top:8px;"><a href="' + API_BASE + result.download_url + '" target="_blank">查看完整报告</a></div>';
-    html += '</div>';
-    renderOutput('s5-output', html);
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      showToast('已反馈 ' + (data.suggestions_count || 0) + ' 条建议到 Step3', 'ok');
+    } else {
+      showToast(data.error || '反馈失败', 'error');
+    }
   } catch (e) {
-    renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
-  } finally {
-    if (btn) btn.disabled = false;
+    console.error('step5RunFeedback failed:', e);
+    showToast('反馈失败: ' + e.message, 'error');
   }
+}
+
+async function step5GoldenVerify() {
+  step5RunReplay();
 }
 
 /* ===== Step2 IR v2 rendering helpers ===== */

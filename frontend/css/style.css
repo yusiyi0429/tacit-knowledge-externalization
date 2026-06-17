@@ -2665,3 +2665,16 @@ a { color: var(--red); text-decoration: none; }
 .s3-ir-row .s3-field { width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px; }
 .s3-ir-row .s3-sql { font-family: monospace; background: #f9fafb; }
 .s3-ir-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+/* ===== Step 4: Downloads & Step 5: Metrics ===== */
+.s4-downloads { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.s4-download-link { display: block; padding: 8px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; text-decoration: none; color: #1e40af; font-size: 13px; }
+.s4-download-link:hover { background: #dbeafe; }
+.s5-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.s5-metric { text-align: center; padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb; }
+.s5-metric-label { display: block; font-size: 11px; color: #6b7280; text-transform: uppercase; }
+.s5-metric-value { display: block; font-size: 24px; font-weight: 700; color: #111827; }
+.s5-mismatches { margin-top: 12px; }
+.s5-mismatch-header { font-weight: 600; margin-bottom: 8px; }
+.s5-mismatch-item { font-size: 12px; padding: 6px; border-bottom: 1px solid #e5e7eb; }
+.s5-mm-cid { font-weight: 600; color: #2563eb; }
