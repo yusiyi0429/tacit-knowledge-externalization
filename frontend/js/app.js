@@ -4918,8 +4918,10 @@ async function step2ExtractSkillMd() {
       } else {
         html = '<pre style="white-space:pre-wrap;">' + escapeHtml(data.skill_md) + '</pre>';
       }
-      document.getElementById('s2-md-preview').innerHTML = html;
-      document.getElementById('s2-actions').innerHTML = '<a class="btn btn--primary btn--sm" href="' + API_BASE + data.download_url + '" download>下载 SKILL.md</a>';
+      // Recreate the output structure (renderLoading destroyed it)
+      var s2out = document.getElementById('s2-output');
+      s2out.innerHTML = '<div id="s2-md-preview" class="md-preview" style="max-height:500px;overflow:auto;">' + html + '</div>';
+      s2out.innerHTML += '<div id="s2-actions" style="margin-top:12px;"><a class="btn btn--primary btn--sm" href="' + API_BASE + data.download_url + '" download>下载 SKILL.md</a></div>';
       await refreshCurrentPipeline();
     } else {
       renderError('s2-output', data.error);
