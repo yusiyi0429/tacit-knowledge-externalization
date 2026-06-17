@@ -6190,21 +6190,29 @@ def api_step5_replay():
     if not zip_path:
         return jsonify({"status": "error", "error": "未找到 agent-skill zip"})
 
-    import zipfile, tempfile, shutil
-    tmp_dir = tempfile.mkdtemp()
+    import zipfile
+    tmp_dir = Path(tempfile.mkdtemp())
     try:
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(tmp_dir)
-        skill_dir = Path(tmp_dir)
-        # find the first subdir if zip has nested folder
-        subdirs = [d for d in skill_dir.iterdir() if d.is_dir()]
-        if subdirs:
-            skill_dir = subdirs[0]
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                for member in zf.infolist():
+                    target = tmp_dir / member.filename
+                    try:
+                        target.resolve().relative_to(tmp_dir.resolve())
+                    except ValueError:
+                        return jsonify({"status": "error", "error": f"zip 包含非法路径: {member.filename}"})
+                zf.extractall(tmp_dir)
+            snapshot = list(tmp_dir.rglob("references/ir_snapshot.json"))
+            if not snapshot:
+                return jsonify({"status": "error", "error": "agent-skill zip 中未找到 IR 快照"})
+            skill_dir = snapshot[0].parent.parent
 
-        from knowledge_base import get_db_path
-        from step5_agent_verify import verify_agent_skill
-        db_path = get_db_path()
-        result = verify_agent_skill(str(skill_dir), str(db_path), source=test_source or None)
+            from knowledge_base import get_db_path
+            from step5_agent_verify import verify_agent_skill
+            db_path = get_db_path()
+            result = verify_agent_skill(str(skill_dir), str(db_path), source=test_source or None)
+        except Exception as e:
+            return jsonify({"status": "error", "error": f"验证回放失败: {str(e)}"})
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -6251,25 +6259,27 @@ def api_step5_feedback():
     if not pipeline:
         return jsonify({"status": "error", "error": "流水线不存在"})
 
-    sd = pipeline.get("step_data") or {}
-    report_name = sd.get("step5_report_file", "")
-    from pipeline_artifacts import locate_workspace_file
-    report_path = locate_workspace_file(WORKSPACE, report_name, pipeline_id=pipeline_id)
-    if not report_path:
-        return jsonify({"status": "error", "error": "未找到 Step5 报告，请先执行验证回放"})
+    try:
+        sd = pipeline.get("step_data") or {}
+        report_name = sd.get("step5_report_file", "")
+        from pipeline_artifacts import locate_workspace_file
+        report_path = locate_workspace_file(WORKSPACE, report_name, pipeline_id=pipeline_id)
+        if not report_path:
+            return jsonify({"status": "error", "error": "未找到 Step5 报告，请先执行验证回放"})
 
-    result = json.loads(report_path.read_text(encoding="utf-8"))
-    mismatches = result.get("mismatches", [])
+        result = json.loads(report_path.read_text(encoding="utf-8"))
+        mismatches = result.get("mismatches", [])
 
-    from step5_agent_verify import build_revision_suggestions
-    from skill_ir import load_ir
-    ir_name = sd.get("step3_aligned_file") or sd.get("step2_draft_file", "")
-    ir_path = locate_workspace_file(WORKSPACE, ir_name, pipeline_id=pipeline_id)
-    ir = load_ir(ir_path) if ir_path else {}
-    suggestions = build_revision_suggestions(mismatches, ir)
+        from step5_agent_verify import build_revision_suggestions
+        from skill_ir import load_ir
+        ir_name = sd.get("step3_aligned_file") or sd.get("step2_draft_file", "")
+        ir_path = locate_workspace_file(WORKSPACE, ir_name, pipeline_id=pipeline_id)
+        ir = load_ir(ir_path) if ir_path else {}
+        suggestions = build_revision_suggestions(mismatches, ir)
 
-    # Push to step3 pending suggestions
-    pushed = _push_step3_suggestions(pipeline_id, suggestions, source="validation")
+        pushed = _push_step3_suggestions(pipeline_id, suggestions, source="validation")
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"回流建议失败: {str(e)}"})
 
     return jsonify({"status": "ok", "suggestions_count": pushed})
 

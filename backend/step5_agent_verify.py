@@ -4,19 +4,17 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from pathlib import Path
-from typing import Any
-
 from skill_executor import run_agent_skill
 
 
 def _normalize_action(action: str) -> str:
+    """将动作归一化为营销/拒绝/条件通过/培育。"""
     s = (action or "").strip().lower()
-    if "拒绝" in action or "reject" in s:
+    if "拒绝" in s or "reject" in s:
         return "拒绝"
-    if "条件" in action or "conditional" in s:
+    if "条件" in s or "conditional" in s:
         return "条件通过"
-    if "培育" in action:
+    if "培育" in s:
         return "培育"
     return "营销"
 
@@ -60,13 +58,13 @@ def verify_agent_skill(
                     "product": row.get("recommended_product", ""),
                 }
 
-    # 计算 action P/R/F1
+    # 计算 action + product P/R/F1
     tp = fp = fn = 0
     mismatches = []
     for cid, exp in expected.items():
         pred = predicted.get(cid)
         if pred:
-            if pred["action"] == exp["action"]:
+            if pred["action"] == exp["action"] and pred["product"] == exp["product"]:
                 tp += 1
             else:
                 fn += 1
@@ -99,13 +97,21 @@ def verify_agent_skill(
 def build_revision_suggestions(mismatches: list[dict], ir: dict) -> list[dict]:
     """把验证分歧转换为 Step3 建议池条目。"""
     suggestions = []
+    entry_id = ""
+    if ir:
+        for e in ir.get("entries", []):
+            if e.get("step_phase") == "决策建议":
+                entry_id = e.get("entry_id", "")
+                break
     for m in mismatches:
+        pred_action = m['predicted']['action'] if m['predicted'] else '未命中'
+        pred_product = m['predicted']['product'] if m['predicted'] else '未命中'
         suggestions.append({
-            "entry_id": "",
+            "entry_id": entry_id,
             "field": "rule_ref",
             "action": "supplement",
             "old_value": "",
-            "new_value": f"客户 {m['customer_id']} 期望动作 {m['expected']['action']}，但 agent-skill 输出 {m['predicted']['action'] if m['predicted'] else '未命中'}",
+            "new_value": f"客户 {m['customer_id']} 期望 {m['expected']['action']}/{m['expected']['product']}，但 agent-skill 输出 {pred_action}/{pred_product}",
             "note": "来自 Step5 验证分歧",
             "by": "step5_verify",
             "case": m,
