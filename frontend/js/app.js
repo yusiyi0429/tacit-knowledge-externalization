@@ -1182,10 +1182,12 @@ checkServer();
 
 /* ===== Utility ===== */
 function renderOutput(containerId, html) {
-  document.getElementById(containerId).innerHTML = '<div class="output-result">' + html + '</div>';
+  var el = document.getElementById(containerId);
+  if (el) { el.style.display = ''; el.innerHTML = '<div class="output-result">' + html + '</div>'; }
 }
 function renderLoading(containerId) {
-  document.getElementById(containerId).innerHTML = '<div class="loading"><div class="spinner"></div>处理中...</div>';
+  var el = document.getElementById(containerId);
+  if (el) { el.style.display = ''; el.innerHTML = '<div class="loading"><div class="spinner"></div>处理中...</div>'; }
 }
 function escapeHtml(str) {
   if (str == null) return '';
