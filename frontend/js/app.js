@@ -994,9 +994,10 @@ function restoreStep3Output() {
   const mdUrl = sd.step3_final_md_download_url || '';
   const mdFlow = prefersMarkdownFlow();
 
-  if (inputSection) inputSection.style.display = 'none';
-  if (reviewSection) reviewSection.style.display = 'none';
-  resultSection.style.display = '';
+  // Keep input section visible so IR dual view is still shown
+  if (resultSection) {
+    resultSection.style.display = '';
+  }
 
   let html = '';
   html += '<div class="align-result-header"><span>&#10003;</span> 知识对齐完成</div>';
@@ -2857,6 +2858,10 @@ async function loadStep3PrevOutput() {
     }
   } catch (e) {
     console.error('加载Step2输出失败:', e);
+    const card2 = document.getElementById('s3-prev-draft');
+    const empty2 = document.getElementById('s3-prev-empty');
+    if (card2) card2.style.display = 'none';
+    if (empty2) empty2.style.display = '';
   }
 }
 
@@ -2864,7 +2869,7 @@ async function loadStep3IRForAlignment() {
   const pid = getCurrentPipelineId();
   if (!pid) return;
   try {
-    const resp = await fetch(API_BASE + '/api/pipeline/detail?pipeline_id=' + pid);
+    const resp = await fetch(API_BASE + '/api/pipelines/' + pid);
     const data = await resp.json();
     if (data.status !== 'ok' || !data.pipeline) return;
     const sd = data.pipeline.step_data || {};
@@ -3096,15 +3101,15 @@ async function step3GeneratePreview() {
         const passThrough = result.auto_finalized || result.align_mode === 'pass_through' || result.no_opinion;
         if (passThrough) {
           await showStep3AlignComplete(result, { noRevision: true });
-          renderOutput('s3-output', '<div class="s2-result-success"><div class="s2-result-header">' +
-            escapeHtml(result.message || '已按预萃稿生成对齐稿（无修订）') + '</div></div>');
+          document.getElementById('s3-result-card').innerHTML = '<div class="s2-result-success"><div class="s2-result-header">' +
+            escapeHtml(result.message || '已按预萃稿生成对齐稿（无修订）') + '</div></div>';
           return;
         }
         const msg = result.message || '未从专家意见/上传材料中解析出可执行的修订条目，请补充更明确的修改说明。';
-        renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(msg) + '</div></div>');
+        document.getElementById('s3-result-card').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(msg) + '</div></div>';
         document.getElementById('s3-input-section').style.display = '';
         document.getElementById('s3-review-section').style.display = 'none';
-        document.getElementById('s3-result-section').style.display = 'none';
+        document.getElementById('s3-result-section').style.display = '';
         return;
       }
 
@@ -3116,7 +3121,7 @@ async function step3GeneratePreview() {
       const ruleHint = result.style_rule
         ? `风格 ${result.style_rule.mode} · 原始 ${result.style_rule.raw_count} 条 → 过滤后 ${result.style_rule.processed_count} 条`
         : '';
-      renderOutput('s3-output', `<div class="s2-result-success"><div class="s2-result-header">AI 生成了 ${_alignNotes.length} 条对齐建议</div><div class="s2-result-meta">${escapeHtml(ruleHint)} · 请在下方逐条审核</div></div>`);
+      document.getElementById('s3-result-card').innerHTML = `<div class="s2-result-success"><div class="s2-result-header">AI 生成了 ${_alignNotes.length} 条对齐建议</div><div class="s2-result-meta">${escapeHtml(ruleHint)} · 请在下方逐条审核</div></div>`;
 
       document.getElementById('s3-input-section').style.display = 'none';
       document.getElementById('s3-review-section').style.display = '';
@@ -3125,10 +3130,10 @@ async function step3GeneratePreview() {
       renderAlignNotesList();
       updateAlignStats();
     } else {
-      renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '生成对齐建议失败') + '</div></div>');
+      document.getElementById('s3-result-card').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '生成对齐建议失败') + '</div></div>';
     }
   } catch (e) {
-    renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
+    document.getElementById('s3-result-card').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
   } finally {
     btn.disabled = false;
     updateStep3AlignModeHint();
@@ -3518,11 +3523,11 @@ async function step3ConfirmAsIs() {
     if (result.status === 'ok') {
       await showStep3AlignComplete(result, { noRevision: true });
     } else {
-      renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '确认失败') + '</div></div>');
+      document.getElementById('s3-result-card').innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '确认失败') + '</div></div>';
     }
   } catch (e) {
     console.error('step3ConfirmAsIs failed:', e);
-    renderOutput('s3-output', '<div class="error-list"><div class="error-item">确认失败: ' + escapeHtml(e.message) + '</div></div>');
+    document.getElementById('s3-result-card').innerHTML = '<div class="error-list"><div class="error-item">确认失败: ' + escapeHtml(e.message) + '</div></div>';
   }
 }
 
@@ -4561,17 +4566,13 @@ async function loadStep5PrevOutput() {
       }
       if (tags) {
         let tagHtml = '';
-        if (data.skill_zip_file) tagHtml += '<span class="s2-tag">Agent-Skill (.zip)</span>';
         if (data.step5_input_file) tagHtml += '<span class="s2-tag">验证输入 (.json)</span>';
         tags.innerHTML = tagHtml;
       }
       if (actions) {
         let actionHtml = '';
-        if (data.skill_zip_url) {
-          actionHtml += '<a class="btn btn--primary btn--sm" href="' + API_BASE + data.skill_zip_url + '" download>下载 Agent-Skill</a>';
-        }
         if (data.step5_input_url) {
-          actionHtml += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.step5_input_url + '" download>下载验证输入</a>';
+          actionHtml += '<a class="btn btn--primary btn--sm" href="' + API_BASE + data.step5_input_url + '" download>下载验证输入 (.json)</a>';
         }
         actions.innerHTML = actionHtml;
       }
