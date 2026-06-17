@@ -5915,10 +5915,14 @@ def api_step5_feedback():
         mismatches = result.get("mismatches", [])
 
         from step5_agent_verify import build_revision_suggestions
-        from skill_ir import load_ir
         ir_name = sd.get("step3_aligned_file") or sd.get("step2_draft_file", "")
-        ir_path = locate_workspace_file(WORKSPACE, ir_name, pipeline_id=pipeline_id)
-        ir = load_ir(ir_path) if ir_path else {}
+        ir = {}
+        # Only load IR if it's a JSON file (old flow), skip .md files (new flow)
+        if ir_name and ir_name.endswith(".json"):
+            from skill_ir import load_ir
+            ir_path = locate_workspace_file(WORKSPACE, ir_name, pipeline_id=pipeline_id)
+            if ir_path:
+                ir = load_ir(ir_path)
         suggestions = build_revision_suggestions(mismatches, ir)
 
         pushed = _push_step3_suggestions(pipeline_id, suggestions, source="validation")
