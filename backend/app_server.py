@@ -5420,7 +5420,7 @@ def api_step3_align_ir():
 
 @app.route("/api/step3/confirm_as_is", methods=["POST"])
 def api_step3_confirm_as_is():
-    """专家无修订意见时，将当前 IR v2 或 Excel 对齐输入稿直接确认。"""
+    """Markdown 无修订直通：直接复制 Step2 SKILL.md 作为对齐稿。"""
     data = request.get_json(force=True) or {}
     pipeline_id = data.get("pipeline_id", "")
     if not pipeline_id:
@@ -5431,9 +5431,48 @@ def api_step3_confirm_as_is():
         return jsonify({"status": "error", "error": "流水线不存在"})
 
     sd = pipeline.get("step_data") or {}
-    ir_name = sd.get("step3_aligned_file") or sd.get("step2_draft_file", "")
 
-    # IR v2 path
+    # New markdown flow: copy step2 SKILL.md to step3
+    md_file = sd.get("step2_skill_md_file")
+    if md_file:
+        from pipeline_artifacts import locate_workspace_file
+        md_path = locate_workspace_file(WORKSPACE, md_file, pipeline_id=pipeline_id)
+        if md_path:
+            try:
+                content = md_path.read_text(encoding="utf-8")
+                aligned_name = f"skill_aligned_{pipeline_id[:8]}_{uuid.uuid4().hex[:6]}.md"
+                aligned_path = workspace_path_for(WORKSPACE, pipeline_id, "step3", aligned_name)
+                aligned_path.parent.mkdir(parents=True, exist_ok=True)
+                aligned_path.write_text(content, encoding="utf-8")
+
+                with _pipelines_lock:
+                    pipelines = load_pipelines()
+                    for p in pipelines:
+                        if p["id"] == pipeline_id:
+                            psd = p.setdefault("step_data", {})
+                            psd["step3_skill_md_file"] = aligned_name
+                            psd["step3_skill_md_url"] = f"/downloads/{aligned_name}"
+                            psd["step3_aligned_file"] = aligned_name
+                            psd["step3_aligned_url"] = f"/downloads/{aligned_name}"
+                            p.setdefault("step_status", {})
+                            p["step_status"]["3"] = "done"
+                            if p["step_status"].get("4", "pending") == "pending":
+                                p["step_status"]["4"] = "active"
+                            p["current_step"] = max(p.get("current_step", 1), 4)
+                            p["updated_at"] = datetime.datetime.now().isoformat()
+                            break
+                    save_pipelines(pipelines)
+                return jsonify({
+                    "status": "ok",
+                    "aligned_file": aligned_name,
+                    "aligned_url": f"/downloads/{aligned_name}",
+                    "message": "已确认对齐（无修订）",
+                })
+            except Exception as e:
+                return jsonify({"status": "error", "error": f"确认对齐失败: {str(e)}"})
+
+    # Fallback: old IR or Excel flow
+    ir_name = sd.get("step3_aligned_file") or sd.get("step2_draft_file", "")
     if ir_name:
         from pipeline_artifacts import locate_workspace_file
         from skill_ir import STATUS_ALIGNED, load_ir, save_ir, IR_VERSION_V2
