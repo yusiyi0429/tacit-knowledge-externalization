@@ -5561,6 +5561,29 @@ def api_step5_replay():
     })
 
 
+@app.route("/api/step5/prev_output", methods=["GET"])
+def api_step5_prev_output():
+    """Return Step4 deliverables as Step5 input context."""
+    pipeline_id = request.args.get("pipeline_id", "")
+    if not pipeline_id:
+        return jsonify({"status": "error", "error": "缺少 pipeline_id"})
+    pipeline = _get_pipeline(pipeline_id)
+    if not pipeline:
+        return jsonify({"has_output": False})
+    sd = pipeline.get("step_data") or {}
+    has_output = bool(sd.get("step4_skill_dir_zip_file"))
+    return jsonify({
+        "has_output": has_output,
+        "skill_zip_file": sd.get("step4_skill_dir_zip_file"),
+        "skill_zip_url": sd.get("step4_skill_dir_zip_url"),
+        "step5_input_file": sd.get("step4_step5_input_file"),
+        "step5_input_url": sd.get("step4_step5_input_url"),
+        "published_version": sd.get("step4_published_version"),
+        "skill_file": sd.get("step4_skill_file"),
+        "skill_url": sd.get("step4_skill_url"),
+    })
+
+
 @app.route("/api/step5/feedback", methods=["POST"])
 def api_step5_feedback():
     """验证回流：将 Step5 验证分歧推入 Step3 建议池。"""

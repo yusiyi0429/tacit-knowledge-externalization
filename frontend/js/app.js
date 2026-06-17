@@ -974,7 +974,6 @@ function restoreStep2Output() {
   html += '<div class="s2-result-actions" style="margin-top:12px;">';
   if (mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Skill 草稿预览\')">预览 Skill 草稿</button>';
   if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载草稿 Markdown</a>';
-  if (draftUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + draftUrl + '" download>下载草稿 JSON (IR)</a>';
   html += '</div></div>';
 
   renderOutput('s2-output', html);
@@ -1145,6 +1144,7 @@ function switchPanel(step) {
   if (step === 5 && currentPipeline) {
     refreshCurrentPipeline().then(function () {
       loadStep5Context();
+      loadStep5PrevOutput();
       if (currentPipeline?.step_status?.['5'] === 'done') restoreStep5Output();
     });
   }
@@ -4508,7 +4508,7 @@ function step5OnCaseSourceChange() {
 }
 
 function loadStep5Context() {
-  var infoEl = document.getElementById('s5-target-info');
+  var infoEl = document.getElementById('s5-prev-info');
   var readinessEl = document.getElementById('s5-readiness');
   if (!infoEl) return;
   var sd = currentPipeline?.step_data || {};
@@ -4535,6 +4535,53 @@ function loadStep5Context() {
     html += '</div>';
   }
   infoEl.innerHTML = html;
+}
+
+async function loadStep5PrevOutput() {
+  const pid = getCurrentPipelineId();
+  if (!pid) return;
+
+  const card = document.getElementById('s5-prev-draft');
+  const empty = document.getElementById('s5-prev-empty');
+  const info = document.getElementById('s5-prev-info');
+  const tags = document.getElementById('s5-prev-tags');
+  const actions = document.getElementById('s5-prev-actions');
+
+  try {
+    const resp = await fetch(API_BASE + '/api/step5/prev_output?pipeline_id=' + pid);
+    const data = await resp.json();
+
+    if (data.has_output) {
+      if (card) card.style.display = '';
+      if (empty) empty.style.display = 'none';
+      if (info) {
+        let infoHtml = '<div class="s2-prev-name">Agent-Skill 交付包 v' + (data.published_version || '?') + '</div>';
+        infoHtml += '<div class="s2-prev-meta">编译完成，可供验证回放</div>';
+        info.innerHTML = infoHtml;
+      }
+      if (tags) {
+        let tagHtml = '';
+        if (data.skill_zip_file) tagHtml += '<span class="s2-tag">Agent-Skill (.zip)</span>';
+        if (data.step5_input_file) tagHtml += '<span class="s2-tag">验证输入 (.json)</span>';
+        tags.innerHTML = tagHtml;
+      }
+      if (actions) {
+        let actionHtml = '';
+        if (data.skill_zip_url) {
+          actionHtml += '<a class="btn btn--primary btn--sm" href="' + API_BASE + data.skill_zip_url + '" download>下载 Agent-Skill</a>';
+        }
+        if (data.step5_input_url) {
+          actionHtml += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.step5_input_url + '" download>下载验证输入</a>';
+        }
+        actions.innerHTML = actionHtml;
+      }
+    } else {
+      if (card) card.style.display = 'none';
+      if (empty) empty.style.display = '';
+    }
+  } catch (e) {
+    console.error('loadStep5PrevOutput failed:', e);
+  }
 }
 
 async function step5RunReplay() {
