@@ -1953,15 +1953,15 @@ a { color: var(--red); text-decoration: none; }
 }
 
 .md-preview {
-  flex: 1; padding: 16px; overflow-y: auto; font-size: 13px; line-height: 1.7; color: var(--text);
+  flex: 1; padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.7; color: var(--text);
 }
 .md-preview h1 { font-size: 22px; font-weight: 700; color: var(--text); margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
 .md-preview h2 { font-size: 18px; font-weight: 700; color: var(--text); margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border-light); }
 .md-preview h3 { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin: 10px 0 4px; }
 .md-preview strong { color: var(--text); }
-.md-preview code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; color: #dc2626; }
-.md-preview pre { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
-.md-preview pre code { background: none; color: inherit; padding: 0; }
+.md-preview code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 13px; color: #dc2626; }
+.md-preview pre { background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+.md-preview pre code { background: none; color: inherit; padding: 0; font-size: 13px; }
 .md-preview ul { padding-left: 20px; margin: 6px 0; }
 .md-preview li { margin: 4px 0; line-height: 1.6; }
 .md-preview p { margin: 6px 0; }
@@ -2628,12 +2628,3 @@ a { color: var(--red); text-decoration: none; }
 .modal-body { padding: 20px; overflow: auto; }
 
 /* ===== MD Preview ===== */
-.md-preview { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:12px; }
-.md-preview h1 { font-size:20px; margin-bottom:8px; }
-.md-preview h2 { font-size:16px; margin:16px 0 8px; }
-.md-preview h3 { font-size:14px; margin:12px 0 4px; }
-.md-preview pre { background:#f9fafb; padding:8px; border-radius:4px; font-size:12px; overflow:auto; }
-.md-preview code { background:#f3f4f6; padding:2px 4px; border-radius:3px; font-size:12px; }
-.md-preview table { border-collapse:collapse; width:100%; margin:8px 0; }
-.md-preview th, .md-preview td { border:1px solid #e5e7eb; padding:4px 8px; font-size:12px; }
-.md-preview th { background:#f9fafb; }
