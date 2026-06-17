@@ -511,8 +511,9 @@ def save_custom_models(custom_list):
 
 
 def get_model_by_name(name):
+    n = (name or "").strip().lower()
     for m in load_llm_config():
-        if m.get("name") == name:
+        if (m.get("name") or "").strip().lower() == n:
             return m
     return None
 
