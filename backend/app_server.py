@@ -4502,7 +4502,7 @@ def api_step3_prev_output():
 
 @app.route("/api/step3/align_output", methods=["GET"])
 def api_step3_align_output():
-    """获取知识对齐稿（final_*.xlsx），供智能转化等下游使用"""
+    """获取知识对齐稿，供智能转化等下游使用"""
     pipeline_id = request.args.get("pipeline_id", "")
     if not pipeline_id:
         return jsonify({"status": "error", "error": "缺少 pipeline_id"})
@@ -4512,6 +4512,18 @@ def api_step3_align_output():
         for p in pipelines:
             if p["id"] == pipeline_id:
                 sd = p.get("step_data", {})
+
+                # New markdown flow: return SKILL.md file
+                md_file = sd.get("step3_skill_md_file") or sd.get("step2_skill_md_file")
+                if md_file:
+                    return jsonify({
+                        "status": "ok",
+                        "has_output": True,
+                        "markdown_file": md_file,
+                        "markdown_download_url": "/downloads/" + md_file,
+                        "scenario": p.get("scenario", ""),
+                    })
+
                 file_path_obj, source_key = resolve_knowledge_workbook_path(WORKSPACE, sd, purpose="compile")
                 if not file_path_obj:
                     return jsonify({"status": "ok", "has_output": False})
