@@ -1,0 +1,10 @@
+{
+  "app_name": "tacit-knowledge-externalization",
+  "app_version": "3.0.1",
+  "image": "tacit-knowledge-externalization:3.0.1-arm64-20260623-1633",
+  "image_version": "3.0.1-arm64-20260623-1633",
+  "platform": "linux/arm64",
+  "built_at_utc": "2026-06-23T08:33:59Z",
+  "tar_file": "tacit-knowledge-externalization-3.0.1-arm64-20260623-1633.tar",
+  "compose_image_line": "image: tacit-knowledge-externalization:3.0.1-arm64-20260623-1633"
+}
