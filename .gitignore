@@ -16,6 +16,9 @@ data/workspace/
 data/output/
 data/archive/
 
+# 本地测试数据（不上传到 GitHub）
+data/samples/test0623/
+
 # Environment
 .env
 .env.local
