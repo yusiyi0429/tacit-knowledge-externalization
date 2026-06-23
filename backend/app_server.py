@@ -31,6 +31,8 @@ from llm_client import (
 )
 import openpyxl
 
+PROMPT_DIR = Path(__file__).parent / "prompts"
+
 from pipeline_artifacts import (
     basename_only,
     downstream_output_keys,
@@ -1578,7 +1580,7 @@ def api_step4_build_skill():
         skill_md = md_path.read_text(encoding="utf-8")
 
         # Render Step4 prompt
-        prompt_path = Path("prompts/step4_build_deliverables.txt")
+        prompt_path = PROMPT_DIR / "step4_build_deliverables.txt"
         prompt_tpl = prompt_path.read_text(encoding="utf-8")
         prompt = prompt_tpl.replace("{{skill_md}}", skill_md[:12000])
         scenario_name = step1_form.get("scenario_name", pipeline.get("scenario", ""))
@@ -5597,7 +5599,7 @@ def api_step3_revision_with_expert():
         current_skill_md = md_path.read_text(encoding="utf-8")
 
         # Render Step3 prompt
-        prompt_path = Path("prompts/step3_align_with_expert.txt")
+        prompt_path = PROMPT_DIR / "step3_align_with_expert.txt"
         prompt_tpl = prompt_path.read_text(encoding="utf-8")
         prompt = prompt_tpl.replace("{{current_skill_md}}", current_skill_md)
         prompt = prompt.replace("{{expert_feedback}}", expert_feedback)
@@ -6919,7 +6921,7 @@ def api_step2_extract_skill_md():
         col_text = ", ".join(cols) if cols else "步骤, 具体方法, 知识引用, 规则引用, 专业术语, 关键输出"
 
         # Render prompt
-        prompt_path = Path("prompts/step2_generate_skill_md.txt")
+        prompt_path = PROMPT_DIR / "step2_generate_skill_md.txt"
         prompt_tpl = prompt_path.read_text(encoding="utf-8")
         ctx = {
             "scenario_name": step1_form.get("scenario_name", pipeline.get("scenario", "")),
