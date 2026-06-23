@@ -26,6 +26,7 @@ DOWNLOAD_ALLOWED_PREFIXES = (
     "signal_report_",
     "SKILL_",
     "SKILL_DIR_",
+    "SKILL_VERIFY_",
     "COT_",
     "QA_",
     "qa_",
