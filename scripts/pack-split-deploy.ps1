@@ -14,7 +14,7 @@ if (-not $OutputDir) {
 
 $ChunkSize = $ChunkSizeKB * 1024
 $Staging = Join-Path $env:TEMP "tacit-deploy-staging-$(Get-Date -Format 'yyyyMMddHHmmss')"
-$BundleName = "tacit-knowledge-deploy-2.0.0-arm64"
+$BundleName = "tacit-knowledge-deploy-3.0.0-arm64"
 $ZipPath = Join-Path $env:TEMP "$BundleName.zip"
 
 if (Test-Path $OutputDir) {
@@ -114,7 +114,7 @@ $manifest | ConvertTo-Json -Depth 5 | Set-Content $manifestPath -Encoding UTF8
 $reassembleSh = @'
 #!/bin/bash
 set -euo pipefail
-BUNDLE="tacit-knowledge-deploy-2.0.0-arm64.zip"
+BUNDLE="tacit-knowledge-deploy-3.0.0-arm64.zip"
 OUT="${BUNDLE}"
 PARTS=( $(ls -1 ${BUNDLE}.part* 2>/dev/null | sort) )
 if [ ${#PARTS[@]} -eq 0 ]; then
@@ -130,7 +130,7 @@ echo "请进入 deploy_extracted 执行 docker load / docker compose"
 Set-Content (Join-Path $OutputDir "REASSEMBLE.sh") -Value $reassembleSh -Encoding UTF8NoBOM
 
 $reassemblePs = @'
-$Bundle = "tacit-knowledge-deploy-2.0.0-arm64.zip"
+$Bundle = "tacit-knowledge-deploy-3.0.0-arm64.zip"
 $parts = Get-ChildItem "$Bundle.part*" | Sort-Object Name
 if (-not $parts) { throw "未找到分片" }
 $out = Join-Path $PSScriptRoot $Bundle

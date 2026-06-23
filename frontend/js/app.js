@@ -2605,6 +2605,8 @@ async function loadStep3PrevOutput() {
 async function loadStep3IRForAlignment() {
   const pid = getCurrentPipelineId();
   if (!pid) return;
+  const listEl = document.getElementById('s3-ir-list');
+  if (!listEl) return; // Markdown 流面板没有 IR 列表
   try {
     const resp = await fetch(API_BASE + '/api/pipelines/' + pid);
     const data = await resp.json();
@@ -2612,7 +2614,12 @@ async function loadStep3IRForAlignment() {
     const sd = data.pipeline.step_data || {};
     const irName = sd.step3_aligned_file || sd.step2_draft_file;
     if (!irName) {
-      document.getElementById('s3-ir-list').innerHTML = '<div class="output-placeholder">请先完成 Step2 萃取</div>';
+      listEl.innerHTML = '<div class="output-placeholder">请先完成 Step2 萃取</div>';
+      return;
+    }
+    // Markdown 流产物是 .md，不需要 IR 解析
+    if (!irName.endsWith('.json')) {
+      listEl.innerHTML = '<div class="output-placeholder">Markdown 流无需 IR 对齐</div>';
       return;
     }
     const irResp = await fetch(API_BASE + '/downloads/' + irName);
@@ -2620,7 +2627,7 @@ async function loadStep3IRForAlignment() {
     renderStep3IRDualView(ir);
   } catch (e) {
     console.error('loadStep3IRForAlignment failed:', e);
-    document.getElementById('s3-ir-list').innerHTML = '<div class="output-placeholder">加载 IR 失败: ' + escapeHtml(e.message) + '</div>';
+    listEl.innerHTML = '<div class="output-placeholder">加载 IR 失败: ' + escapeHtml(e.message) + '</div>';
   }
 }
 
@@ -2628,18 +2635,20 @@ async function loadStep3IRForAlignment() {
 async function loadStep3SkillMd() {
   var pid = getCurrentPipelineId();
   if (!pid) return;
+  var editor = document.getElementById('s3-md-editor');
+  if (!editor) return; // 当前面板未渲染 Markdown 编辑器
   try {
     var resp = await fetch(API_BASE + '/api/pipelines/' + pid);
     var data = await resp.json();
     var sd = (data.pipeline || {}).step_data || {};
     var mdFile = sd.step3_skill_md_file || sd.step2_skill_md_file || sd.step2_draft_file;
     if (!mdFile) {
-      document.getElementById('s3-md-editor').value = '请先完成 Step2 知识萃取';
+      editor.value = '请先完成 Step2 知识萃取';
       return;
     }
     var mdResp = await fetch(API_BASE + '/downloads/' + mdFile);
     var md = await mdResp.text();
-    document.getElementById('s3-md-editor').value = md;
+    editor.value = md;
     if (typeof marked !== 'undefined') {
     }
   } catch (e) {
@@ -2937,7 +2946,16 @@ async function step3GeneratePreview() {
       const data = await resp.json();
       if (data.status === 'ok') {
         renderOutput('s3-output', '<div class="s2-result-success"><div class="s2-result-header">已确认对齐（无修订）</div></div>');
-        await refreshCurrentPipeline();
+        if (currentPipeline) {
+          currentPipeline.step_status = currentPipeline.step_status || {};
+          currentPipeline.step_status['3'] = 'done';
+          currentPipeline.step_status['4'] = 'active';
+          currentPipeline.current_step = 4;
+          try {
+            await persistPipeline({}, { current_step: 4, step_status: currentPipeline.step_status });
+            await refreshCurrentPipeline();
+          } catch (e) { console.error('advance step after confirm_as_is failed:', e); }
+        }
       } else {
         renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '确认失败') + '</div></div>');
       }
@@ -2955,6 +2973,16 @@ async function step3GeneratePreview() {
         var s3out = document.getElementById('s3-output');
         s3out.innerHTML = '<div id="s3-md-editor-area" style="margin-bottom:12px;"><label style="font-size:12px;color:#6b7280;">修订 SKILL.md（可直接编辑代码块中的 SQL）：</label><textarea id="s3-md-editor" rows="20" style="width:100%;font-family:monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:8px;">' + escapeHtml(data.skill_md) + '</textarea></div>';
         showToast('修订完成，请检查后点击保存', 'ok');
+        if (currentPipeline) {
+          currentPipeline.step_status = currentPipeline.step_status || {};
+          currentPipeline.step_status['3'] = 'done';
+          currentPipeline.step_status['4'] = 'active';
+          currentPipeline.current_step = 4;
+          try {
+            await persistPipeline({}, { current_step: 4, step_status: currentPipeline.step_status });
+            await refreshCurrentPipeline();
+          } catch (e) { console.error('advance step after revision failed:', e); }
+        }
       } else {
         renderOutput('s3-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '修订失败') + '</div></div>');
       }
