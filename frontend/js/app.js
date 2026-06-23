@@ -903,7 +903,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const nameEl = document.getElementById(nameId);
     if (input && nameEl) {
       input.addEventListener('change', async () => {
-        nameEl.textContent = input.files.length ? (input.files.length + ' 个文件') : '';
+        nameEl.textContent = input.files.length
+          ? (input.files.length + ' ' + App.I18n.t('files_count', '个文件'))
+          : App.I18n.t('no_file_chosen', '未选择');
         if (!input.files.length) return;
         if (inputId === 's2-source-files') updateStep2Readiness();
         if (inputId === 's3-expert-file') await cacheUploadedFile(3, input, nameEl);

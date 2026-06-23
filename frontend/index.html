@@ -346,8 +346,11 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               <div id="s2-panel-doc">
                 <div class="form-group">
                   <label data-i18n="source_files">知识来源文件（可多选）</label>
-                  <input type="file" id="s2-source-files" accept=".txt,.md,.docx,.pdf" multiple>
-                  <span id="s2-file-name" class="s2-file-name"></span>
+                  <div class="s2-file-upload-row">
+                    <label class="s2-file-btn" for="s2-source-files" data-i18n="choose_file">选择文件</label>
+                    <span id="s2-file-name" class="s2-file-name" data-i18n="no_file_chosen">未选择</span>
+                    <input type="file" id="s2-source-files" accept=".txt,.md,.docx,.pdf" multiple style="display:none">
+                  </div>
                   <div class="file-hint" data-i18n="source_files_hint">上传待萃取的制度文件、操作手册、案例库（TXT/MD/DOCX/PDF），支持多选</div>
                 </div>
                 <div class="form-group">
@@ -491,8 +494,11 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 </div>
                 <div class="form-group">
                   <label data-i18n="upload_minutes">或上传专家纪要文件</label>
-                  <input type="file" id="s3-expert-file" accept=".txt,.md,.json">
-                  <span id="s3-file-name" class="s2-file-name"></span>
+                  <div class="s2-file-upload-row">
+                    <label class="s2-file-btn" for="s3-expert-file" data-i18n="choose_file">选择文件</label>
+                    <span id="s3-file-name" class="s2-file-name" data-i18n="no_file_chosen">未选择</span>
+                    <input type="file" id="s3-expert-file" accept=".txt,.md,.json" style="display:none">
+                  </div>
                 </div>
               </div>
             </div>
