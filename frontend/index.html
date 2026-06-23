@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>隐性知识显性化 · 五步法萃取流水线</title>
+<title data-i18n="page_title">隐性知识显性化 · 五步法萃取流水线</title>
 <!-- Google Fonts: 异步加载，内网不可用时静默回退系统字体 -->
 <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.cn/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" onload="this.onload=null;this.rel='stylesheet'" onerror="this.remove()">
@@ -27,57 +27,61 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
 <div class="app">
   <!-- Top Navigation -->
   <nav class="app-nav">
-    <div class="nav-brand" id="nav-brand">隐性知识显性化 · 五步法</div>
+    <div class="nav-brand" id="nav-brand" data-i18n="nav_brand">隐性知识显性化 · 五步法</div>
     <div class="nav-steps" id="nav-steps">
-      <button class="btn btn--ghost btn--sm" onclick="goBackToOverview()" title="返回总览">
+      <button class="btn btn--ghost btn--sm" onclick="goBackToOverview()" title="返回总览" data-i18n-title="nav_back">
         <span class="btn__icon btn__icon--left" data-lucide="chevron-left"></span>
-        <span class="btn__text">返回</span>
+        <span class="btn__text" data-i18n="nav_back">返回</span>
       </button>
       <div class="step-track">
         <button class="step-btn" data-step="1">
-          <span class="btn__text"><span class="btn-num">01</span>场景锚定</span>
+          <span class="btn__text"><span class="btn-num">01</span><span data-i18n="step1_name">场景锚定</span></span>
         </button>
         <span class="step-connector"></span>
         <button class="step-btn" data-step="2">
-          <span class="btn__text"><span class="btn-num">02</span>知识萃取</span>
+          <span class="btn__text"><span class="btn-num">02</span><span data-i18n="step2_name">知识萃取</span></span>
         </button>
         <span class="step-connector"></span>
         <button class="step-btn" data-step="3">
-          <span class="btn__text"><span class="btn-num">03</span>知识对齐</span>
+          <span class="btn__text"><span class="btn-num">03</span><span data-i18n="step3_name">知识对齐</span></span>
         </button>
         <span class="step-connector"></span>
         <button class="step-btn" data-step="4">
-          <span class="btn__text"><span class="btn-num">04</span>智能转化</span>
+          <span class="btn__text"><span class="btn-num">04</span><span data-i18n="step4_name">智能转化</span></span>
         </button>
         <span class="step-connector"></span>
         <button class="step-btn" data-step="5">
-          <span class="btn__text"><span class="btn-num">05</span>验证回放</span>
+          <span class="btn__text"><span class="btn-num">05</span><span data-i18n="step5_name">验证回放</span></span>
         </button>
       </div>
       <span class="auto-save-indicator" id="auto-save-indicator">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
         <span id="auto-save-text"></span>
       </span>
-      <button class="btn btn--ghost btn--sm" id="save-pipeline-btn" onclick="saveCurrentPipeline()" title="保存当前流水线">
+      <button class="btn btn--ghost btn--sm" id="save-pipeline-btn" onclick="saveCurrentPipeline()" title="保存当前流水线" data-i18n-title="nav_save">
         <span class="btn__icon btn__icon--left" data-lucide="save"></span>
-        <span class="btn__text">保存</span>
+        <span class="btn__text" data-i18n="nav_save">保存</span>
       </button>
-      <button class="btn btn--danger btn--sm" id="clear-pipeline-btn" onclick="clearCurrentPipeline()" title="清空当前流水线">
+      <button class="btn btn--danger btn--sm" id="clear-pipeline-btn" onclick="clearCurrentPipeline()" title="清空当前流水线" data-i18n-title="nav_clear">
         <span class="btn__icon btn__icon--left" data-lucide="trash-2"></span>
-        <span class="btn__text">清空</span>
+        <span class="btn__text" data-i18n="nav_clear">清空</span>
       </button>
     </div>
     <div class="nav-actions">
-      <button class="btn btn--ghost btn--sm" id="skill-nav-btn" onclick="openSkillPanel()" title="Skill配置">
-        <span class="btn__icon btn__icon--left" data-lucide="sparkles"></span>
-        <span class="btn__text">Skill配置</span>
+      <button class="btn btn--ghost btn--sm" id="lang-nav-btn" onclick="App.I18n.openLangPanel()" title="语言配置" data-i18n-title="nav_lang_config">
+        <span class="btn__icon btn__icon--left" data-lucide="languages"></span>
+        <span class="btn__text" data-i18n="nav_lang_config">语言配置</span>
       </button>
-      <button class="btn btn--ghost btn--sm" id="model-nav-btn" onclick="openModelPanel()" title="模型配置">
+      <button class="btn btn--ghost btn--sm" id="skill-nav-btn" onclick="openSkillPanel()" title="Skill配置" data-i18n-title="nav_skill_config">
+        <span class="btn__icon btn__icon--left" data-lucide="sparkles"></span>
+        <span class="btn__text" data-i18n="nav_skill_config">Skill配置</span>
+      </button>
+      <button class="btn btn--ghost btn--sm" id="model-nav-btn" onclick="openModelPanel()" title="模型配置" data-i18n-title="nav_model_config">
         <span class="btn__icon btn__icon--left" data-lucide="settings"></span>
-        <span class="btn__text">模型配置</span>
+        <span class="btn__text" data-i18n="nav_model_config">模型配置</span>
       </button>
       <div class="nav-status" id="server-status">
-        <span class="status-dot"></span>检测中...
+        <span class="status-dot"></span><span data-i18n="server_checking">检测中...</span>
       </div>
     </div>
   </nav>
@@ -85,8 +89,8 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
   <!-- Skill Config Panel (Slide-in) -->
   <div class="skill-panel" id="skill-panel">
     <div class="skill-panel-header">
-      <h3>Skill 配置</h3>
-      <button type="button" class="btn btn--ghost btn--sm skill-panel-close" onclick="closeSkillPanel()" title="关闭">
+      <h3 data-i18n="skill_panel_title">Skill 配置</h3>
+      <button type="button" class="btn btn--ghost btn--sm skill-panel-close" onclick="closeSkillPanel()" title="关闭" data-i18n-title="close">
         <span class="btn__icon btn__icon--left" data-lucide="x"></span>
       </button>
     </div>
@@ -98,18 +102,18 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
   <!-- Model Config Panel (Slide-in) -->
   <div class="model-panel" id="model-panel">
     <div class="model-panel-header">
-      <h3>LLM 模型配置</h3>
-      <button type="button" class="btn btn--ghost btn--sm model-panel-close" onclick="closeModelPanel()" title="关闭">
+      <h3 data-i18n="model_panel_title">LLM 模型配置</h3>
+      <button type="button" class="btn btn--ghost btn--sm model-panel-close" onclick="closeModelPanel()" title="关闭" data-i18n-title="close">
         <span class="btn__icon btn__icon--left" data-lucide="x"></span>
       </button>
     </div>
     <div class="model-panel-body">
       <div class="model-section">
         <div class="model-section-header">
-          <span>已配置模型</span>
+          <span data-i18n="configured_models">已配置模型</span>
           <button type="button" class="btn btn--outline btn--sm" onclick="showAddModelForm()">
             <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
-            <span class="btn__text">添加模型</span>
+            <span class="btn__text" data-i18n="add_model">添加模型</span>
           </button>
         </div>
         <div id="model-list"></div>
@@ -117,73 +121,93 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
 
       <!-- Add Model Form (hidden by default) -->
       <div class="model-add-form hidden" id="add-model-form">
-        <div class="model-section-header"><span id="model-form-title">添加自定义模型</span></div>
+        <div class="model-section-header"><span id="model-form-title" data-i18n="add_model_title">添加自定义模型</span></div>
         <div class="form-row">
           <div class="form-group half">
-            <label>模型名称</label>
-            <input type="text" id="new-model-name" placeholder="如: GPT-4o">
+            <label data-i18n="model_name">模型名称</label>
+            <input type="text" id="new-model-name" placeholder="如: GPT-4o" data-i18n-placeholder="placeholder_model_name">
           </div>
           <div class="form-group half">
-            <label>接口类型</label>
+            <label data-i18n="api_type">接口类型</label>
             <select id="new-model-api-type" onchange="toggleCcbModelFields()">
-              <option value="openai">OpenAI 兼容</option>
-              <option value="ccb_ainlplm">建行 ainlplm</option>
+              <option value="openai" data-i18n="api_type_openai">OpenAI 兼容</option>
+              <option value="ccb_ainlplm" data-i18n="api_type_ccb">建行 ainlplm</option>
             </select>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group half">
-            <label>模型标识 (model)</label>
-            <input type="text" id="new-model-model" placeholder="如: gpt-4o 或 F-G-98-...">
+            <label data-i18n="model_id">模型标识 (model)</label>
+            <input type="text" id="new-model-model" placeholder="如: gpt-4o 或 F-G-98-..." data-i18n-placeholder="placeholder_model_id">
           </div>
           <div class="form-group half">
-            <label>API 地址</label>
-            <input type="text" id="new-model-url" placeholder="OpenAI: .../v1/chat/completions 或建行: .../ainlplm/chat">
+            <label data-i18n="api_url">API 地址</label>
+            <input type="text" id="new-model-url" placeholder="OpenAI: .../v1/chat/completions 或建行: .../ainlplm/chat" data-i18n-placeholder="placeholder_api_url">
           </div>
         </div>
         <div class="form-group">
-          <label>API Key / Access_Key_Id</label>
-          <input type="text" id="new-model-apikey" placeholder="输入 API Key 或 Access_Key_Id">
+          <label data-i18n="api_key">API Key / Access_Key_Id</label>
+          <input type="text" id="new-model-apikey" placeholder="输入 API Key 或 Access_Key_Id" data-i18n-placeholder="placeholder_api_key">
         </div>
         <div id="ccb-model-fields" class="hidden">
           <div class="form-row">
             <div class="form-group half">
-              <label>Tx-Code</label>
-              <input type="text" id="new-model-tx-code" placeholder="如: A4011LM01">
+              <label data-i18n="tx_code">Tx-Code</label>
+              <input type="text" id="new-model-tx-code" placeholder="如: A4011LM01" data-i18n-placeholder="placeholder_tx_code">
             </div>
             <div class="form-group half">
-              <label>Sec-Node-No</label>
-              <input type="text" id="new-model-sec-node" placeholder="如: 400136">
+              <label data-i18n="sec_node">Sec-Node-No</label>
+              <input type="text" id="new-model-sec-node" placeholder="如: 400136" data-i18n-placeholder="placeholder_sec_node">
             </div>
           </div>
         </div>
         <div class="form-row" id="openai-model-tuning">
           <div class="form-group half">
-            <label>Max Tokens</label>
+            <label data-i18n="max_tokens">Max Tokens</label>
             <input type="number" id="new-model-maxtokens" value="4096">
           </div>
           <div class="form-group half">
-            <label>Temperature</label>
+            <label data-i18n="temperature">Temperature</label>
             <input type="number" id="new-model-temp" value="0.7" step="0.1" min="0" max="2">
           </div>
         </div>
         <div class="form-group">
-          <label>描述（可选）</label>
-          <input type="text" id="new-model-desc" placeholder="模型能力简述">
+          <label data-i18n="desc_optional">描述（可选）</label>
+          <input type="text" id="new-model-desc" placeholder="模型能力简述" data-i18n-placeholder="placeholder_desc">
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn--secondary btn--sm" onclick="hideAddModelForm()">
-            <span class="btn__text">取消</span>
+            <span class="btn__text" data-i18n="cancel">取消</span>
           </button>
           <button type="button" class="btn btn--primary btn--sm" id="model-form-save-btn" onclick="saveModel()">
-            <span class="btn__text">添加</span>
+            <span class="btn__text" data-i18n="add">添加</span>
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="model-overlay hidden" id="model-overlay" onclick="closeModelPanel();closeSkillPanel()"></div>
+  <!-- Language Config Panel (Slide-in) -->
+  <div class="lang-panel" id="lang-panel">
+    <div class="lang-panel-header">
+      <h3 data-i18n="lang_panel_title">语言配置</h3>
+      <button type="button" class="btn btn--ghost btn--sm lang-panel-close" onclick="App.I18n.closeLangPanel()" title="关闭" data-i18n-title="close">
+        <span class="btn__icon btn__icon--left" data-lucide="x"></span>
+      </button>
+    </div>
+    <div class="lang-panel-body">
+      <div class="lang-option" data-lang="zh-CN" onclick="App.I18n.selectLang('zh-CN')">
+        <span class="lang-option-radio" data-lang-radio="zh-CN"></span>
+        <span class="lang-option-label">简体中文</span>
+      </div>
+      <div class="lang-option" data-lang="en" onclick="App.I18n.selectLang('en')">
+        <span class="lang-option-radio" data-lang-radio="en"></span>
+        <span class="lang-option-label">English</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="model-overlay hidden" id="model-overlay" onclick="closeModelPanel();closeSkillPanel();App.I18n.closeLangPanel()"></div>
 
   <!-- Content Area -->
   <div class="app-content">
@@ -202,89 +226,89 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <div class="slide-num-box"><div class="step-label">STEP</div><div class="step-num">01</div></div>
           <div class="slide-title-area">
             <div class="slide-meta-en">Scenario Anchoring · 场景锚定</div>
-            <div class="slide-title">场景确认与骨架定制</div>
+            <div class="slide-title" data-i18n="step1_title">场景确认与骨架定制</div>
           </div>
         </div>
         <div class="slide-subtitle-bar">
-          <span class="subtitle-tag">核心要点</span>
-          <div class="slide-subtitle">骨架错则全盘错——本步定义"这个领域的知识应该长什么样"</div>
+          <span class="subtitle-tag" data-i18n="core_points">核心要点</span>
+          <div class="slide-subtitle" data-i18n="step1_subtitle">骨架错则全盘错——本步定义"这个领域的知识应该长什么样"</div>
         </div>
         <div class="three-col">
           <div class="col col-left">
-            <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn">输入</div><div class="col-label-en">Input</div></div></div>
+            <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn" data-i18n="input">输入</div><div class="col-label-en" data-i18n="input_en">Input</div></div></div>
             <div class="col-content form-area">
               <div class="form-group">
-                <label>场景名称</label>
-                <input type="text" id="s1-scenario-name" placeholder="如：信贷审批">
+                <label data-i18n="scenario_name">场景名称</label>
+                <input type="text" id="s1-scenario-name" placeholder="如：信贷审批" data-i18n-placeholder="placeholder_scenario_name">
               </div>
               <div class="form-group">
-                <label>场景内容</label>
-                <textarea id="s1-scenario-content" rows="4" placeholder="描述该场景的核心业务流程、关键判断点和知识特征"></textarea>
+                <label data-i18n="scenario_content">场景内容</label>
+                <textarea id="s1-scenario-content" rows="4" placeholder="描述该场景的核心业务流程、关键判断点和知识特征" data-i18n-placeholder="placeholder_scenario_content"></textarea>
               </div>
               <div class="form-group">
-                <label>子场景</label>
+                <label data-i18n="sub_scenarios">子场景</label>
                 <div id="s1-sub-scenarios"></div>
                 <button type="button" class="s1-add-sub-btn btn btn--outline btn--sm" onclick="step1AddSubScenario()">
                   <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
-                  <span class="btn__text">添加子场景</span>
+                  <span class="btn__text" data-i18n="add_sub_scenario">添加子场景</span>
                 </button>
               </div>
             </div>
           </div>
           <div class="col col-center">
-            <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn">操作</div><div class="col-label-en">Action</div></div></div>
+            <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn" data-i18n="action">操作</div><div class="col-label-en" data-i18n="action_en">Action</div></div></div>
             <div class="col-content action-area">
               <div class="form-group">
-                <label>知识列（可自定义）</label>
+                <label data-i18n="knowledge_columns">知识列（可自定义）</label>
                 <div id="s1-knowledge-columns" class="s1-knowledge-columns"></div>
                 <div class="s1-k-col-actions">
                   <button type="button" class="s1-add-sub-btn btn btn--outline btn--sm" onclick="step1AddKnowledgeColumn()">
                     <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
-                    <span class="btn__text">添加列</span>
+                    <span class="btn__text" data-i18n="add_column">添加列</span>
                   </button>
                   <button type="button" class="s1-k-col-reset btn btn--ghost btn--sm" onclick="step1ResetKnowledgeColumns()">
-                    <span class="btn__text">恢复默认列</span>
+                    <span class="btn__text" data-i18n="reset_columns">恢复默认列</span>
                   </button>
                 </div>
-                <div class="file-hint">锚定四列（场景/场景说明/子场景/子场景说明）固定，此处仅配置知识列</div>
+                <div class="file-hint" data-i18n="hint_fixed_columns">锚定四列（场景/场景说明/子场景/子场景说明）固定，此处仅配置知识列</div>
               </div>
               <div class="form-group">
-                <label>骨架输出方式</label>
+                <label data-i18n="output_format">骨架输出方式</label>
                 <select id="s1-output-format">
-                  <option value="excel">系统生成 Excel</option>
-                  <option value="markdown">系统生成 Markdown</option>
+                  <option value="excel" data-i18n="output_format_excel">系统生成 Excel</option>
+                  <option value="markdown" data-i18n="output_format_markdown">系统生成 Markdown</option>
                 </select>
-                <div class="file-hint">选择 Markdown 时，将自动补齐环节、判断逻辑、反模式等富语义列，便于 Step2 深度萃取</div>
+                <div class="file-hint" data-i18n="hint_markdown_columns">选择 Markdown 时，将自动补齐环节、判断逻辑、反模式等富语义列，便于 Step2 深度萃取</div>
               </div>
               <details class="s1-advanced-template">
-                <summary>高级：上传或选用部门 Excel 模板</summary>
+                <summary data-i18n="advanced_template">高级：上传或选用部门 Excel 模板</summary>
                 <div class="form-group" style="margin-top:8px;">
-                  <label>上传 .xlsx 模板（优先级最高）</label>
+                  <label data-i18n="upload_template">上传 .xlsx 模板（优先级最高）</label>
                   <div class="s2-file-upload-row">
-                    <label class="s2-file-btn" for="s1-template-file">选择文件</label>
-                    <span class="s2-file-name" id="s1-template-file-name">未选择</span>
+                    <label class="s2-file-btn" for="s1-template-file" data-i18n="choose_file">选择文件</label>
+                    <span class="s2-file-name" id="s1-template-file-name" data-i18n="no_file_chosen">未选择</span>
                     <input type="file" id="s1-template-file" accept=".xlsx,.xls" style="display:none">
                   </div>
                 </div>
                 <div class="form-group">
-                  <label>或选用 samples 中的 Excel 模板</label>
+                  <label data-i18n="samples_template">或选用 samples 中的 Excel 模板</label>
                   <select id="s1-legacy-template">
-                    <option value="">不使用（按上方自定义列生成）</option>
+                    <option value="" data-i18n="no_template">不使用（按上方自定义列生成）</option>
                   </select>
                 </div>
-                <div class="file-hint">上传/选用 Excel 后，将按文件表头为准，自定义知识列仅作记录</div>
+                <div class="file-hint" data-i18n="hint_upload_template">上传/选用 Excel 后，将按文件表头为准，自定义知识列仅作记录</div>
               </details>
               <button type="button" class="btn btn--primary btn--md" id="s1-generate" onclick="step1Generate()">
                 <span class="btn__icon btn__icon--left" data-lucide="play"></span>
-                <span class="btn__text">生成场景骨架</span>
+                <span class="btn__text" data-i18n="generate_skeleton">生成场景骨架</span>
               </button>
-              <div class="action-note">自由定义知识列与输出格式；后续步骤仍使用配套 Excel 继续流水线</div>
+              <div class="action-note" data-i18n="step1_action_note">自由定义知识列与输出格式；后续步骤仍使用配套 Excel 继续流水线</div>
             </div>
           </div>
           <div class="col col-right">
-            <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
+            <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn" data-i18n="output">输出</div><div class="col-label-en" data-i18n="output_en">Output</div></div></div>
             <div class="col-content output-area" id="s1-output">
-              <div class="output-placeholder">填写场景信息后点击"生成场景骨架"查看结果</div>
+              <div class="output-placeholder" data-i18n="step1_output_placeholder">填写场景信息后点击"生成场景骨架"查看结果</div>
             </div>
           </div>
         </div>
@@ -299,54 +323,54 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <div class="slide-num-box"><div class="step-label">STEP</div><div class="step-num">02</div></div>
           <div class="slide-title-area">
             <div class="slide-meta-en">Knowledge Extraction · 知识萃取</div>
-            <div class="slide-title">多源知识萃取</div>
+            <div class="slide-title" data-i18n="step2_title">多源知识萃取</div>
           </div>
         </div>
         <div class="slide-subtitle-bar">
-          <span class="subtitle-tag">核心要点</span>
-          <div class="slide-subtitle">把已显性化的10%先固化下来——让专家面对的不是空白Excel，而是一份"待审稿"</div>
+          <span class="subtitle-tag" data-i18n="core_points">核心要点</span>
+          <div class="slide-subtitle" data-i18n="step2_subtitle">把已显性化的10%先固化下来——让专家面对的不是空白Excel，而是一份"待审稿"</div>
         </div>
         <div class="three-col">
           <div class="col col-left">
-            <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn">输入</div><div class="col-label-en">Input</div></div></div>
+            <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn" data-i18n="input">输入</div><div class="col-label-en" data-i18n="input_en">Input</div></div></div>
             <div class="col-content form-area">
               <!-- Step1 output reference -->
               <div class="form-group">
-                <label>上一步输出件（场景锚定模板）</label>
+                <label data-i18n="prev_output_label">上一步输出件（场景锚定模板）</label>
                 <div id="s2-prev-output-area">
-                  <div class="s2-prev-empty">尚未检测到上一步输出，请先完成场景锚定</div>
+                  <div class="s2-prev-empty" data-i18n="prev_output_empty">尚未检测到上一步输出，请先完成场景锚定</div>
                 </div>
               </div>
 
               <!-- 文档萃取 -->
               <div id="s2-panel-doc">
                 <div class="form-group">
-                  <label>知识来源文件（可多选）</label>
+                  <label data-i18n="source_files">知识来源文件（可多选）</label>
                   <input type="file" id="s2-source-files" accept=".txt,.md,.docx,.pdf" multiple>
                   <span id="s2-file-name" class="s2-file-name"></span>
-                  <div class="file-hint">上传待萃取的制度文件、操作手册、案例库（TXT/MD/DOCX/PDF），支持多选</div>
+                  <div class="file-hint" data-i18n="source_files_hint">上传待萃取的制度文件、操作手册、案例库（TXT/MD/DOCX/PDF），支持多选</div>
                 </div>
                 <div class="form-group">
-                  <label>或粘贴文本来源</label>
+                  <label data-i18n="paste_source">或粘贴文本来源</label>
                   <div id="s2-text-inputs">
                     <div class="s2-text-input-row">
-                      <input class="s2-text-input-label" placeholder="来源标注（如：制度文件A）">
-                      <textarea class="s2-text-input-content" rows="2" placeholder="粘贴文档内容..."></textarea>
-                      <button type="button" class="s2-text-input-remove btn btn--ghost btn--sm" onclick="this.parentElement.remove();updateStep2Readiness()" title="移除">
+                      <input class="s2-text-input-label" placeholder="来源标注（如：制度文件A）" data-i18n-placeholder="source_label_placeholder">
+                      <textarea class="s2-text-input-content" rows="2" placeholder="粘贴文档内容..." data-i18n-placeholder="paste_content_placeholder"></textarea>
+                      <button type="button" class="s2-text-input-remove btn btn--ghost btn--sm" onclick="this.parentElement.remove();updateStep2Readiness()" title="移除" data-i18n-title="remove_title">
                         <span class="btn__icon btn__icon--left" data-lucide="x"></span>
-                        <span class="btn__text" style="display:none">移除</span>
+                        <span class="btn__text" style="display:none" data-i18n="remove_title">移除</span>
                       </button>
                     </div>
                   </div>
                   <button type="button" class="s1-add-sub-btn btn btn--outline btn--sm" onclick="addStep2TextRow()" style="margin-top:4px">
                     <span class="btn__icon btn__icon--left" data-lucide="plus"></span>
-                    <span class="btn__text">添加更多文本来源</span>
+                    <span class="btn__text" data-i18n="add_more_source">添加更多文本来源</span>
                   </button>
                 </div>
                 <div class="form-group">
                   <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
                     <input type="checkbox" id="s2-kb-inherit" style="width:auto;">
-                    继承知识库已沉淀知识（作为融合源参与去重）
+                    <span data-i18n="inherit_kb">继承知识库已沉淀知识（作为融合源参与去重）</span>
                   </label>
                   <div class="file-hint" id="s2-kb-inherit-hint"></div>
                 </div>
@@ -356,33 +380,33 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
             </div>
           </div>
           <div class="col col-center">
-            <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn">操作</div><div class="col-label-en">Action</div></div></div>
+            <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn" data-i18n="action">操作</div><div class="col-label-en" data-i18n="action_en">Action</div></div></div>
             <div class="col-content action-area">
               <div id="s2-single-controls">
               <!-- Skill 卡片选择器（替代下拉框） -->
               <div class="form-group" style="margin-bottom:12px">
-                <label>选择能力</label>
+                <label data-i18n="choose_ability">选择能力</label>
                 <div class="s2-skill-cards" id="s2-skill-cards">
                   <div class="s2-skill-card active" data-skill="knowledge-extraction" onclick="selectStep2Skill('knowledge-extraction')">
                     <span class="s2-skill-card-icon" data-lucide="search"></span>
-                    <span class="s2-skill-card-name">知识萃取</span>
-                    <span class="s2-skill-card-desc">Excel模板 → Skill预萃稿</span>
-                    <span class="s2-skill-card-hint">上传标准萃取模板，生成 IR 预萃稿（Markdown）</span>
+                    <span class="s2-skill-card-name" data-i18n="skill_knowledge_extraction">知识萃取</span>
+                    <span class="s2-skill-card-desc" data-i18n="skill_knowledge_extraction_desc">Excel模板 → Skill预萃稿</span>
+                    <span class="s2-skill-card-hint" data-i18n="skill_knowledge_extraction_hint">上传标准萃取模板，生成 IR 预萃稿（Markdown）</span>
                   </div>
 
                 </div>
                 <select id="s2-skill-select" class="hidden">
-                  <option value="">-- 选择 Skill --</option>
+                  <option value="" data-i18n="select_skill">-- 选择 Skill --</option>
                 </select>
               </div>
 
               <!-- 萃取风格（仅知识萃取时显示） -->
               <div class="form-group s2-conditional" id="s2-group-style" style="margin-bottom:12px">
-                <label>萃取风格</label>
+                <label data-i18n="extraction_style">萃取风格</label>
                 <select id="s2-extract-style">
-                  <option value="标准萃取">标准萃取（8-22条）</option>
-                  <option value="深度萃取">深度萃取（12-40条）</option>
-                  <option value="精简萃取">精简萃取（5-10条）</option>
+                  <option value="标准萃取" data-i18n="style_standard">标准萃取（8-22条）</option>
+                  <option value="深度萃取" data-i18n="style_deep">深度萃取（12-40条）</option>
+                  <option value="精简萃取" data-i18n="style_compact">精简萃取（5-10条）</option>
                 </select>
               </div>
 
@@ -390,20 +414,20 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               </div><!-- /s2-single-controls -->
 
               <div class="form-group" style="margin-bottom:12px">
-                <label>选择模型</label>
+                <label data-i18n="select_model">选择模型</label>
                 <select id="s2-model"></select>
               </div>
-              <button type="button" class="btn btn--primary btn--md" id="s2-extract-btn" onclick="step2ExtractSkillMd()">生成 SKILL.md</button>
+              <button type="button" class="btn btn--primary btn--md" id="s2-extract-btn" onclick="step2ExtractSkillMd()" data-i18n="generate_skill_md">生成 SKILL.md</button>
               <button type="button" class="btn btn--primary btn--md" id="s2-skill-extract" onclick="step2Execute()" style="display:none;">
                 <span class="btn__icon btn__icon--left" data-lucide="play"></span>
-                <span class="btn__text" id="s2-btn-text">执行知识萃取</span>
+                <span class="btn__text" id="s2-btn-text" data-i18n="execute_extraction">执行知识萃取</span>
               </button>
-              <div class="step-readiness info" id="s2-readiness">请补全模型与文档后点击生成规则</div>
-              <div class="action-note">上传知识文档后点击生成规则，IR 生成后可点击生成 SQL</div>
+              <div class="step-readiness info" id="s2-readiness" data-i18n="step2_readiness_default">请补全模型与文档后点击生成规则</div>
+              <div class="action-note" data-i18n="step2_action_note">上传知识文档后点击生成规则，IR 生成后可点击生成 SQL</div>
             </div>
           </div>
           <div class="col col-right">
-            <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
+            <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn" data-i18n="output">输出</div><div class="col-label-en" data-i18n="output_en">Output</div></div></div>
             <div class="col-content output-area" id="s2-output">
               <div id="s2-md-preview" class="md-preview" style="max-height:500px;overflow:auto;"></div>
               <div id="s2-actions" style="margin-top:12px;"></div>
@@ -421,25 +445,25 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <div class="slide-num-box"><div class="step-label">STEP</div><div class="step-num">03</div></div>
           <div class="slide-title-area">
             <div class="slide-meta-en">Knowledge Alignment · 知识对齐</div>
-            <div class="slide-title">知识对齐</div>
+            <div class="slide-title" data-i18n="step3_title">知识对齐</div>
           </div>
         </div>
         <div class="slide-subtitle-bar">
-          <span class="subtitle-tag">核心要点</span>
-          <div class="slide-subtitle">对 Step2 生成的 Skill 预萃稿逐条审核与修订</div>
+          <span class="subtitle-tag" data-i18n="core_points">核心要点</span>
+          <div class="slide-subtitle" data-i18n="step3_subtitle">对 Step2 生成的 Skill 预萃稿逐条审核与修订</div>
         </div>
 
         <!-- Phase 1: 输入区 -->
         <div class="align-input-section" id="s3-input-section">
           <div class="three-col-wide">
             <div class="col col-left">
-              <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn">输入</div><div class="col-label-en">Input</div></div></div>
+              <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn" data-i18n="input">输入</div><div class="col-label-en" data-i18n="input_en">Input</div></div></div>
               <div class="col-content form-area">
                 <div class="s2-prev-card" id="s3-prev-draft" style="display:none;">
                   <div class="s2-prev-header">
                     <span class="s2-prev-icon">📋</span>
-                    <span class="s2-prev-title">知识萃取稿</span>
-                    <span class="s2-prev-badge" id="s3-prev-badge">已关联</span>
+                    <span class="s2-prev-title" data-i18n="s3_draft_title">知识萃取稿</span>
+                    <span class="s2-prev-badge" id="s3-prev-badge" data-i18n="s3_draft_linked">已关联</span>
                   </div>
                   <div class="s2-prev-info" id="s3-prev-info"></div>
                   <div class="s2-prev-tags" id="s3-prev-tags"></div>
@@ -447,65 +471,65 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 </div>
                 <div class="s2-prev-empty" id="s3-prev-empty">
                   <div class="s2-prev-empty-icon">📋</div>
-                  <div>暂无 Step2 萃取稿输出</div>
-                  <div class="s2-prev-empty-hint">请先完成知识萃取节点</div>
+                  <div data-i18n="s3_no_draft">暂无 Step2 萃取稿输出</div>
+                  <div class="s2-prev-empty-hint" data-i18n="s3_no_draft_hint">请先完成知识萃取节点</div>
                 </div>
                 <!-- 修订上下文侧栏 -->
                 <div class="revision-context" id="s3-revision-context" style="display:none;">
-                  <div class="revision-context-header">📡 修订上下文</div>
+                  <div class="revision-context-header" data-i18n="revision_context">📡 修订上下文</div>
                   <div class="revision-context-body" id="s3-revision-context-body"></div>
                 </div>
                 <div class="form-group" style="margin-top:12px;">
-                  <label>对话记录（专家与模型）</label>
+                  <label data-i18n="chat_history">对话记录（专家与模型）</label>
                   <div id="s3-chat-history" class="align-chat-history">
-                    <div class="align-chat-empty">暂无对话。请先输入一条修订意见并发送。</div>
+                    <div class="align-chat-empty" data-i18n="chat_empty">暂无对话。请先输入一条修订意见并发送。</div>
                   </div>
                 </div>
                 <div class="form-group">
-                  <label>专家输入（本轮意见）</label>
-                  <textarea id="s3-expert-text" rows="5" placeholder="可填写具体修订意见；若无修改可留空或填写「暂无意见」，系统将自动确认当前萃取稿为对齐稿"></textarea>
+                  <label data-i18n="expert_input">专家输入（本轮意见）</label>
+                  <textarea id="s3-expert-text" rows="5" placeholder="可填写具体修订意见；若无修改可留空或填写「暂无意见」，系统将自动确认当前萃取稿为对齐稿" data-i18n-placeholder="expert_placeholder"></textarea>
                 </div>
                 <div class="form-group">
-                  <label>或上传专家纪要文件</label>
+                  <label data-i18n="upload_minutes">或上传专家纪要文件</label>
                   <input type="file" id="s3-expert-file" accept=".txt,.md,.json">
                   <span id="s3-file-name" class="s2-file-name"></span>
                 </div>
               </div>
             </div>
             <div class="col col-center">
-              <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn">配置</div><div class="col-label-en">Config</div></div></div>
+              <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn" data-i18n="config">配置</div><div class="col-label-en" data-i18n="config_en">Config</div></div></div>
               <div class="col-content action-area">
                 <div class="form-group">
-                  <label>对齐风格</label>
+                  <label data-i18n="align_style">对齐风格</label>
                   <select id="s3-revision-style">
-                    <option value="标准修订">标准修订</option>
-                    <option value="严格修订">严格修订</option>
-                    <option value="宽松修订">宽松修订</option>
+                    <option value="标准修订" data-i18n="align_style_standard">标准修订</option>
+                    <option value="严格修订" data-i18n="align_style_strict">严格修订</option>
+                    <option value="宽松修订" data-i18n="align_style_loose">宽松修订</option>
                   </select>
                 </div>
                 <div class="form-group">
-                  <label>选择模型</label>
+                  <label data-i18n="select_model">选择模型</label>
                   <select id="s3-model"></select>
                 </div>
                 <div class="form-group" style="margin-bottom:12px">
-                  <label>引用 Skill</label>
+                  <label data-i18n="select_skill_default_label">引用 Skill</label>
                   <select id="s3-skill-select">
-                    <option value="">-- 选择 Skill --</option>
+                    <option value="" data-i18n="select_skill_default">-- 选择 Skill --</option>
                   </select>
                 </div>
                 <button type="button" class="btn btn--primary btn--md" id="s3-revise-btn" onclick="step3GeneratePreview()">
                   <span class="btn__icon btn__icon--left" data-lucide="settings-2"></span>
-                  <span class="btn__text">发送并智能修订</span>
+                  <span class="btn__text" data-i18n="send_revise">发送并智能修订</span>
                 </button>
-                <div class="step-readiness info" id="s3-align-hint">若无意见可直接点击按钮，系统将按预萃稿直通生成对齐稿</div>
-                <div class="action-note">专家可多轮输入修订意见，模型会结合历史对话持续更新对齐建议。</div>
+                <div class="step-readiness info" id="s3-align-hint" data-i18n="s3_align_hint">若无意见可直接点击按钮，系统将按预萃稿直通生成对齐稿</div>
+                <div class="action-note" data-i18n="s3_action_note">专家可多轮输入修订意见，模型会结合历史对话持续更新对齐建议。</div>
               </div>
             </div>
             <div class="col col-right">
-              <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
+              <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn" data-i18n="output">输出</div><div class="col-label-en" data-i18n="output_en">Output</div></div></div>
               <div class="col-content output-area" id="s3-output">
                 <div id="s3-md-editor-area" style="margin-bottom:12px;">
-                  <label style="font-size:12px;color:#6b7280;">修订 SKILL.md（可直接编辑代码块中的 SQL）：</label>
+                  <label style="font-size:12px;color:#6b7280;" data-i18n="revise_skill_md">修订 SKILL.md（可直接编辑代码块中的 SQL）：</label>
                   <textarea id="s3-md-editor" rows="20" style="width:100%;font-family:monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:8px;"></textarea>
                 </div>
               </div>
@@ -516,26 +540,26 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <!-- 信号审核子面板（简化版） -->
         <div class="signal-review-panel hidden" id="s3-signal-panel">
           <div class="signal-review-header" onclick="toggleSignalPanel()">
-            <div class="signal-review-title">&#128226; 信号审核</div>
+            <div class="signal-review-title" data-i18n="signal_review">&#128226; 信号审核</div>
             <span class="signal-review-toggle" id="s3-signal-toggle">&#9660;</span>
           </div>
           <div class="signal-review-body" id="s3-signal-body">
             <div class="signal-stats-grid" id="s3-signal-stats">
               <div class="signal-stat-card signal-stat-blur">
                 <span class="signal-stat-num" id="s3-signal-blur">-</span>
-                <span class="signal-stat-label">边界模糊</span>
+                <span class="signal-stat-label" data-i18n="signal_blur">边界模糊</span>
               </div>
               <div class="signal-stat-card signal-stat-island">
                 <span class="signal-stat-num" id="s3-signal-island">-</span>
-                <span class="signal-stat-label">知识孤岛</span>
+                <span class="signal-stat-label" data-i18n="signal_island">知识孤岛</span>
               </div>
               <div class="signal-stat-card signal-stat-lowconf">
                 <span class="signal-stat-num" id="s3-signal-lowconf">-</span>
-                <span class="signal-stat-label">共识度低</span>
+                <span class="signal-stat-label" data-i18n="signal_lowconf">共识度低</span>
               </div>
               <div class="signal-stat-card signal-stat-conflict">
                 <span class="signal-stat-num" id="s3-signal-conflict">-</span>
-                <span class="signal-stat-label">冲突</span>
+                <span class="signal-stat-label" data-i18n="signal_conflict">冲突</span>
               </div>
             </div>
             <div class="signal-review-info" id="s3-signal-info"></div>
@@ -545,27 +569,27 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
         <!-- 建议池：验证回流 / 访谈转化 的 entry 级修订建议 -->
         <div class="signal-review-panel" id="s3-suggestion-panel" style="display:block;">
           <div class="signal-review-header">
-            <div class="signal-review-title">&#128260; 建议池（验证回流 / 访谈转化）</div>
+            <div class="signal-review-title" data-i18n="suggestion_pool">&#128260; 建议池（验证回流 / 访谈转化）</div>
             <span class="align-toolbar-count" id="s3-suggestion-count"></span>
           </div>
           <div class="signal-review-body">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:8px;font-size:12px;color:#6b7280;">
               <input type="checkbox" id="s3-suggestion-select-all" onchange="step3ToggleSelectAll()">
-              全选 / 取消全选
+              <span data-i18n="select_all">全选 / 取消全选</span>
             </label>
             <div id="s3-suggestion-list"></div>
             <div class="s2-result-actions" style="margin-top:10px;">
               <button type="button" class="btn btn--primary btn--sm" id="s3-suggestion-apply" onclick="step3ApplySuggestions()">
                 <span class="btn__icon btn__icon--left" data-lucide="check"></span>
-                <span class="btn__text">采纳勾选建议 → 生成新对齐稿</span>
+                <span class="btn__text" data-i18n="apply_suggestions">采纳勾选建议 → 生成新对齐稿</span>
               </button>
               <button type="button" class="btn btn--outline btn--sm" id="s3-suggestion-reject" onclick="step3RejectSuggestions()">
                 <span class="btn__icon btn__icon--left" data-lucide="x"></span>
-                <span class="btn__text">驳回勾选建议</span>
+                <span class="btn__text" data-i18n="reject_suggestions">驳回勾选建议</span>
               </button>
               <button type="button" class="btn btn--ghost btn--sm" id="s3-suggestion-refresh" onclick="loadStep3SuggestionPool()">
                 <span class="btn__icon btn__icon--left" data-lucide="refresh-cw"></span>
-                <span class="btn__text">刷新</span>
+                <span class="btn__text" data-i18n="refresh">刷新</span>
               </button>
             </div>
           </div>
@@ -576,39 +600,39 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <!-- 工具栏 -->
           <div class="align-toolbar">
             <div class="align-toolbar-left">
-              <span class="align-toolbar-title" id="s3-review-title">对齐建议审核</span>
+              <span class="align-toolbar-title" id="s3-review-title" data-i18n="review_title">对齐建议审核</span>
               <span class="align-toolbar-count" id="s3-review-count"></span>
             </div>
             <div class="align-toolbar-center">
               <div class="align-filter-group">
                 <button type="button" class="align-filter-btn btn btn--ghost btn--sm active" data-filter="all" onclick="alignFilterNotes('all')">
-                  <span class="btn__text">全部</span>
+                  <span class="btn__text" data-i18n="filter_all">全部</span>
                 </button>
                 <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="modify" onclick="alignFilterNotes('modify')">
-                  <span class="btn__text">修改</span>
+                  <span class="btn__text" data-i18n="filter_modify">修改</span>
                 </button>
                 <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="add" onclick="alignFilterNotes('add')">
-                  <span class="btn__text">新增</span>
+                  <span class="btn__text" data-i18n="filter_add">新增</span>
                 </button>
                 <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="delete" onclick="alignFilterNotes('delete')">
-                  <span class="btn__text">删除</span>
+                  <span class="btn__text" data-i18n="filter_delete">删除</span>
                 </button>
                 <button type="button" class="align-filter-btn btn btn--ghost btn--sm" data-filter="supplement" onclick="alignFilterNotes('supplement')">
-                  <span class="btn__text">补充</span>
+                  <span class="btn__text" data-i18n="filter_supplement">补充</span>
                 </button>
               </div>
             </div>
             <div class="align-toolbar-right">
               <button type="button" class="align-batch-btn align-batch-accept btn btn--outline btn--sm" onclick="alignBatchAcceptAll()">
                 <span class="btn__icon btn__icon--left" data-lucide="check"></span>
-                <span class="btn__text">全部采纳</span>
+                <span class="btn__text" data-i18n="accept_all">全部采纳</span>
               </button>
               <button type="button" class="align-batch-btn align-batch-reject btn btn--outline btn--sm" onclick="alignBatchRejectAll()">
                 <span class="btn__icon btn__icon--left" data-lucide="x"></span>
-                <span class="btn__text">全部驳回</span>
+                <span class="btn__text" data-i18n="reject_all">全部驳回</span>
               </button>
               <button type="button" class="align-batch-btn btn btn--ghost btn--sm" onclick="step3BackToInput()">
-                <span class="btn__text">返回修改</span>
+                <span class="btn__text" data-i18n="back_to_edit">返回修改</span>
               </button>
             </div>
           </div>
@@ -619,19 +643,19 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <!-- 底部操作条 -->
           <div class="align-bottom-bar">
             <div class="align-bottom-stats">
-              <span class="align-stat-item align-stat-accepted"><span class="align-stat-dot dot-accepted"></span>已采纳 <strong id="s3-accepted-count">0</strong></span>
-              <span class="align-stat-item align-stat-rejected"><span class="align-stat-dot dot-rejected"></span>已驳回 <strong id="s3-rejected-count">0</strong></span>
-              <span class="align-stat-item align-stat-pending"><span class="align-stat-dot dot-pending"></span>待审 <strong id="s3-pending-count">0</strong></span>
-              <span class="align-stat-item align-stat-edited"><span class="align-stat-dot dot-edited"></span>已编辑 <strong id="s3-edited-count">0</strong></span>
+              <span class="align-stat-item align-stat-accepted"><span class="align-stat-dot dot-accepted"></span><span data-i18n="stat_accepted">已采纳 </span><strong id="s3-accepted-count">0</strong></span>
+              <span class="align-stat-item align-stat-rejected"><span class="align-stat-dot dot-rejected"></span><span data-i18n="stat_rejected">已驳回 </span><strong id="s3-rejected-count">0</strong></span>
+              <span class="align-stat-item align-stat-pending"><span class="align-stat-dot dot-pending"></span><span data-i18n="stat_pending">待审 </span><strong id="s3-pending-count">0</strong></span>
+              <span class="align-stat-item align-stat-edited"><span class="align-stat-dot dot-edited"></span><span data-i18n="stat_edited">已编辑 </span><strong id="s3-edited-count">0</strong></span>
             </div>
             <div class="align-bottom-actions">
               <button type="button" class="edit-btn btn btn--outline btn--md" onclick="editStep3Revision()">
                 <span class="btn__icon btn__icon--left" data-lucide="pencil"></span>
-                <span class="btn__text">在线编辑底稿</span>
+                <span class="btn__text" data-i18n="online_edit_draft">在线编辑底稿</span>
               </button>
               <button type="button" class="btn btn--primary btn--md" id="s3-apply-btn" onclick="step3ApplyNotes()">
                 <span class="btn__icon btn__icon--left" data-lucide="check"></span>
-                <span class="btn__text">确认并生成对齐稿</span>
+                <span class="btn__text" data-i18n="confirm_aligned">确认并生成对齐稿</span>
               </button>
             </div>
           </div>
@@ -653,20 +677,20 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <div class="slide-num-box"><div class="step-label">STEP</div><div class="step-num">04</div></div>
           <div class="slide-title-area">
             <div class="slide-meta-en">Knowledge Delivery · 智能转化</div>
-            <div class="slide-title">三类交付物生成</div>
+            <div class="slide-title" data-i18n="step4_title">三类交付物生成</div>
           </div>
         </div>
         <div class="slide-subtitle-bar">
-          <span class="subtitle-tag">核心要点</span>
-          <div class="slide-subtitle">一次生成思维链、QA 对、OpenClaw 兼容 Skill，覆盖推理、问答与 Agent 技能三类消费场景</div>
+          <span class="subtitle-tag" data-i18n="core_points">核心要点</span>
+          <div class="slide-subtitle" data-i18n="step4_subtitle">一次生成思维链、QA 对、OpenClaw 兼容 Skill，覆盖推理、问答与 Agent 技能三类消费场景</div>
         </div>
         <div class="three-col">
           <!-- 输入 -->
           <div class="col col-left">
-            <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn">输入</div><div class="col-label-en">Input</div></div></div>
+            <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn" data-i18n="input">输入</div><div class="col-label-en" data-i18n="input_en">Input</div></div></div>
             <div class="col-content form-area">
               <div class="s2-section">
-                <div class="s2-label">知识对齐稿</div>
+                <div class="s2-label" data-i18n="s4_input_draft">知识对齐稿</div>
                 <div id="s4-prev-draft" class="s2-prev-box" style="display:none">
                   <div class="s2-prev-info" id="s4-prev-info">
                     <div class="s2-prev-name" id="s4-prev-name">-</div>
@@ -675,18 +699,18 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   <div class="s2-prev-tags" id="s4-prev-tags"></div>
                   <div class="s2-result-actions" id="s4-prev-actions" style="margin-top:8px;"></div>
                 </div>
-                <div id="s4-prev-empty" class="s2-prev-empty">暂无知识对齐稿，请先完成知识对齐节点</div>
+                <div id="s4-prev-empty" class="s2-prev-empty" data-i18n="s4_no_aligned">暂无知识对齐稿，请先完成知识对齐节点</div>
               </div>
             </div>
           </div>
           <!-- 操作 -->
           <div class="col col-center">
-            <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn">操作</div><div class="col-label-en">Action</div></div></div>
+            <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn" data-i18n="action">操作</div><div class="col-label-en" data-i18n="action_en">Action</div></div></div>
             <div class="col-content action-area">
               <div class="form-group" style="margin-bottom:12px">
-                <label>选择 Skill</label>
+                <label data-i18n="select_skill_label">选择 Skill</label>
                 <select id="s4-skill-select">
-                  <option value="skill-generator">Skill生成器（内置）</option>
+                  <option value="skill-generator" data-i18n="skill_generator">Skill生成器（内置）</option>
                 </select>
               </div>
               <div class="form-group" style="margin-bottom:12px">
@@ -694,18 +718,18 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 <select id="s4-model"></select>
               </div>
 
-              <button type="button" class="btn btn--primary btn--md" id="s4-compile-btn" onclick="step4Compile()">
+              <button type="button" class="btn btn--primary btn--md" id="s4-compile-btn" onclick="step4Compile()" data-i18n="generate_deliverables">
                 生成待验证 Skill + 思维链 + QA 对
               </button>
-              <div class="action-note">LLM 解析 Step3 对齐稿，生成 QA对/思维链/待验证 Agent-Skill 三个交付物</div>
+              <div class="action-note" data-i18n="step4_action_note">LLM 解析 Step3 对齐稿，生成 QA对/思维链/待验证 Agent-Skill 三个交付物</div>
 
             </div>
           </div>
           <!-- 输出 -->
           <div class="col col-right">
-            <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
+            <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn" data-i18n="output">输出</div><div class="col-label-en" data-i18n="output_en">Output</div></div></div>
             <div class="col-content output-area" id="s4-output">
-              <div class="output-placeholder">点击「生成」创建三个交付物</div>
+              <div class="output-placeholder" data-i18n="step4_output_placeholder">点击「生成」创建三个交付物</div>
             </div>
           </div>
         </div>
@@ -720,25 +744,25 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           <div class="slide-num-box"><div class="step-label">STEP</div><div class="step-num">05</div></div>
           <div class="slide-title-area">
             <div class="slide-meta-en">Validation Replay · 验证回放</div>
-            <div class="slide-title">决策回放与回流</div>
+            <div class="slide-title" data-i18n="step5_title">决策回放与回流</div>
           </div>
         </div>
         <div class="slide-subtitle-bar">
-          <span class="subtitle-tag">核心要点</span>
-          <div class="slide-subtitle">用 SKILL 终版判断历史案例并与专家结论比对；分歧自动生成修订建议，回流知识对齐形成闭环</div>
+          <span class="subtitle-tag" data-i18n="core_points">核心要点</span>
+          <div class="slide-subtitle" data-i18n="step5_subtitle">用 SKILL 终版判断历史案例并与专家结论比对；分歧自动生成修订建议，回流知识对齐形成闭环</div>
         </div>
         <div class="three-col">
           <!-- 输入 -->
           <div class="col col-left">
-            <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn">输入</div><div class="col-label-en">Input</div></div></div>
+            <div class="col-header"><div class="col-icon">I</div><div class="col-header-text"><div class="col-label-cn" data-i18n="input">输入</div><div class="col-label-en" data-i18n="input_en">Input</div></div></div>
             <div class="col-content form-area">
               <div class="s2-section">
-                <div class="s2-label">验证对象</div>
+                <div class="s2-label" data-i18n="s5_validation_target">验证对象</div>
                 <div id="s5-prev-draft" class="s2-prev-box" style="display:none">
                   <div class="s2-prev-header">
                     <span class="s2-prev-icon">📦</span>
-                    <span class="s2-prev-title">Step4 交付物</span>
-                    <span class="s2-prev-badge">已验证</span>
+                    <span class="s2-prev-title" data-i18n="s5_deliverable_title">Step4 交付物</span>
+                    <span class="s2-prev-badge" data-i18n="s5_deliverable_linked">已验证</span>
                   </div>
                   <div class="s2-prev-info" id="s5-prev-info"></div>
                   <div class="s2-prev-tags" id="s5-prev-tags"></div>
@@ -746,8 +770,8 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 </div>
                 <div id="s5-prev-empty" class="s2-prev-empty">
                   <div class="s2-prev-empty-icon">📦</div>
-                  <div>暂无 Step4 交付物</div>
-                  <div class="s2-prev-empty-hint">请先完成智能转化节点</div>
+                  <div data-i18n="s5_no_deliverables">暂无 Step4 交付物</div>
+                  <div class="s2-prev-empty-hint" data-i18n="s5_no_deliverables_hint">请先完成智能转化节点</div>
                 </div>
                 <div id="s5-readiness" style="margin-top:8px;"></div>
               </div>
@@ -755,31 +779,31 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
           </div>
           <!-- 操作 -->
           <div class="col col-center">
-            <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn">操作</div><div class="col-label-en">Action</div></div></div>
+            <div class="col-header"><div class="col-icon">M</div><div class="col-header-text"><div class="col-label-cn" data-i18n="action">操作</div><div class="col-label-en" data-i18n="action_en">Action</div></div></div>
             <div class="col-content action-area">
               <div class="form-group" style="margin-bottom:12px">
-                <label>测试数据来源</label>
+                <label data-i18n="test_data_source">测试数据来源</label>
                 <select id="s5-source">
-                  <option value="">全部 test_customers</option>
+                  <option value="" data-i18n="all_test_customers">全部 test_customers</option>
                 </select>
               </div>
-              <button type="button" class="btn btn--primary btn--md" id="s5-replay-btn" onclick="step5RunReplay()">
+              <button type="button" class="btn btn--primary btn--md" id="s5-replay-btn" onclick="step5RunReplay()" data-i18n="run_replay">
                 执行 P/R/F1 验证
               </button>
-              <div class="action-note">在 test_customers 表上执行 agent-skill，对照期望结果计算精度/召回/F1</div>
+              <div class="action-note" data-i18n="step5_action_note">在 test_customers 表上执行 agent-skill，对照期望结果计算精度/召回/F1</div>
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-                <button type="button" class="btn btn--outline btn--md" id="s5-feedback-btn" onclick="step5RunFeedback()" style="width:100%;">
+                <button type="button" class="btn btn--outline btn--md" id="s5-feedback-btn" onclick="step5RunFeedback()" style="width:100%;" data-i18n="feedback_divergence">
                   反馈分歧到 Step3
                 </button>
-                <div class="file-hint" style="margin-top:4px">将验证分歧推入 Step3 建议池，专家可重新审核</div>
+                <div class="file-hint" style="margin-top:4px" data-i18n="feedback_hint">将验证分歧推入 Step3 建议池，专家可重新审核</div>
               </div>
             </div>
           </div>
           <!-- 输出 -->
           <div class="col col-right">
-            <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn">输出</div><div class="col-label-en">Output</div></div></div>
+            <div class="col-header"><div class="col-icon">O</div><div class="col-header-text"><div class="col-label-cn" data-i18n="output">输出</div><div class="col-label-en" data-i18n="output_en">Output</div></div></div>
             <div class="col-content output-area" id="s5-output">
-              <div class="output-placeholder">执行 P/R/F1 验证后查看度量结果</div>
+              <div class="output-placeholder" data-i18n="step5_output_placeholder">执行 P/R/F1 验证后查看度量结果</div>
             </div>
           </div>
         </div>
@@ -795,19 +819,19 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
     <div class="excel-editor-header">
       <div class="excel-editor-title">
         <span class="excel-editor-icon">&#9998;</span>
-        <span id="excel-editor-step-label">在线编辑</span>
+        <span id="excel-editor-step-label" data-i18n="excel_editor_title">在线编辑</span>
       </div>
       <div class="excel-editor-actions">
         <button type="button" class="btn btn--primary btn--sm excel-btn-save" id="excel-editor-save-btn" onclick="saveExcelEditor()">
-          <span class="btn__text">保存</span>
+          <span class="btn__text" data-i18n="save">保存</span>
         </button>
         <button type="button" class="btn btn--ghost btn--sm excel-btn-close" onclick="closeExcelEditor()">
-          <span class="btn__text">关闭</span>
+          <span class="btn__text" data-i18n="close">关闭</span>
         </button>
       </div>
     </div>
     <div class="excel-editor-body" id="excel-editor-content">
-      <div class="excel-editor-placeholder">请上传 Excel 文件后点击"在线编辑"按钮</div>
+      <div class="excel-editor-placeholder" data-i18n="excel_placeholder">请上传 Excel 文件后点击"在线编辑"按钮</div>
     </div>
   </div>
 </div>
@@ -818,34 +842,34 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
     <div class="md-editor-header">
       <div class="md-editor-title">
         <span class="md-editor-icon">&#128196;</span>
-        <span id="markdown-editor-title">SKILL.md 预览编辑</span>
+        <span id="markdown-editor-title" data-i18n="md_editor_title">SKILL.md 预览编辑</span>
       </div>
       <div class="md-editor-actions">
         <button type="button" class="btn btn--primary btn--sm md-btn-save" id="md-editor-save-btn" onclick="saveMarkdownContent()">
           <span class="btn__icon btn__icon--left" data-lucide="save"></span>
-          <span class="btn__text">保存</span>
+          <span class="btn__text" data-i18n="save">保存</span>
         </button>
         <button type="button" class="btn btn--outline btn--sm md-btn-download" id="md-editor-download-btn" onclick="downloadMarkdownContent()">
           <span class="btn__icon btn__icon--left" data-lucide="download"></span>
-          <span class="btn__text">下载</span>
+          <span class="btn__text" data-i18n="download">下载</span>
         </button>
         <button type="button" class="btn btn--outline btn--sm md-btn-copy" onclick="copyMarkdownContent()">
           <span class="btn__icon btn__icon--left" data-lucide="copy"></span>
-          <span class="btn__text">复制</span>
+          <span class="btn__text" data-i18n="copy">复制</span>
         </button>
         <button type="button" class="btn btn--ghost btn--sm md-btn-close" onclick="closeMarkdownEditor()">
           <span class="btn__icon btn__icon--left" data-lucide="x"></span>
-          <span class="btn__text">关闭</span>
+          <span class="btn__text" data-i18n="close">关闭</span>
         </button>
       </div>
     </div>
     <div class="md-editor-body">
       <div class="md-editor-pane">
-        <div class="md-pane-header">&#9998; 编辑区</div>
-        <textarea class="md-editor-textarea" id="markdown-editor-content" oninput="onMarkdownEditorInput()" placeholder="SKILL.md 内容..."></textarea>
+        <div class="md-pane-header" data-i18n="edit_area">&#9998; 编辑区</div>
+        <textarea class="md-editor-textarea" id="markdown-editor-content" oninput="onMarkdownEditorInput()" placeholder="SKILL.md 内容..." data-i18n-placeholder="md_placeholder"></textarea>
       </div>
       <div class="md-editor-pane">
-        <div class="md-pane-header">&#128065; 预览区</div>
+        <div class="md-pane-header" data-i18n="preview_area">&#128065; 预览区</div>
         <div class="md-preview" id="markdown-preview"></div>
       </div>
     </div>
@@ -856,6 +880,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
 <script src="vendor/luckysheet/plugins/js/plugin.js"></script>
 <script src="vendor/luckysheet/luckysheet.umd.js"></script>
 <script src="vendor/lucide/lucide.min.js"></script>
+<script src="js/i18n.js"></script>
 <script src="js/state.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/excel-luckysheet.js"></script>
@@ -867,13 +892,13 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
   fetch('/api/health', { signal: AbortSignal.timeout(3000) })
     .then(function(r) {
       if (r.ok) {
-        el.innerHTML = '<span class="status-dot online"></span>服务就绪';
+        el.innerHTML = '<span class="status-dot online"></span>' + App.I18n.t('server_online');
         return;
       }
       throw new Error();
     })
     .catch(function() {
-      el.innerHTML = '<span class="status-dot offline"></span>离线模式';
+      el.innerHTML = '<span class="status-dot offline"></span>' + App.I18n.t('server_offline');
       setTimeout(checkWithRetry, 30000);
     });
 })();

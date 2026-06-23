@@ -5,11 +5,15 @@ let allModels = [];
 let currentPipeline = null; // { id, name, scenario, domain, current_step, step_status, step_data }
 const MAX_STEP = 5;
 const MAX_FORM_STEP = 3;
-const STEP_NAMES = { 1: "场景锚定", 2: "知识萃取", 3: "知识对齐", 4: "智能转化", 5: "验证回放" };
+const STEP_NAME_KEYS = { 1: 'step1_name', 2: 'step2_name', 3: 'step3_name', 4: 'step4_name', 5: 'step5_name' };
+function getStepName(i) { return App.I18n.t(STEP_NAME_KEYS[i] || ''); }
 let _formSaveTimer = null;
 let _lastStep2ExtractedText = '';
 let _step2ActiveSkill = 'knowledge-extraction'; // 当前选中的 Skill
 let _alignTacitAnnotations = {}; // { noteId: { question, answer } } — Step3 修订经验批注缓存
+
+/* ===== i18n shortcut ===== */
+const t = function (key, fallback) { return App.I18n.t(key, fallback); };
 
 /* ===== Lucide icons helper ===== */
 function refreshIcons() {
@@ -183,6 +187,50 @@ let _s1DefaultKnowledgeColumns = [];
 let _s1RichMarkdownColumns = [];
 let _s1KnowledgeColumnSeq = 0;
 
+const DEFAULT_KNOWLEDGE_COLUMN_MAP = {
+  "环节": "Stage",
+  "访谈方向": "Interview Direction",
+  "具体方法": "Specific Method",
+  "知识类型": "Knowledge Type",
+  "知识引用": "Knowledge Reference",
+  "适用条件": "Applicable Conditions",
+  "判断逻辑": "Decision Logic",
+  "反模式/踩坑提示": "Anti-pattern / Pitfall Tips",
+  "经验判断": "Experiential Judgment",
+  "适用边界": "Applicable Boundary",
+  "例外情形": "Exceptions",
+  "来源文档": "Source Document",
+  "来源位置": "Source Location",
+  "置信度": "Confidence",
+  "贡献专家": "Contributing Expert",
+  "证据数": "Evidence Count",
+  "突破数": "Exception Count",
+  "知识描述": "Knowledge Description"
+};
+const REVERSE_KNOWLEDGE_COLUMN_MAP = Object.fromEntries(
+  Object.entries(DEFAULT_KNOWLEDGE_COLUMN_MAP).map(([k, v]) => [v, k])
+);
+
+function localizeKnowledgeColumn(name, lang) {
+  if (!name) return name;
+  lang = lang || (typeof App !== 'undefined' && App.I18n ? App.I18n.getLang() : 'zh-CN');
+  if (lang === 'en') return DEFAULT_KNOWLEDGE_COLUMN_MAP[name] || name;
+  return REVERSE_KNOWLEDGE_COLUMN_MAP[name] || name;
+}
+
+function localizeKnowledgeColumns(columns, lang) {
+  return (columns || []).map(c => localizeKnowledgeColumn(c, lang));
+}
+
+function step1SyncKnowledgeColumnLanguage(lang) {
+  document.querySelectorAll('.s1-k-col-input').forEach(function (el) {
+    const v = el.value.trim();
+    if (!v) return;
+    const localized = localizeKnowledgeColumn(v, lang);
+    if (localized !== v) el.value = localized;
+  });
+}
+
 function step1IsAbstractColumn(name) {
   const s = String(name || '').trim();
   if (!s) return true;
@@ -190,7 +238,7 @@ function step1IsAbstractColumn(name) {
 }
 
 function step1MergeRichColumnsForMarkdown() {
-  const rich = (_s1RichMarkdownColumns.length ? _s1RichMarkdownColumns : _s1DefaultKnowledgeColumns).slice();
+  const rich = localizeKnowledgeColumns(_s1RichMarkdownColumns.length ? _s1RichMarkdownColumns : _s1DefaultKnowledgeColumns);
   const current = step1GetKnowledgeColumns();
   const substantive = current.filter(c => !step1IsAbstractColumn(c));
   const seen = new Set();
@@ -234,7 +282,9 @@ function step1GetKnowledgeColumns() {
   const cols = [];
   document.querySelectorAll('.s1-k-col-input').forEach(el => {
     const v = el.value.trim();
-    if (v) cols.push(v);
+    if (!v) return;
+    // 默认列名在英文界面显示为英文，但保存时仍按中文原名存储，保证后端兼容
+    cols.push(localizeKnowledgeColumn(v, 'zh-CN'));
   });
   return cols;
 }
@@ -244,9 +294,11 @@ function step1RenderKnowledgeColumns(columns) {
   if (!container) return;
   container.innerHTML = '';
   _s1KnowledgeColumnSeq = 0;
-  const list = (columns && columns.length) ? columns : _s1DefaultKnowledgeColumns;
+  const list = (columns && columns.length)
+    ? localizeKnowledgeColumns(columns)
+    : localizeKnowledgeColumns(_s1DefaultKnowledgeColumns);
   if (!list.length) {
-    step1AddKnowledgeColumn('具体方法', 1);
+    step1AddKnowledgeColumn(localizeKnowledgeColumn('具体方法'), 1);
     return;
   }
   list.forEach((name, i) => step1AddKnowledgeColumn(name, i + 1));
@@ -256,9 +308,9 @@ function step1RenderKnowledgeColumns(columns) {
 function step1ResetKnowledgeColumns() {
   const fmt = document.getElementById('s1-output-format')?.value || 'excel';
   if (fmt === 'markdown' && _s1RichMarkdownColumns.length) {
-    step1RenderKnowledgeColumns(_s1RichMarkdownColumns);
+    step1RenderKnowledgeColumns(localizeKnowledgeColumns(_s1RichMarkdownColumns));
   } else {
-    step1RenderKnowledgeColumns(_s1DefaultKnowledgeColumns);
+    step1RenderKnowledgeColumns(localizeKnowledgeColumns(_s1DefaultKnowledgeColumns));
   }
   scheduleFormSave(1);
 }
@@ -764,10 +816,10 @@ function updateStep2Readiness() {
   var ready = !!currentPipeline && !!model && (hasFiles || hasText);
   btn.disabled = !ready;
 
-  if (!currentPipeline) { renderStepReadiness('s2-readiness', '请先从总览进入一条流水线后再执行', 'warn'); return; }
-  if (!model)           { renderStepReadiness('s2-readiness', '请先配置并选择模型', 'warn'); return; }
-  if (!hasFiles && !hasText) { renderStepReadiness('s2-readiness', '请至少上传一个文件或填入文本来源', 'warn'); return; }
-  renderStepReadiness('s2-readiness', '已就绪：可执行知识萃取', 'ok');
+  if (!currentPipeline) { renderStepReadiness('s2-readiness', t('step2_no_pipeline'), 'warn'); return; }
+  if (!model)           { renderStepReadiness('s2-readiness', t('step2_no_model'), 'warn'); return; }
+  if (!hasFiles && !hasText) { renderStepReadiness('s2-readiness', t('step2_no_source'), 'warn'); return; }
+  renderStepReadiness('s2-readiness', t('step2_ready'), 'ok');
 }
 
 async function loadStep2KbHint() {
@@ -782,9 +834,9 @@ async function loadStep2KbHint() {
     var resp = await fetch(API_BASE + '/api/kb/entries?' + params.toString());
     var data = await resp.json();
     if (data.status === 'ok' && data.total > 0) {
-      hintEl.textContent = '知识库已有 ' + data.total + ' 条相关知识，勾选后将与新萃取结果融合去重';
+      hintEl.textContent = t('kb_hint_has_entries').replace('{count}', data.total);
     } else {
-      hintEl.textContent = '知识库暂无相关沉淀（首条流水线发布后可供后续继承）';
+      hintEl.textContent = t('kb_hint_no_entries');
     }
   } catch (e) { hintEl.textContent = ''; }
 }
@@ -866,6 +918,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // 初始化列宽拖动调节
   if (App.initResizableColumns) { setTimeout(App.initResizableColumns, 300); }
 });
+
+window.onAppLangChange = function(lang) {
+  step1SyncKnowledgeColumnLanguage(lang);
+};
 
 /* ===== Navigation ===== */
 document.querySelectorAll('.step-btn').forEach(btn => {
@@ -1182,7 +1238,7 @@ function renderOutput(containerId, html) {
 }
 function renderLoading(containerId) {
   var el = document.getElementById(containerId);
-  if (el) { el.style.display = ''; el.innerHTML = '<div class="loading"><div class="spinner"></div>处理中...</div>'; }
+  if (el) { el.style.display = ''; el.innerHTML = '<div class="loading"><div class="spinner"></div>' + t('loading') + '</div>'; }
 }
 function renderError(containerId, msg) {
   renderOutput(containerId, '<div class="error-list"><div class="error-item">' + escapeHtml(msg || '未知错误') + '</div></div>');
@@ -3605,6 +3661,18 @@ async function loadPipelineOverview() {
 
     const pipelines = data.pipelines || [];
 
+    const PIPELINES_PER_PAGE = 20;
+    if (typeof overviewPage === 'undefined') { overviewPage = 1; }
+    let currentPage = overviewPage;
+    const sorted = [...pipelines].sort(function(a, b) {
+      var aDone = (Object.values(resolveStepStatus(a.step_status, a.step_data)).filter(function(v) { return v === 'done'; }).length >= MAX_STEP);
+      var bDone = (Object.values(resolveStepStatus(b.step_status, b.step_data)).filter(function(v) { return v === 'done'; }).length >= MAX_STEP);
+      return aDone ? (bDone ? 0 : 1) : (bDone ? -1 : 0);
+    });
+    const totalPages = Math.ceil(sorted.length / PIPELINES_PER_PAGE) || 1;
+    const pageStart = (currentPage - 1) * PIPELINES_PER_PAGE;
+    const pageItems = sorted.slice(pageStart, pageStart + PIPELINES_PER_PAGE);
+
     let html = '<div class="pipeline-overview">';
 
     // Banner
@@ -3674,15 +3742,29 @@ async function loadPipelineOverview() {
     // Pipeline History
     html += '<div class="overview-history-header">';
     html += '<div class="overview-history-title">历史流水线</div>';
-    html += '<div class="overview-history-count">共 ' + pipelines.length + ' 条</div>';
+    html += '<div class="overview-history-count">共 ' + sorted.length + ' 条</div>';
     html += '</div>';
 
-    if (pipelines.length > 0) {
+    // Search / filter bar
+    html += '<div class="pipeline-search-bar">';
+    html += '<input type="text" id="pipeline-search-input" placeholder="搜索流水线名称、场景..." oninput="filterPipelineList(this.value)" class="pipeline-search-input">';
+    html += '</div>';
+
+    if (sorted.length > 0 && pageItems.length > 0) {
       html += '<div class="pipeline-list">';
-      pipelines.forEach(p => {
+      pageItems.forEach(function(p) {
         html += renderPipelineItem(p);
       });
       html += '</div>';
+
+      // Pagination controls
+      if (totalPages > 1) {
+        html += '<div class="pagination">';
+        html += '<button class="pagination-btn" onclick="changePage(' + Math.max(1, currentPage - 1) + ')\"' + (currentPage <= 1 ? ' disabled' : '') + '>&#9664; 上一页</button>';
+        html += '<span class="pagination-info">第 ' + currentPage + ' / ' + totalPages + ' 页</span>';
+        html += '<button class="pagination-btn" onclick="changePage(' + Math.min(totalPages, currentPage + 1) + ')\"' + (currentPage >= totalPages ? ' disabled' : '') + '>下一页 &#9654;</button>';
+        html += '</div>';
+      }
     } else {
       html += '<div class="pipeline-empty">';
       html += '<div class="pipeline-empty-icon">📋</div>';
@@ -3696,6 +3778,27 @@ async function loadPipelineOverview() {
   } catch (e) {
     container.innerHTML = '<div class="pipeline-overview"><div class="error-list"><div class="error-item">加载失败: ' + escapeHtml(e.message) + '</div></div></div>';
   }
+}
+
+// ── Pagination & Search for Pipeline Overview ──
+var overviewPage = 1;
+
+function changePage(page) {
+  overviewPage = page;
+  loadPipelineOverview();
+}
+
+function filterPipelineList(query) {
+  const container = document.getElementById('pipeline-list-container');
+  if (!container) return;
+  const items = container.querySelectorAll('.pipeline-item');
+  query = query.toLowerCase().trim();
+  items.forEach(function(item) {
+    const name = (item.querySelector('.pipeline-item-name') || {}).textContent || '';
+    const scenario = (item.querySelector('.pipeline-item-scenario') || {}).textContent || '';
+    const match = !query || name.toLowerCase().indexOf(query) !== -1 || scenario.toLowerCase().indexOf(query) !== -1;
+    item.style.display = match ? '' : 'none';
+  });
 }
 
 function stepHasProduct(sd, step) {
@@ -3760,7 +3863,7 @@ function renderPipelineItem(p) {
   html += '<div class="pipeline-progress">';
   for (let i = 1; i <= MAX_STEP; i++) {
     const status = ss[String(i)] || 'pending';
-    html += '<div class="pipeline-progress-step ' + status + '" title="' + STEP_NAMES[i] + '"></div>';
+    html += '<div class="pipeline-progress-step ' + status + '" title="' + escapeHtml(getStepName(i)) + '"></div>';
   }
   html += '</div>';
 
@@ -3768,7 +3871,7 @@ function renderPipelineItem(p) {
   html += '<div class="pipeline-step-badges">';
   for (let i = 1; i <= MAX_STEP; i++) {
     const status = ss[String(i)] || 'pending';
-    const label = String(i).padStart(2, '0') + ' ' + STEP_NAMES[i];
+    const label = String(i).padStart(2, '0') + ' ' + getStepName(i);
     const icon = status === 'done' ? '&#10003;' : status === 'active' ? '&#9654;' : '&#9675;';
     html += '<span class="pipeline-step-badge ' + status + '">' + icon + ' ' + label + '</span>';
   }
