@@ -69,6 +69,12 @@ def resolve_locale(
     header_lang: str | None = None,
     pipeline_locale: str | None = None,
 ) -> str:
+    """Resolve the best-supported language from the provided candidates.
+
+    Priority order: query_lang > pipeline_locale > header_lang > DEFAULT_LANG.
+    Candidates are normalized to lowercase before matching. Any prefix starting
+    with "en" maps to "en", and any prefix starting with "zh" maps to "zh-CN".
+    """
     for candidate in (query_lang, pipeline_locale, header_lang):
         if candidate:
             normalized = candidate.split(",")[0].strip().lower()
@@ -82,6 +88,13 @@ def resolve_locale(
 
 
 def t(key: str, lang: str = DEFAULT_LANG, **kwargs: Any) -> str:
+    """Return the translation for ``key`` in ``lang``.
+
+    Falls back to ``DEFAULT_LANG`` if ``lang`` is unsupported, and falls back to
+    ``key`` itself if the key is missing. Keyword arguments are passed to
+    ``str.format``; if a placeholder is missing, the unformatted template is
+    returned.
+    """
     lang = lang if lang in SUPPORTED_LANGS else DEFAULT_LANG
     message = _MESSAGES.get(lang, _MESSAGES[DEFAULT_LANG]).get(key, key)
     if kwargs:
@@ -93,10 +106,21 @@ def t(key: str, lang: str = DEFAULT_LANG, **kwargs: Any) -> str:
 
 
 def add_messages(lang: str, messages: dict[str, str]) -> None:
+    """Add or update translations for a supported language.
+
+    Raises:
+        ValueError: If ``lang`` is not in ``SUPPORTED_LANGS``.
+    """
+    if lang not in SUPPORTED_LANGS:
+        raise ValueError(f"Unsupported language: {lang!r}")
     if lang not in _MESSAGES:
         _MESSAGES[lang] = {}
     _MESSAGES[lang].update(messages)
 
 
 def get_messages(lang: str) -> dict[str, str]:
+    """Return a shallow copy of the messages for ``lang``.
+
+    Returns an empty dict if ``lang`` has no registered messages.
+    """
     return dict(_MESSAGES.get(lang, {}))
