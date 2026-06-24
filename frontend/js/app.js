@@ -1157,6 +1157,12 @@ function switchPanel(step) {
     const fd = currentPipeline?.step_data?.step1_form_data || {};
     loadStep1SchemaAndTemplates(fd.legacy_template || fd.default_template || '', fd.knowledge_columns);
     restoreStep1Output();
+    // 进入 Step1 时重置生成按钮状态，防止上次请求中断导致按钮被永久锁定
+    const s1GenerateBtn = document.getElementById('s1-generate');
+    if (s1GenerateBtn) {
+      s1GenerateBtn.disabled = false;
+      s1GenerateBtn._locked = false;
+    }
   }
 
   // Auto-load previous step output（先刷新流水线再检测上一步产出）
@@ -2140,7 +2146,13 @@ function step1GetSubScenarios() {
 
 async function step1Generate() {
   const btn = document.getElementById('s1-generate');
-  if (!btn || btn._locked) return;
+  if (!btn) return;
+  // 防御：若之前请求因页面刷新/异常中断导致锁标记残留，但按钮已恢复可用，则强制清除
+  if (btn._locked && !btn.disabled) {
+    console.warn('[step1Generate] clear stale _locked flag on enabled button');
+    btn._locked = false;
+  }
+  if (btn._locked) return;
   btn.disabled = true;
   btn._locked = true;
   try {
