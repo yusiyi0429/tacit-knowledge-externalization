@@ -93,6 +93,100 @@ def test_css_english_diff_labels_present():
         assert rule in css, f"expected CSS to contain {rule!r}"
 
 
+def _extract_i18n_block(content, lang):
+    """Extract the top-level object body for a language key."""
+    # Match either quoted ('zh-CN') or bare (en) keys.
+    prefix = re.escape(lang) if lang in ("'zh-CN'", "en") else re.escape(lang)
+    pattern = re.compile(rf"{prefix}\s*:\s*{{", re.S)
+    m = pattern.search(content)
+    if not m:
+        raise ValueError(f"Could not find language block {lang!r}")
+    start = m.end() - 1
+    balance = 0
+    i = start
+    in_str = False
+    esc = False
+    start_quote = None
+    while i < len(content):
+        ch = content[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif start_quote is not None and ch == content[start_quote]:
+                in_str = False
+                start_quote = None
+        else:
+            if ch in ('"', "'", "`"):
+                in_str = True
+                start_quote = i
+            elif ch == "{":
+                balance += 1
+            elif ch == "}":
+                balance -= 1
+                if balance == 0:
+                    return content[start + 1 : i]
+        i += 1
+    raise ValueError(f"Unterminated language block {lang!r}")
+
+
+def _parse_js_string_keys(block):
+    """Return {key: raw_string_value} for simple string literals in a JS object body."""
+    result = {}
+    # Single-quoted values
+    for m in re.finditer(r"(\w+):\s*'((?:[^'\\]|\\.)*)'", block):
+        result[m.group(1)] = m.group(2)
+    # Double-quoted values
+    for m in re.finditer(r'(\w+):\s*"((?:[^"\\]|\\.)*)"', block):
+        result[m.group(1)] = m.group(2)
+    return result
+
+
+def _collect_runtime_i18n_keys():
+    """Collect keys used via App.I18n.t('key', 'fallback') or t('key', 'fallback') in JS."""
+    keys = {}
+    js_dir = os.path.join(FRONTEND_DIR, "js")
+    for filename in os.listdir(js_dir):
+        if not filename.endswith(".js") or filename == "i18n.js":
+            continue
+        path = os.path.join(js_dir, filename)
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        for m in re.finditer(
+            r"(?:App\.I18n\.)?(?<![A-Za-z0-9_])t\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"]([^'\"]*)['\"]\s*\)",
+            content,
+        ):
+            keys[m.group(1)] = {"file": filename, "fallback": m.group(2)}
+    return keys
+
+
+def test_js_i18n_keys_have_translations():
+    i18n_path = os.path.join(FRONTEND_DIR, "js", "i18n.js")
+    with open(i18n_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    zh = _parse_js_string_keys(_extract_i18n_block(content, "'zh-CN'"))
+    en = _parse_js_string_keys(_extract_i18n_block(content, "en"))
+    runtime_keys = _collect_runtime_i18n_keys()
+    missing_zh = [k for k in runtime_keys if k not in zh]
+    missing_en = [k for k in runtime_keys if k not in en]
+    assert not missing_zh, f"Runtime i18n keys missing in zh-CN: {missing_zh}"
+    assert not missing_en, f"Runtime i18n keys missing in en: {missing_en}"
+
+
+def test_english_i18n_values_no_unexpected_cjk():
+    i18n_path = os.path.join(FRONTEND_DIR, "js", "i18n.js")
+    with open(i18n_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    en = _parse_js_string_keys(_extract_i18n_block(content, "en"))
+    # Bilingual UI labels are intentionally allowed to contain CJK.
+    whitelist = {"lang_toggle", "lang_toggle_title"}
+    offenders = [
+        (k, v) for k, v in en.items() if re.search(r"[\u4e00-\u9fff]", v) and k not in whitelist
+    ]
+    assert not offenders, f"English i18n values contain unexpected CJK: {offenders[:20]}"
+
+
 def test_no_unwrapped_chinese_labels():
     proc = subprocess.Popen(
         # -u ensures http.server prints its "Serving HTTP ..." line immediately.

@@ -57,7 +57,7 @@ function selectStep2Skill(skillId) {
 
   // 更新按钮文字
   var btnText = document.getElementById('s2-btn-text');
-  if (btnText) btnText.textContent = '执行知识萃取';
+  if (btnText) btnText.textContent = t('step2_execute', '执行知识萃取');
 
   updateStep2Readiness();
 }
@@ -267,8 +267,8 @@ function step1AddKnowledgeColumn(name, idx) {
   div.className = 's1-k-col-row';
   div.id = 's1-k-col-' + i;
   div.innerHTML =
-    '<input type="text" class="s1-k-col-input" placeholder="如：具体方法、判断逻辑" value="' + escapeHtml(name || '') + '">' +
-    '<button type="button" class="btn btn--ghost btn--sm s1-k-col-remove" onclick="step1RemoveKnowledgeColumn(' + i + ')" title="删除"><span class="btn__icon" data-lucide="x"></span></button>';
+    '<input type="text" class="s1-k-col-input" placeholder="' + t('placeholder_knowledge_column', '如：具体方法、判断逻辑') + '" value="' + escapeHtml(name || '') + '">' +
+    '<button type="button" class="btn btn--ghost btn--sm s1-k-col-remove" onclick="step1RemoveKnowledgeColumn(' + i + ')" title="' + t('delete', '删除') + '"><span class="btn__icon" data-lucide="x"></span></button>';
   container.appendChild(div);
   refreshIcons();
 }
@@ -329,11 +329,11 @@ async function loadStep1SchemaAndTemplates(preferredLegacyTemplate, preferredKno
       _s1RichMarkdownColumns = _s1DefaultKnowledgeColumns.slice();
     }
     if (legacySelect) {
-      legacySelect.innerHTML = '<option value="">不使用（按上方自定义列生成）</option>';
+      legacySelect.innerHTML = '<option value="">' + t('no_template', '不使用（按上方自定义列生成）') + '</option>';
       (data.templates || []).forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.name || '';
-        opt.textContent = t.label || t.name || '未命名模板';
+        opt.textContent = t.label || t.name || t('step1_unnamed_template', '未命名模板');
         legacySelect.appendChild(opt);
       });
       if (preferredLegacyTemplate && Array.from(legacySelect.options).some(o => o.value === preferredLegacyTemplate)) {
@@ -376,7 +376,7 @@ async function cacheUploadedFile(step, inputEl, fileNameEl) {
         ['step' + step + '_cached_file']: data.file_name,
         ['step' + step + '_cached_name']: file.name,
       });
-      if (fileNameEl) fileNameEl.textContent = file.name + '（已缓存）';
+      if (fileNameEl) fileNameEl.textContent = file.name + t('step2_cached', '（已缓存）');
     }
   } catch (e) {
     console.warn('cache upload failed:', e);
@@ -388,11 +388,11 @@ function refreshCachedUploadLabels(step) {
   const sd = currentPipeline.step_data;
   if (!step || step === 2) {
     const el = document.getElementById('s2-file-name');
-    if (el && !el.textContent && sd.step2_cached_name) el.textContent = sd.step2_cached_name + '（已缓存）';
+    if (el && !el.textContent && sd.step2_cached_name) el.textContent = sd.step2_cached_name + t('step2_cached', '（已缓存）');
   }
   if (!step || step === 3) {
     const el = document.getElementById('s3-file-name');
-    if (el && !el.textContent && sd.step3_cached_name) el.textContent = sd.step3_cached_name + '（已缓存）';
+    if (el && !el.textContent && sd.step3_cached_name) el.textContent = sd.step3_cached_name + t('step2_cached', '（已缓存）');
   }
 }
 
@@ -596,14 +596,14 @@ function _autoSaveUI(state) {
   if (!el || !txt) return;
   clearTimeout(_autoSaveTimer);
   el.className = 'auto-save-indicator ' + state + ' visible';
-  if (state === 'saving') { txt.textContent = '保存中...'; }
+  if (state === 'saving') { txt.textContent = t('saving', '保存中...'); }
   else if (state === 'saved') {
     var now = new Date();
-    txt.textContent = '已保存 ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    txt.textContent = t('saved', '已保存') + ' ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
     _autoSaveTimer = setTimeout(function () { el.classList.remove('visible'); }, 3000);
   }
   else if (state === 'failed') {
-    txt.textContent = '保存失败，点击重试';
+    txt.textContent = t('save_failed', '保存失败') + '，点击重试';
     el.onclick = function () { scheduleFormSave(currentStep); };
   }
   else {
@@ -632,9 +632,9 @@ function addStep2TextRow() {
   if (!container) return;
   var row = document.createElement('div');
   row.className = 's2-text-input-row';
-  row.innerHTML = '<input class="s2-text-input-label" placeholder="来源标注（如：制度文件A）">'
-    + '<textarea class="s2-text-input-content" rows="2" placeholder="粘贴文档内容..."></textarea>'
-    + renderBtn({ variant: 'ghost', size: 'sm', icon: 'x', cls: 's2-text-input-remove', attrs: 'onclick="this.parentElement.remove();updateStep2Readiness()" title="移除"' });
+  row.innerHTML = '<input class="s2-text-input-label" placeholder="' + t('source_label_placeholder', '来源标注（如：制度文件A）') + '">'
+    + '<textarea class="s2-text-input-content" rows="2" placeholder="' + t('paste_content_placeholder', '粘贴文档内容...') + '"></textarea>'
+    + renderBtn({ variant: 'ghost', size: 'sm', icon: 'x', cls: 's2-text-input-remove', attrs: 'onclick="this.parentElement.remove();updateStep2Readiness()" title="' + t('remove_title', '移除') + '"' });
   container.appendChild(row);
   refreshIcons();
 }
@@ -655,13 +655,13 @@ function step2Execute() {
   var btn = document.getElementById('s2-skill-extract');
   if (!btn || btn._locked) return;
   var model = resolveModelName('s2-model');
-  if (!currentPipeline || !model) { updateStep2Readiness(); showToast('请先补全执行条件', 'error'); return; }
+  if (!currentPipeline || !model) { updateStep2Readiness(); showToast(t('step2_readiness_default', '请先补全执行条件'), 'error'); return; }
 
   btn._locked = true;
   btn.disabled = true;
   var origBtnHtml = btn.innerHTML;
   btn.classList.add('loading');
-  btn.innerHTML = '执行中<span class="btn-estimate">· 通常 10-60s</span>';
+  btn.innerHTML = t('step2_executing', '执行中') + '<span class="btn-estimate">' + t('step2_estimate', '· 通常 10-60s') + '</span>';
   clearTimeout(_formSaveTimer);
   renderLoading('s2-output');
 
@@ -695,7 +695,7 @@ function step2Execute() {
   }
 
   if (!hasFiles && textInputs.length === 0) {
-    showToast('请至少上传一个文件或填入文本来源', 'error');
+    showToast(t('step2_no_source', '请至少上传一个文件或填入文本来源'), 'error');
     btn.disabled = false; btn.innerHTML = origBtnHtml; btn._locked = false;
     return;
   }
@@ -707,8 +707,8 @@ function step2Execute() {
       try { result = JSON.parse(text); } catch (e) { result = { raw: text }; }
 
       if (result.status !== 'ok') {
-        showToast(result.error || '萃取失败', 'error');
-        renderOutput('s2-output', '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '萃取失败') + '</div></div>');
+        showToast(result.error || t('step2_extract_failed', '萃取失败'), 'error');
+        renderOutput('s2-output', '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || t('step2_extract_failed', '萃取失败')) + '</div></div>');
         return;
       }
 
@@ -746,20 +746,20 @@ function step2Execute() {
       }
 
       var html = '<div class="s2-result-success">';
-      html += '<div class="s2-result-header">知识萃取完成</div>';
-      html += '<div class="s2-result-meta">共提取 <strong>' + extractedCount + '</strong> 条知识';
-      if (sourceCount > 1) html += ' · ' + sourceCount + ' 源 · 去重 ' + dedupCount;
-      if (result.skill_draft_file) html += ' · 已生成 <strong>Skill 草稿 v' + (result.skill_draft_version || 1) + '</strong>';
+      html += '<div class="s2-result-header">' + t('step2_complete', '知识萃取完成') + '</div>';
+      html += '<div class="s2-result-meta">' + t('step2_extracted_count', '共提取 {count} 条知识').replace('{count}', '<strong>' + extractedCount + '</strong>');
+      if (sourceCount > 1) html += ' · ' + t('step2_source_count', '{count} 源').replace('{count}', sourceCount) + ' · ' + t('step2_dedup_count', '去重 {count}').replace('{count}', dedupCount);
+      if (result.skill_draft_file) html += ' · ' + t('step2_skill_draft_generated', '已生成 <strong>Skill 草稿 v{version}</strong>').replace('{version}', result.skill_draft_version || 1);
       html += '</div>';
 
       // Skill 草稿卡片（流水线主产物）
       if (result.skill_draft_file) {
         html += '<div class="signal-review-panel" style="margin-top:12px;display:block;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
-        html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">&#129518; Skill 草稿 v' + (result.skill_draft_version || 1) + '（初版，待专家对齐）</div>';
+        html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">&#129518; ' + t('step2_skill_draft', 'Skill 草稿 v{version}').replace('{version}', result.skill_draft_version || 1) + t('step2_skill_draft_initial', '（初版，待专家对齐）') + '</div>';
         html += '<div class="s2-result-actions">';
-        if (result.skill_draft_md_file) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.skill_draft_md_file) + '\',\'Skill 草稿预览 (v' + (result.skill_draft_version || 1) + ')\')">预览 Skill 草稿</button>';
-        if (result.skill_draft_md_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.skill_draft_md_url + '" download>下载草稿 Markdown</a>';
-        if (result.skill_draft_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.skill_draft_url + '" download>下载草稿 JSON (IR)</a>';
+        if (result.skill_draft_md_file) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(result.skill_draft_md_file) + '\',\'Skill 草稿预览 (v' + (result.skill_draft_version || 1) + ')\')">' + t('step2_preview_draft', '预览 Skill 草稿') + '</button>';
+        if (result.skill_draft_md_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.skill_draft_md_url + '" download>' + t('step2_download_draft_md', '下载草稿 Markdown') + '</a>';
+        if (result.skill_draft_url) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.skill_draft_url + '" download>' + t('step2_download_draft_json', '下载草稿 JSON (IR)') + '</a>';
         html += '</div></div>';
       }
 
@@ -767,18 +767,18 @@ function step2Execute() {
       if (result.signal_report && typeof result.signal_report === 'object') {
         var sr = result.signal_report;
         html += '<div class="signal-review-panel" style="margin-top:12px;display:block;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
-        html += '<div class="signal-review-header" style="margin-bottom:8px;"><div class="signal-review-title" style="font-size:13px;font-weight:700;">&#128226; 信号报告</div></div>';
+        html += '<div class="signal-review-header" style="margin-bottom:8px;"><div class="signal-review-title" style="font-size:13px;font-weight:700;">&#128226; ' + t('step2_signal_report', '信号报告') + '</div></div>';
         html += '<div class="signal-stats-grid">';
-        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.boundary_blur != null ? sr.boundary_blur : '-') + '</span><span class="signal-stat-label">边界模糊</span></div>';
-        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.island != null ? sr.island : '-') + '</span><span class="signal-stat-label">知识孤岛</span></div>';
-        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.low_consensus != null ? sr.low_consensus : '-') + '</span><span class="signal-stat-label">共识度低</span></div>';
-        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.conflict != null ? sr.conflict : '-') + '</span><span class="signal-stat-label">冲突</span></div>';
+        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.boundary_blur != null ? sr.boundary_blur : '-') + '</span><span class="signal-stat-label">' + t('step2_signal_boundary_blur', '边界模糊') + '</span></div>';
+        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.island != null ? sr.island : '-') + '</span><span class="signal-stat-label">' + t('step2_signal_island', '知识孤岛') + '</span></div>';
+        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.low_consensus != null ? sr.low_consensus : '-') + '</span><span class="signal-stat-label">' + t('step2_signal_lowconf', '共识度低') + '</span></div>';
+        html += '<div class="signal-stat-card"><span class="signal-stat-num">' + (sr.conflict != null ? sr.conflict : '-') + '</span><span class="signal-stat-label">' + t('step2_signal_conflict', '冲突') + '</span></div>';
         html += '</div></div>';
       }
 
       html += '<div class="s2-result-actions" style="margin-top:12px;">';
       if (mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
-      if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
+      if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>' + t('step3_download_md', '下载 Markdown') + '</a>';
       html += '</div>';
       html += '</div>';
 
@@ -786,7 +786,7 @@ function step2Execute() {
       try { await markStepDone(2); } catch(e) { console.error('markStepDone failed:', e); }
     })
     .catch(function (e) {
-      showToast('网络错误: ' + e.message, 'error');
+      showToast(t('toast_network_error', '网络错误') + ': ' + e.message, 'error');
       renderOutput('s2-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
     })
     .finally(function () {
@@ -849,19 +849,19 @@ function updateStep3AlignModeHint() {
   const btn = document.getElementById('s3-revise-btn');
   if (!btn) return;
   if (!text.trim() && !hasMaterial) {
-    btn.innerHTML = renderBtnChildren({ icon: 'check', text: '无意见直通生成对齐稿' });
-    renderStepReadiness('s3-align-hint', '未填写意见：将直接按预萃稿生成对齐稿（无修订）', 'info');
+    btn.innerHTML = renderBtnChildren({ icon: 'check', text: t('step3_no_opinion_pass', '无意见直通生成对齐稿') });
+    renderStepReadiness('s3-align-hint', t('step3_no_opinion_hint', '未填写意见：将直接按预萃稿生成对齐稿（无修订）'), 'info');
     refreshIcons();
     return;
   }
   if (step3LooksLikeNoOpinion(text) && !hasMaterial) {
-    btn.innerHTML = renderBtnChildren({ icon: 'check', text: '按当前稿生成对齐稿' });
-    renderStepReadiness('s3-align-hint', '检测到“无修订”表达：将自动确认当前稿为对齐稿', 'info');
+    btn.innerHTML = renderBtnChildren({ icon: 'check', text: t('step3_generate_from_current', '按当前稿生成对齐稿') });
+    renderStepReadiness('s3-align-hint', t('step3_no_revision_detected', '检测到“无修订”表达：将自动确认当前稿为对齐稿'), 'info');
     refreshIcons();
     return;
   }
-  btn.innerHTML = renderBtnChildren({ icon: 'settings-2', text: '发送并智能修订' });
-  renderStepReadiness('s3-align-hint', '已检测到专家意见/材料：将按意见生成修订建议', 'ok');
+  btn.innerHTML = renderBtnChildren({ icon: 'settings-2', text: t('send_revise', '发送并智能修订') });
+  renderStepReadiness('s3-align-hint', t('step3_has_opinion', '已检测到专家意见/材料：将按意见生成修订建议'), 'ok');
   refreshIcons();
 }
 
@@ -970,11 +970,11 @@ function renderPipelineProgressSummary(currentPanelStep) {
   }
   const status = currentPipeline.step_status || {};
   const steps = [
-    { n: 1, label: '场景锚定' },
-    { n: 2, label: '知识萃取' },
-    { n: 3, label: '知识对齐' },
-    { n: 4, label: '智能转化' },
-    { n: 5, label: '验证回放' },
+    { n: 1, label: t('step1_name', '场景锚定') },
+    { n: 2, label: t('step2_name', '知识萃取') },
+    { n: 3, label: t('step3_name', '知识对齐') },
+    { n: 4, label: t('step4_name', '智能转化') },
+    { n: 5, label: t('step5_name', '验证回放') },
   ];
   var html = '<div class="pipeline-progress-summary">';
   steps.forEach(function (s, i) {
@@ -1019,13 +1019,13 @@ function restoreStep2Output() {
         }
         document.getElementById('s2-md-preview').innerHTML = html;
         if (mdUrl) {
-          document.getElementById('s2-actions').innerHTML = '<a class="btn btn--primary btn--sm" href="' + API_BASE + mdUrl + '" download>下载 SKILL.md</a>';
+          document.getElementById('s2-actions').innerHTML = '<a class="btn btn--primary btn--sm" href="' + API_BASE + mdUrl + '" download>' + t('step2_download_skill_md', '下载 SKILL.md') + '</a>';
         }
       })
       .catch(function () {
-        document.getElementById('s2-md-preview').innerHTML = '<div class="s2-result-success"><div class="s2-result-header">SKILL.md 已生成</div></div>';
+        document.getElementById('s2-md-preview').innerHTML = '<div class="s2-result-success"><div class="s2-result-header">' + t('step2_md_generated', 'SKILL.md 已生成') + '</div></div>';
         if (mdUrl) {
-          document.getElementById('s2-actions').innerHTML = '<a class="btn btn--primary btn--sm" href="' + API_BASE + mdUrl + '" download>下载 SKILL.md</a>';
+          document.getElementById('s2-actions').innerHTML = '<a class="btn btn--primary btn--sm" href="' + API_BASE + mdUrl + '" download>' + t('step2_download_skill_md', '下载 SKILL.md') + '</a>';
         }
       });
   }
@@ -1052,13 +1052,13 @@ function restoreStep3Output() {
   }
 
   let html = '';
-  html += '<div class="align-result-header"><span>&#10003;</span> 知识对齐完成</div>';
-  html += '<div class="align-result-meta">已生成对齐稿（共处理 ' + (sd.step3_final_count || 0) + ' 处修订）</div>';
+  html += '<div class="align-result-header"><span>&#10003;</span> ' + t('step3_complete', '知识对齐完成') + '</div>';
+  html += '<div class="align-result-meta">' + t('step3_revision_count', '已生成对齐稿（共处理 {count} 处修订）').replace('{count}', sd.step3_final_count || 0) + '</div>';
   html += '<div class="align-result-actions">';
   if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
   if (!mdFlow && mdName) html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-  if (mdUrl) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>下载 Markdown</a>';
-  html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">重新对齐</button>';
+  if (mdUrl) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>' + t('step3_download_md', '下载 Markdown') + '</a>';
+  html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">' + t('step3_re_align', '重新对齐') + '</button>';
   html += '</div>';
   resultCard.innerHTML = html;
 }
@@ -1069,13 +1069,13 @@ function restoreStep4Output() {
 
   // New contract: step4_skill_dir_zip_file + step4_step5_input_file
   if (sd.step4_skill_dir_zip_file) {
-    var html = '<div class="s2-result-success"><div class="s2-result-header">编译完成</div><div class="s2-result-meta">版本 ' + (sd.step4_published_version || '') + '</div></div>';
+    var html = '<div class="s2-result-success"><div class="s2-result-header">' + t('step4_compile_complete', '编译完成') + '</div><div class="s2-result-meta">' + t('version', '版本') + ' ' + (sd.step4_published_version || '') + '</div></div>';
     html += '<div class="s4-downloads">';
     if (sd.step4_skill_dir_zip_file) {
-      html += '<a class="s4-download-link" href="' + API_BASE + (sd.step4_skill_dir_zip_url || '/downloads/' + sd.step4_skill_dir_zip_file) + '" download>Agent-Skill 可执行包 (.zip)</a>';
+      html += '<a class="s4-download-link" href="' + API_BASE + (sd.step4_skill_dir_zip_url || '/downloads/' + sd.step4_skill_dir_zip_file) + '" download>' + t('step4_agent_skill_package', 'Agent-Skill 可执行包 (.zip)') + '</a>';
     }
     if (sd.step4_step5_input_file) {
-      html += '<a class="s4-download-link" href="' + API_BASE + (sd.step4_step5_input_url || '/downloads/' + sd.step4_step5_input_file) + '" download>Step5 验证输入 (.json)</a>';
+      html += '<a class="s4-download-link" href="' + API_BASE + (sd.step4_step5_input_url || '/downloads/' + sd.step4_step5_input_file) + '" download>' + t('step4_validation_input', 'Step5 验证输入 (.json)') + '</a>';
     }
     html += '</div>';
     document.getElementById('s4-output').innerHTML = html;
@@ -1084,7 +1084,7 @@ function restoreStep4Output() {
 
   // Fallback: check old contract
   if (sd.step4_download_url || sd.step4_compile_result) {
-    document.getElementById('s4-output').innerHTML = '<div class="s2-result-success"><div class="s2-result-header">交付包已生成</div></div>';
+    document.getElementById('s4-output').innerHTML = '<div class="s2-result-success"><div class="s2-result-header">' + t('step4_package_generated', '交付包已生成') + '</div></div>';
     return;
   }
 }
@@ -1101,14 +1101,14 @@ function restoreStep5Output() {
     html += '<div class="s5-metric"><span class="s5-metric-label">F1</span><span class="s5-metric-value">' + (sd.step5_f1 != null ? sd.step5_f1 : '-') + '</span></div>';
     html += '</div>';
     var reportUrl = sd.step5_report_url || ('/downloads/' + sd.step5_report_file);
-    html += '<a class="s4-download-link" href="' + API_BASE + reportUrl + '" download>验证报告 (.json)</a>';
+    html += '<a class="s4-download-link" href="' + API_BASE + reportUrl + '" download>' + t('step4_validation_report', '验证报告 (.json)') + '</a>';
     document.getElementById('s5-output').innerHTML = html;
     return;
   }
 
   // Fallback: old hit_rate contract
   if (sd.step5_run_id && sd.step5_hit_rate != null) {
-    document.getElementById('s5-output').innerHTML = '<div class="s2-result-success">已执行验证回放（旧版）</div>';
+    document.getElementById('s5-output').innerHTML = '<div class="s2-result-success">' + t('step5_legacy_replay', '已执行验证回放（旧版）') + '</div>';
     return;
   }
 }
@@ -1130,7 +1130,7 @@ function switchPanel(step) {
   if (step === 0) {
     // Overview mode: hide step nav
     navSteps.classList.remove('visible');
-    brandEl.textContent = '隐性知识显性化 · 五步法';
+    brandEl.textContent = t('nav_brand', '隐性知识显性化 · 五步法');
     loadPipelineOverview();
   } else {
     // Pipeline mode: show step nav with progress
@@ -1169,7 +1169,7 @@ function switchPanel(step) {
   if (step === 2) {
     if (currentPipeline) {
       const s2Prev = document.getElementById('s2-prev-output-area');
-      if (s2Prev) s2Prev.innerHTML = '<div class="loading" style="padding:12px;"><div class="spinner"></div>加载上一步产出...</div>';
+      if (s2Prev) s2Prev.innerHTML = '<div class="loading" style="padding:12px;"><div class="spinner"></div>' + t('loading_prev_output', '加载上一步产出...') + '</div>';
       refreshCurrentPipeline().then(() => {
         loadStep2PrevOutput();
         updateStep2Readiness();
@@ -1197,7 +1197,7 @@ function switchPanel(step) {
     if (s4Draft) { s4Draft.style.display = 'block'; }
     if (s4Empty) { s4Empty.style.display = 'none'; }
     var s4Name = document.getElementById('s4-prev-name');
-    if (s4Name) s4Name.textContent = '加载中...';
+    if (s4Name) s4Name.textContent = t('loading', '加载中...');
     loadStep4PrevOutput();
     if (currentPipeline?.step_status?.['4'] === 'done') restoreStep4Output();
   }
@@ -1313,7 +1313,7 @@ async function apiCall(endpoint, formData, timeoutMs = 120000) {
     try { return JSON.parse(text); } catch { return { raw: text }; }
   } catch (e) {
     if (e.name === 'AbortError') {
-      return { status: 'error', error: '请求超时，请检查网络后重试' };
+      return { status: 'error', error: t('toast_network_error', '请求超时，请检查网络后重试') };
     }
     throw e;
   } finally {
@@ -1354,7 +1354,7 @@ async function apiCallJSON(endpoint, body, method = 'POST', timeoutMs = 0) {
     try { return JSON.parse(text); } catch { return { raw: text }; }
   } catch (e) {
     if (e.name === 'AbortError') {
-      return { status: 'error', error: '请求超时，请检查 API 地址与网络连通性' };
+      return { status: 'error', error: t('toast_network_error', '请求超时，请检查 API 地址与网络连通性') };
     }
     throw e;
   } finally {
@@ -1388,7 +1388,7 @@ async function markStepDone(step) {
 
 async function saveCurrentPipeline() {
   if (!currentPipeline) {
-    showToast('请先创建或进入一条流水线', 'error');
+    showToast(t('please_create_pipeline', '请先创建或进入一条流水线'), 'error');
     return;
   }
   try {
@@ -1411,13 +1411,13 @@ async function saveCurrentPipeline() {
       step_status: currentPipeline.step_status,
     });
     if (persistResult && persistResult.status === 'error') {
-      showToast(persistResult.error || '保存失败', 'error');
+      showToast(persistResult.error || t('toast_save_failed', '保存失败'), 'error');
     } else {
-      showToast('流水线已保存（含各步骤填写内容）');
+      showToast(t('save_success', '流水线已保存（含各步骤填写内容）'));
     }
   } catch (e) {
     console.error('Save failed:', e);
-    showToast('保存失败: ' + (e.message || e), 'error');
+    showToast(t('toast_save_failed', '保存失败') + ': ' + (e.message || e), 'error');
   }
 }
 
@@ -1470,11 +1470,11 @@ function resetAllStepFormInputs() {
 
 function clearCurrentPipeline() {
   if (!currentPipeline) return;
-  if (!confirm('确定要清空当前流水线所有数据吗？此操作不可撤销。')) return;
+  if (!confirm(t('clear_confirm', '确定要清空当前流水线所有数据吗？此操作不可撤销。'))) return;
   fetch(API_BASE + '/api/pipelines/' + currentPipeline.id + '/clear', {
     method: 'POST'
   }).then(r => r.json()).then(r => {
-    if (r.status !== 'ok') throw new Error(r.error || '清空失败');
+    if (r.status !== 'ok') throw new Error(r.error || t('clear_failed', '清空失败'));
     const pipelineId = currentPipeline.id;
     clearTimeout(_formSaveTimer);
 
@@ -1533,7 +1533,7 @@ function clearCurrentPipeline() {
       if (el) { el.innerHTML = ''; el.style.display = 'none'; }
     });
     const s2Prev = document.getElementById('s2-prev-output-area');
-    if (s2Prev) s2Prev.innerHTML = '<div class="s2-prev-empty">尚未检测到上一步输出，请先完成场景锚定</div>';
+    if (s2Prev) s2Prev.innerHTML = '<div class="s2-prev-empty">' + t('prev_output_empty', '尚未检测到上一步输出，请先完成场景锚定') + '</div>';
     const s3Info = document.getElementById('s3-prev-info');
     const s3Tags = document.getElementById('s3-prev-tags');
     if (s3Info) s3Info.innerHTML = '';
@@ -1562,11 +1562,11 @@ function clearCurrentPipeline() {
     if (s4Empty) s4Empty.style.display = 'flex';
 
     loadStep1SchemaAndTemplates();
-    showToast('流水线已清空');
+    showToast(t('pipeline_cleared', '流水线已清空'));
     goBackToOverview();
   }).catch(e => {
     console.error('Clear failed:', e);
-    showToast('清空失败', 'error');
+    showToast(t('clear_failed', '清空失败'), 'error');
   });
 }
 
@@ -1627,7 +1627,7 @@ const SKILL_META = {
 
 async function loadSkills() {
   const body = document.getElementById('skill-panel-body');
-  body.innerHTML = '<div class="skill-loading">加载中...</div>';
+  body.innerHTML = '<div class="skill-loading">' + t('skill_loading', '加载中...') + '</div>';
   try {
     const resp = await fetch(API_BASE + '/api/skills');
     const data = await resp.json();
@@ -1635,19 +1635,19 @@ async function loadSkills() {
       allSkills = data.skills || [];
       renderSkills(body);
     } else {
-      body.innerHTML = '<div class="skill-error">加载失败</div>';
+      body.innerHTML = '<div class="skill-error">' + t('skill_load_failed', '加载失败') + '</div>';
     }
   } catch (e) {
-    body.innerHTML = '<div class="skill-error">网络错误</div>';
+    body.innerHTML = '<div class="skill-error">' + t('skill_network_error', '网络错误') + '</div>';
   }
 }
 
 function renderSkills(container) {
   if (allSkills.length === 0) {
-    container.innerHTML = '<div class="skill-empty">暂无已注册的 Skill</div>';
+    container.innerHTML = '<div class="skill-empty">' + t('skill_empty', '暂无已注册的 Skill') + '</div>';
     return;
   }
-  let html = '<div class="skill-section"><div class="skill-section-header"><span>已注册技能</span><span style="font-weight:400;color:#aaa">' + allSkills.length + ' 个</span></div>';
+  let html = '<div class="skill-section"><div class="skill-section-header"><span>' + t('skill_registered', '已注册技能') + '</span><span style="font-weight:400;color:#aaa">' + allSkills.length + t('skill_count_suffix', ' 个') + '</span></div>';
   for (const skill of allSkills) {
     const enabled = skill.enabled !== false;
     const meta = SKILL_META[skill.id] || { icon: '⚡', iconCls: 'icon-blue' };
@@ -1657,7 +1657,7 @@ function renderSkills(container) {
           <div class="skill-card-icon ${meta.iconCls}">${meta.icon}</div>
           <div class="skill-card-info">
             <div class="skill-card-name">${escapeHtml(skill.name)}</div>
-            <div class="skill-card-brief">${enabled ? '已启用' : '已禁用'}</div>
+            <div class="skill-card-brief">\${enabled ? t('skill_enabled', '已启用') : t('skill_disabled', '已禁用')}</div>
           </div>
           <div class="skill-card-controls">
             <div class="skill-toggle ${enabled ? 'on' : ''}" onclick="event.stopPropagation(); toggleSkill('${skill.id}', ${!enabled})">
@@ -1667,7 +1667,7 @@ function renderSkills(container) {
           </div>
         </div>
         <div class="skill-card-detail hidden" id="skill-detail-${skill.id}">
-          <div class="skill-loading">加载详情...</div>
+          <div class="skill-loading">\${t('skill_loading_details', '加载详情...')}</div>
         </div>
       </div>
     `;
@@ -1696,10 +1696,10 @@ async function toggleSkillDetail(skillId) {
       if (data.status === 'ok') {
         renderSkillDetail(detail, data.skill);
       } else {
-        detail.innerHTML = '<div class="skill-error">加载失败</div>';
+        detail.innerHTML = '<div class="skill-error">' + t('skill_load_failed', '加载失败') + '</div>';
       }
     } catch (e) {
-      detail.innerHTML = '<div class="skill-error">网络错误</div>';
+      detail.innerHTML = '<div class="skill-error">' + t('skill_network_error', '网络错误') + '</div>';
     }
   }
 }
@@ -1725,55 +1725,55 @@ function renderSkillDetail(container, s) {
 
   // 详细描述
   if (s.detailed_description) {
-    html += section('📖 详细说明', '<p>' + formatText(s.detailed_description) + '</p>');
+    html += section('📖 ' + t('skill_detail_description', '详细说明'), '<p>' + formatText(s.detailed_description) + '</p>');
   }
 
   // 业务价值
   if (s.business_value) {
-    html += section('💡 业务价值', '<p>' + formatText(s.business_value) + '</p>');
+    html += section('💡 ' + t('skill_business_value', '业务价值'), '<p>' + formatText(s.business_value) + '</p>');
   }
 
   // 使用指南
   if (s.usage_guide) {
-    html += section('📋 使用步骤', '<p>' + formatText(s.usage_guide) + '</p>');
+    html += section('📋 ' + t('skill_usage_steps', '使用步骤'), '<p>' + formatText(s.usage_guide) + '</p>');
   }
 
   // 输入输出示例
   if (s.input_example || s.output_example) {
     let ioHtml = '';
     if (s.input_example) {
-      ioHtml += '<div class="skill-io-item"><div class="skill-io-label skill-io-label-in">📥 输入示例</div><div class="skill-io-content">' + escapeHtml(s.input_example) + '</div></div>';
+      ioHtml += '<div class="skill-io-item"><div class="skill-io-label skill-io-label-in">📥 ' + t('skill_input_example', '输入示例') + '</div><div class="skill-io-content">' + escapeHtml(s.input_example) + '</div></div>';
     }
     if (s.output_example) {
-      ioHtml += '<div class="skill-io-item"><div class="skill-io-label skill-io-label-out">📤 输出示例</div><div class="skill-io-content">' + formatText(s.output_example) + '</div></div>';
+      ioHtml += '<div class="skill-io-item"><div class="skill-io-label skill-io-label-out">📤 ' + t('skill_output_example', '输出示例') + '</div><div class="skill-io-content">' + formatText(s.output_example) + '</div></div>';
     }
-    html += section('🔧 输入 / 输出', ioHtml);
+    html += section('🔧 ' + t('skill_input_output', '输入 / 输出'), ioHtml);
   }
 
   // 适用场景
-  html += listSection('✅ 适用场景', s.applicable_scenarios);
+  html += listSection('✅ ' + t('skill_applicable_scenarios', '适用场景'), s.applicable_scenarios);
 
   // 能力标签
-  html += tagGroup('🏷️ 核心能力', s.capabilities, 'capability');
-  html += tagGroup('📂 支持格式', s.supported_formats, '');
-  html += tagGroup('🎨 输出风格', s.output_styles, '');
+  html += tagGroup('🏷️ ' + t('skill_core_capabilities', '核心能力'), s.capabilities, 'capability');
+  html += tagGroup('📂 ' + t('skill_supported_formats', '支持格式'), s.supported_formats, '');
+  html += tagGroup('🎨 ' + t('skill_output_styles', '输出风格'), s.output_styles, '');
 
   // 触发条件
-  html += tagGroup('🔍 触发条件', s.triggers, '');
+  html += tagGroup('🔍 ' + t('skill_triggers', '触发条件'), s.triggers, '');
 
   // 局限性
-  html += listSection('⚠️ 局限性', s.limitations);
+  html += listSection('⚠️ ' + t('skill_limitations', '局限性'), s.limitations);
 
   // 文件限制 + 版本
   var metaHtml = '';
   if (s.max_file_size_mb) {
-    metaHtml += '<div class="skill-detail-meta-item">📦 最大文件：<strong>' + s.max_file_size_mb + ' MB</strong></div>';
+    metaHtml += '<div class="skill-detail-meta-item">📦 ' + t('skill_max_file', '最大文件') + '：<strong>' + s.max_file_size_mb + ' MB</strong></div>';
   }
   if (s.version) {
-    metaHtml += '<div class="skill-detail-meta-item">🔖 版本：<strong>' + escapeHtml(s.version) + '</strong></div>';
+    metaHtml += '<div class="skill-detail-meta-item">🔖 ' + t('skill_version', '版本') + '：<strong>' + escapeHtml(s.version) + '</strong></div>';
   }
   if (s.related_step) {
-    metaHtml += '<div class="skill-detail-meta-item">📌 关联步骤：<strong>Step ' + s.related_step + '</strong></div>';
+    metaHtml += '<div class="skill-detail-meta-item">📌 ' + t('skill_related_step', '关联步骤') + '：<strong>Step ' + s.related_step + '</strong></div>';
   }
   if (metaHtml) {
     html += '<div class="skill-detail-meta">' + metaHtml + '</div>';
@@ -1796,7 +1796,7 @@ async function toggleSkill(skillId, enable) {
       alert('操作失败: ' + (data.error || '未知错误'));
     }
   } catch (e) {
-    alert('网络错误');
+    alert(t('network_error', '网络错误'));
   }
 }
 
@@ -1815,8 +1815,8 @@ function showAddModelForm() {
   const titleEl = document.getElementById('model-form-title');
   const saveBtn = document.getElementById('model-form-save-btn');
   const saveBtnText = saveBtn ? saveBtn.querySelector('.btn__text') : null;
-  if (titleEl) titleEl.textContent = '添加自定义模型';
-  if (saveBtnText) saveBtnText.textContent = '添加';
+  if (titleEl) titleEl.textContent = t('model_add_title', '添加自定义模型');
+  if (saveBtnText) saveBtnText.textContent = t('model_add', '添加');
   document.getElementById('new-model-name').readOnly = false;
   ['new-model-name','new-model-model','new-model-url','new-model-apikey','new-model-desc','new-model-tx-code','new-model-sec-node'].forEach(id => {
     const el = document.getElementById(id);
@@ -1840,15 +1840,15 @@ async function editModel(name) {
     const resp = await fetch(API_BASE + '/api/llm/models/' + encodeURIComponent(name));
     const data = await resp.json();
     if (data.status !== 'ok' || !data.model) {
-      alert(data.error || '加载模型失败');
+      alert(data.error || t('model_load_failed', '加载模型失败'));
       return;
     }
     const m = data.model;
     editingModelName = name;
-    document.getElementById('model-form-title').textContent = m.is_preset ? '编辑预设模型' : '编辑自定义模型';
+    document.getElementById('model-form-title').textContent = m.is_preset ? t('model_edit_preset', '编辑预设模型') : t('model_edit_custom', '编辑自定义模型');
     const editSaveBtn = document.getElementById('model-form-save-btn');
     const editSaveBtnText = editSaveBtn ? editSaveBtn.querySelector('.btn__text') : null;
-    if (editSaveBtnText) editSaveBtnText.textContent = '保存';
+    if (editSaveBtnText) editSaveBtnText.textContent = t('save', '保存');
     document.getElementById('new-model-name').value = m.name || '';
     document.getElementById('new-model-name').readOnly = true;
     document.getElementById('new-model-model').value = m.model || '';
@@ -1866,7 +1866,7 @@ async function editModel(name) {
     toggleCcbModelFields();
     document.getElementById('add-model-form').classList.remove('hidden');
   } catch (e) {
-    alert('加载模型失败: ' + e.message);
+    alert(t('model_load_failed', '加载模型失败') + ': ' + e.message);
   }
 }
 
@@ -1887,15 +1887,15 @@ async function loadModels() {
 function renderModelList() {
   const container = document.getElementById('model-list');
   if (!allModels.length) {
-    container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:12px">暂无模型配置</div>';
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:12px">' + t('no_models', '暂无模型配置') + '</div>';
     return;
   }
   let html = '';
   allModels.forEach((m, idx) => {
     const cls = m.is_preset ? 'preset' : 'custom';
-    const badge = m.is_preset ? '<span style="font-size:10px;padding:1px 5px;background:var(--red);color:#fff;border-radius:2px">预设</span>' : '<span style="font-size:10px;padding:1px 5px;background:#3491fa;color:#fff;border-radius:2px">自定义</span>';
+    const badge = m.is_preset ? '<span style="font-size:10px;padding:1px 5px;background:var(--red);color:#fff;border-radius:2px">' + t('preset', '预设') + '</span>' : '<span style="font-size:10px;padding:1px 5px;background:#3491fa;color:#fff;border-radius:2px">' + t('custom', '自定义') + '</span>';
     const apiBadge = (m.api_type === 'ccb_ainlplm')
-      ? '<span style="font-size:10px;padding:1px 5px;background:#6b4;border-radius:2px;color:#fff">建行</span>'
+      ? '<span style="font-size:10px;padding:1px 5px;background:#6b4;border-radius:2px;color:#fff">' + t('ccb', '建行') + '</span>'
       : '<span style="font-size:10px;padding:1px 5px;background:#888;border-radius:2px;color:#fff">OpenAI</span>';
     html += '<div class="model-card ' + cls + '">';
     html += '<div class="model-card-name">' + escapeHtml(m.name) + ' ' + badge + ' ' + apiBadge + '</div>';
@@ -1904,11 +1904,11 @@ function renderModelList() {
     html += '<div class="model-card-url">' + escapeHtml(m.url) + '</div>';
     html += '<div class="model-card-key">Key: ' + escapeHtml(m.api_key || m.api_key_masked || '') + '</div>';
     html += '<div class="model-card-actions">';
-    html += renderBtn({ variant: 'outline', size: 'sm', icon: 'pencil', text: '编辑', cls: 'model-card-btn', attrs: 'data-action="edit" data-model-index="' + idx + '"' });
-    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: '测试连接', cls: 'model-card-btn', attrs: 'data-action="test" data-model-index="' + idx + '"' });
-    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: '流式测试', cls: 'model-card-btn', attrs: 'data-action="stream" data-model-index="' + idx + '"' });
+    html += renderBtn({ variant: 'outline', size: 'sm', icon: 'pencil', text: t('edit', '编辑'), cls: 'model-card-btn', attrs: 'data-action="edit" data-model-index="' + idx + '"' });
+    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: t('model_test', '测试连接'), cls: 'model-card-btn', attrs: 'data-action="test" data-model-index="' + idx + '"' });
+    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: t('model_stream_test', '流式测试'), cls: 'model-card-btn', attrs: 'data-action="stream" data-model-index="' + idx + '"' });
     if (!m.is_preset) {
-      html += renderBtn({ variant: 'danger', size: 'sm', icon: 'trash-2', text: '删除', cls: 'model-card-btn', attrs: 'data-action="delete" data-model-index="' + idx + '"' });
+      html += renderBtn({ variant: 'danger', size: 'sm', icon: 'trash-2', text: t('delete', '删除'), cls: 'model-card-btn', attrs: 'data-action="delete" data-model-index="' + idx + '"' });
     }
     html += '</div>';
     html += '<div class="model-card-status" id="model-status-' + idx + '"></div>';
@@ -1952,11 +1952,11 @@ function refreshModelSelects() {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value;
-    el.innerHTML = '<option value="">-- 选择模型 --</option>';
+    el.innerHTML = '<option value="">' + t('select_model_label', '-- 选择模型 --') + '</option>';
     allModels.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m.name;
-      opt.textContent = m.name + (m.is_preset ? ' (预设)' : '');
+      opt.textContent = m.name + (m.is_preset ? ' (' + t('preset', '预设') + ')' : '');
       el.appendChild(opt);
     });
     if (cur) el.value = cur;
@@ -1974,7 +1974,7 @@ async function loadStepSkillSelects(step) {
   const el = document.getElementById(selectId);
   if (!el) return;
 
-  el.innerHTML = '<option value="">-- 选择 Skill --</option>';
+  el.innerHTML = '<option value="">' + t('select_skill', '-- 选择 Skill --') + '</option>';
 
   try {
     const resp = await fetch(API_BASE + '/api/skills');
@@ -2014,10 +2014,10 @@ async function testModelStream(name, modelIndex, btnEl) {
   }
   if (btnEl) {
     btnEl.disabled = true;
-    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '流式中...' });
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: t('model_streaming', '流式中...') });
     refreshIcons();
   }
-  setModelTestStatus(statusEl, 'testing', '流式连接 ' + name + ' ...');
+  setModelTestStatus(statusEl, 'testing', t('model_stream_connection', '流式连接') + ' ' + name + ' ...');
   let fullText = '';
   try {
     const resp = await fetch(API_BASE + '/api/llm/stream-test', {
@@ -2053,14 +2053,14 @@ async function testModelStream(name, modelIndex, btnEl) {
         }
       }
     }
-    setModelTestStatus(statusEl, 'ok', '流式完成: ' + (fullText.slice(0, 80) || '(空)'));
+    setModelTestStatus(statusEl, 'ok', t('model_stream_complete', '流式完成') + ': ' + (fullText.slice(0, 80) || '(空)'));
   } catch (e) {
-    setModelTestStatus(statusEl, 'fail', e.message || '流式失败');
-    if (streamEl) streamEl.textContent = '错误: ' + (e.message || '流式失败');
+    setModelTestStatus(statusEl, 'fail', e.message || t('model_stream_failed', '流式失败'));
+    if (streamEl) streamEl.textContent = t('error_prefix', '错误: ') + (e.message || t('model_stream_failed', '流式失败'));
   }
   if (btnEl) {
     btnEl.disabled = false;
-    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '流式测试' });
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: t('model_stream_test', '流式测试') });
     refreshIcons();
   }
 }
@@ -2069,23 +2069,23 @@ async function testModel(name, modelIndex, btnEl) {
   const statusEl = document.getElementById('model-status-' + modelIndex);
   if (btnEl) {
     btnEl.disabled = true;
-    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '测试中...' });
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: t('model_testing', '测试中...') });
     refreshIcons();
   }
-  setModelTestStatus(statusEl, 'testing', '正在连接 ' + name + ' ...');
+  setModelTestStatus(statusEl, 'testing', t('connecting', '正在连接') + ' ' + name + ' ...');
   try {
     const result = await apiCallJSON('/api/llm/test', { name: name }, 'POST', 25000);
     if (result.status === 'ok') {
-      setModelTestStatus(statusEl, 'ok', result.message || '连接成功');
+      setModelTestStatus(statusEl, 'ok', result.message || t('model_connection_success', '连接成功'));
     } else {
-      setModelTestStatus(statusEl, 'fail', result.error || '连接失败');
+      setModelTestStatus(statusEl, 'fail', result.error || t('model_connection_failed', '连接失败'));
     }
   } catch (e) {
-    setModelTestStatus(statusEl, 'fail', e.message || '连接失败');
+    setModelTestStatus(statusEl, 'fail', e.message || t('model_connection_failed', '连接失败'));
   }
   if (btnEl) {
     btnEl.disabled = false;
-    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '测试连接' });
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: t('model_test', '测试连接') });
     refreshIcons();
   }
 }
@@ -2103,15 +2103,15 @@ async function saveModel() {
   const secNode = document.getElementById('new-model-sec-node')?.value.trim() || '';
 
   if (!name || !model || !url) {
-    alert('名称、模型标识、API 地址均为必填');
+    alert(t('model_required_fields', '名称、模型标识、API 地址均为必填'));
     return;
   }
   if (!editingModelName && !apiKey) {
-    alert('添加模型时 API Key 为必填');
+    alert(t('model_api_key_required', '添加模型时 API Key 为必填'));
     return;
   }
   if (apiType === 'ccb_ainlplm' && (!txCode || !secNode)) {
-    alert('建行接口需填写 Tx-Code 与 Sec-Node-No');
+    alert(t('model_ccb_required', '建行接口需填写 Tx-Code 与 Sec-Node-No'));
     return;
   }
 
@@ -2140,7 +2140,7 @@ async function saveModel() {
       hideAddModelForm();
       loadModels();
     } else {
-      alert(result.error || (editingModelName ? '保存失败' : '添加失败'));
+      alert(result.error || (editingModelName ? t('save_failed', '保存失败') : t('add_failed', '添加失败')));
     }
   } catch (e) {
     alert((editingModelName ? '保存失败: ' : '添加失败: ') + e.message);
@@ -2148,17 +2148,17 @@ async function saveModel() {
 }
 
 async function deleteModel(name) {
-  if (!confirm('确定删除模型 "' + name + '"？')) return;
+  if (!confirm(t('model_delete_confirm', '确定删除模型 "{name}"？').replace('{name}', name))) return;
   try {
     const resp = await fetch(API_BASE + '/api/llm/models/' + encodeURIComponent(name), { method: 'DELETE' });
     const result = await resp.json();
     if (result.status === 'ok') {
       loadModels();
     } else {
-      alert(result.error || '删除失败');
+      alert(result.error || t('model_delete_failed', '删除失败'));
     }
   } catch (e) {
-    alert('删除失败: ' + e.message);
+    alert(t('model_delete_failed', '删除失败') + ': ' + e.message);
   }
 }
 
@@ -2180,10 +2180,10 @@ function step1AddSubScenario() {
   div.className = 's1-sub-item';
   div.id = 's1-sub-' + idx;
   div.innerHTML = '<div class="s1-sub-row">' +
-    '<input type="text" class="s1-sub-name" placeholder="子场景名称" data-idx="' + idx + '">' +
+    '<input type="text" class="s1-sub-name" placeholder="' + t('sub_scenario_name', '子场景名称') + '" data-idx="' + idx + '">' +
     '<button type="button" class="btn btn--ghost btn--sm s1-sub-remove" onclick="step1RemoveSubScenario(' + idx + ')"><span class="btn__icon" data-lucide="x"></span></button>' +
     '</div>' +
-    '<textarea class="s1-sub-content" rows="2" placeholder="子场景内容描述" data-idx="' + idx + '"></textarea>';
+    '<textarea class="s1-sub-content" rows="2" placeholder="' + t('sub_scenario_content', '子场景内容描述') + '" data-idx="' + idx + '"></textarea>';
   container.appendChild(div);
   refreshIcons();
 }
@@ -2223,13 +2223,13 @@ async function step1Generate() {
   const knowledgeColumns = step1GetKnowledgeColumns();
   const hasCustomColumns = knowledgeColumns.length > 0;
 
-  if (!scenarioName) { alert('请填写场景名称'); return; }
+  if (!scenarioName) { alert(t('step1_enter_scenario_name', '请填写场景名称')); return; }
   if (!currentPipeline) {
-    alert('请先从总览页「新建流水线」或「继续」进入一条流水线，再生成场景骨架');
+    alert(t('step1_no_pipeline', '请先从总览页「新建流水线」或「继续」进入一条流水线，再生成场景骨架'));
     return;
   }
   if (!templateFile && !legacyTemplate && knowledgeColumns.length === 0) {
-    alert('请至少添加一列知识字段，或上传/选用 Excel 模板');
+    alert(t('step1_no_columns', '请至少添加一列知识字段，或上传/选用 Excel 模板'));
     return;
   }
 
@@ -2261,27 +2261,27 @@ async function step1Generate() {
     if (result.status === 'ok') {
       // 先构建并渲染结果，让用户立刻看到输出，不受后续 persistPipeline 网络延迟影响
       html += '<div class="s1-result-box">';
-      html += '<div class="s1-result-title">场景骨架生成成功</div>';
+      html += '<div class="s1-result-title">' + t('step1_skeleton_generated', '场景骨架生成成功') + '</div>';
       html += '<div class="s1-result-stats">';
-      html += '<div class="s2-stat"><span class="s2-stat-num">' + (result.fields_info ? result.fields_info.length : 0) + '</span><span class="s2-stat-label">工作表</span></div>';
-      html += '<div class="s2-stat"><span class="s2-stat-num">' + (result.sub_scenario_count || 0) + '</span><span class="s2-stat-label">子场景</span></div>';
+      html += '<div class="s2-stat"><span class="s2-stat-num">' + (result.fields_info ? result.fields_info.length : 0) + '</span><span class="s2-stat-label">' + t('step1_worksheets', '工作表') + '</span></div>';
+      html += '<div class="s2-stat"><span class="s2-stat-num">' + (result.sub_scenario_count || 0) + '</span><span class="s2-stat-label">' + t('step1_sub_scenarios', '子场景') + '</span></div>';
       html += '</div>';
       const templateSourceMap = {
-        schema: '自定义列 · Excel',
-        schema_markdown: '自定义列 · Markdown+Excel',
-        legacy: '部门 Excel 模板',
-        legacy_markdown: '部门 Excel 模板 · Markdown+Excel',
-        upload: '上传 Excel 模板',
-        upload_markdown: '上传 Excel 模板 · Markdown+Excel',
+        schema: t('step1_schema_excel', '自定义列 · Excel'),
+        schema_markdown: t('step1_schema_markdown', '自定义列 · Markdown+Excel'),
+        legacy: t('step1_legacy', '部门 Excel 模板'),
+        legacy_markdown: t('step1_legacy_markdown', '部门 Excel 模板 · Markdown+Excel'),
+        upload: t('step1_upload', '上传 Excel 模板'),
+        upload_markdown: t('step1_upload_markdown', '上传 Excel 模板 · Markdown+Excel'),
       };
-      const templateSourceLabel = templateSourceMap[result.template_source] || '模板';
-      const templateName = result.template_name || '未命名';
-      html += '<div class="s1-result-template">来源：' + escapeHtml(templateSourceLabel) + ' · ' + escapeHtml(templateName) + '</div>';
+      const templateSourceLabel = templateSourceMap[result.template_source] || t('step1_template', '模板');
+      const templateName = result.template_name || t('step1_unnamed', '未命名');
+      html += '<div class="s1-result-template">' + t('step1_source', '来源') + '：' + escapeHtml(templateSourceLabel) + ' · ' + escapeHtml(templateName) + '</div>';
       if (result.knowledge_columns && result.knowledge_columns.length) {
-        html += '<div class="s1-result-template">知识列：' + escapeHtml(result.knowledge_columns.join('、')) + '</div>';
+        html += '<div class="s1-result-template">' + t('step1_knowledge_columns', '知识列') + '：' + escapeHtml(result.knowledge_columns.join('、')) + '</div>';
       }
       if (result.columns_enriched) {
-        html += '<div class="s1-result-template file-hint">已按 Markdown 模式自动补齐富语义列，Step2 将按完整字段深度萃取。</div>';
+        html += '<div class="s1-result-template file-hint">' + t('step1_markdown_enriched', '已按 Markdown 模式自动补齐富语义列，Step2 将按完整字段深度萃取。') + '</div>';
       }
       if (result.fields_info && result.fields_info.length) {
         html += '<div class="s1-result-sheets">';
@@ -2295,15 +2295,15 @@ async function step1Generate() {
       const step1MdFile = result.markdown_file || '';
       // Markdown group
       if (mdFlow && step1MdFile) {
-        html += `<button class="btn btn--primary btn--sm" onclick="previewStep4File('${escapeHtml(step1MdFile)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>`;
+        html += `<button class="btn btn--primary btn--sm" onclick="previewStep4File('${escapeHtml(step1MdFile)}','Step1 ' + t('step1_preview_md', '预览/编辑 Markdown'))">${t('step1_preview_md', '预览/编辑 Markdown')}</button>`;
       }
       if (result.download_url) {
-        const dlLabel = mdFlow ? '下载 Markdown 骨架' : '下载 Excel 骨架';
+        const dlLabel = mdFlow ? t('step1_download_md_skeleton', '下载 Markdown 骨架') : t('step1_download_excel_skeleton', '下载 Excel 骨架');
         html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + result.download_url + '" download>' + dlLabel + '</a>';
       }
       // Excel group
       if (!mdFlow && result.excel_download_url) {
-        html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + (result.excel_file || result.file_name) + '\')">预览 Excel</button>';
+        html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + (result.excel_file || result.file_name) + '\')">' + t('step1_preview_excel', '预览 Excel') + '</button>';
       }
       html += '</div>';
       html += '</div>';
@@ -2344,7 +2344,7 @@ async function step1Generate() {
       }
       if (currentStep === 2) loadStep2PrevOutput();
     } else {
-      html = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '未知错误') + '</div></div>';
+      html = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || t('unknown_error', '未知错误')) + '</div></div>';
       renderOutput('s1-output', html);
     }
   } catch (e) {
@@ -2371,12 +2371,12 @@ function restoreStep1Output() {
   const mdFlow = (sd.step1_output_format === 'markdown') || prefersMarkdownFlow();
   const mdFile = sd.step1_md_file || '';
   let html = '<div class="s1-result-box">';
-  html += '<div class="s1-result-title">场景骨架已生成</div>';
+  html += '<div class="s1-result-title">' + t('step1_skeleton_already_generated', '场景骨架已生成') + '</div>';
   if (sd.step1_template_name) {
-    html += '<div class="s1-result-template">来源：' + escapeHtml(sd.step1_template_name) + '</div>';
+    html += '<div class="s1-result-template">' + t('step1_source', '来源') + '：' + escapeHtml(sd.step1_template_name) + '</div>';
   }
   if (sd.step1_knowledge_columns && sd.step1_knowledge_columns.length) {
-    html += '<div class="s1-result-template">知识列：' + escapeHtml(sd.step1_knowledge_columns.join('、')) + '</div>';
+    html += '<div class="s1-result-template">' + t('step1_knowledge_columns', '知识列') + '：' + escapeHtml(sd.step1_knowledge_columns.join('、')) + '</div>';
   }
   html += '<div class="s1-result-actions">';
   // Markdown group
@@ -2384,12 +2384,12 @@ function restoreStep1Output() {
     html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step1 骨架 Markdown 预览\')">预览/编辑 Markdown</button>';
   }
   if (sd.step1_download_url) {
-    const dlLabel = mdFlow ? '下载 Markdown 骨架' : '下载 Excel 骨架';
+    const dlLabel = mdFlow ? t('step1_download_md_skeleton', '下载 Markdown 骨架') : t('step1_download_excel_skeleton', '下载 Excel 骨架');
     html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + sd.step1_download_url + '" download>' + dlLabel + '</a>';
   }
   // Excel group
   if (!mdFlow && sd.step1_download_url) {
-    html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(outputFile) + '\')">预览 Excel</button>';
+    html += '<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel(\'' + escapeHtml(outputFile) + '\')">' + t('step1_preview_excel', '预览 Excel') + '</button>';
   }
   html += '</div></div>';
   renderOutput('s1-output', html);
@@ -2413,18 +2413,18 @@ async function step1PreviewExcel(fileName) {
       openExcelEditorWithSheets(result.sheets, fileName, result.file_path || fileName);
     } else {
       if (modal) modal.classList.remove('active');
-      alert(result.error || '读取失败');
+      alert(result.error || t('read_failed', '读取失败'));
     }
   } catch (e) {
     if (modal) modal.classList.remove('active');
-    alert('读取失败: ' + e.message);
+    alert(t('read_failed', '读取失败') + ': ' + e.message);
   }
 }
 
 function openExcelEditorWithSheets(sheets, fileName, filePath) {
   const modal = document.getElementById('excel-editor-modal');
   const stepLabel = document.getElementById('excel-editor-step-label');
-  if (stepLabel) stepLabel.textContent = '预览: ' + fileName;
+  if (stepLabel) stepLabel.textContent = t('preview', '预览') + ': ' + fileName;
   _excelEditorData.sheets = ExcelEditor.normalizeSheetsFromApi(
     typeof sheets === 'object' && !Array.isArray(sheets) ? sheets : { Sheet1: sheets }
   );
@@ -2459,18 +2459,18 @@ function renderStep2PrevOutputCard(data) {
     <div class="s2-prev-card">
       <div class="s2-prev-card-top">
         <div class="s2-prev-card-icon">📋</div>
-        <div class="s2-prev-card-name">${escapeHtml(data.scenario || '场景模板')}</div>
-        <span class="s2-prev-card-badge">已就绪</span>
+        <div class="s2-prev-card-name">${escapeHtml(data.scenario || t('step1_template', '场景模板'))}</div>
+        <span class="s2-prev-card-badge">${t('ready', '已就绪')}</span>
       </div>
       <div class="s2-prev-card-info">
-        领域：<span>${escapeHtml(data.domain || '-')}</span> · 文件：<span>${escapeHtml(data.file_name || '-')}</span>
+        ${t('domain', '领域')}：<span>${escapeHtml(data.domain || '-')}</span> · ${t('file', '文件')}：<span>${escapeHtml(data.file_name || '-')}</span>
       </div>
       ${fieldsHtml}
       <div class="s2-result-actions" style="margin-top:8px;">
-        ${data.markdown_file ? `<button class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 骨架 Markdown 预览')">预览/编辑 Markdown</button>` : ''}
-        ${data.markdown_download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>` : ''}
-        ${data.download_url ? `<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">预览 Excel</button>` : ''}
-        ${data.download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.download_url}" download>下载 Excel</a>` : ''}
+        ${data.markdown_file ? `<button class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 ' + t('step1_preview_md', '预览/编辑 Markdown'))">\${t('step1_preview_md', '预览/编辑 Markdown')}</button>` : ''}
+        ${data.markdown_download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>\${t('step3_download_md', '下载 Markdown')}</a>` : ''}
+        ${data.download_url ? `<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">\${t('step1_preview_excel', '预览 Excel')}</button>` : ''}
+        ${data.download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.download_url}" download>\${t('download_excel', '下载 Excel')}</a>` : ''}
       </div>
     </div>
   `;
@@ -2494,11 +2494,11 @@ async function ensureStep1OutputLinked() {
 async function loadStep2PrevOutput() {
   const area = document.getElementById('s2-prev-output-area');
   if (!currentPipeline) {
-    area.innerHTML = '<div class="s2-prev-empty">当前无流水线</div>';
+    area.innerHTML = '<div class="s2-prev-empty">' + t('no_current_pipeline', '当前无流水线') + '</div>';
     return;
   }
 
-  area.innerHTML = '<div class="s2-prev-empty" style="color:var(--text-secondary)">检测中...</div>';
+  area.innerHTML = '<div class="s2-prev-empty" style="color:var(--text-secondary)">' + t('detecting', '检测中...') + '</div>';
 
   try {
     await ensureStep1OutputLinked();
@@ -2507,14 +2507,14 @@ async function loadStep2PrevOutput() {
     const data = await resp.json();
 
     if (data.status !== 'ok' || !data.has_output) {
-      const hint = data.hint || '请先在「场景锚定」点击「生成场景骨架」（需已从总览进入当前流水线）';
+      const hint = data.hint || t('step1_generate_hint', '请先在「场景锚定」点击「生成场景骨架」（需已从总览进入当前流水线）');
       area.innerHTML = '<div class="s2-prev-empty">' + escapeHtml(hint) + '</div>';
       return;
     }
 
     renderStep2PrevOutputCard(data);
   } catch (e) {
-    area.innerHTML = '<div class="s2-prev-empty">检测失败，可手动上传</div>';
+    area.innerHTML = '<div class="s2-prev-empty">' + t('detect_failed_upload', '检测失败，可手动上传') + '</div>';
   }
 }
 
@@ -2557,21 +2557,21 @@ let _alignEditedValues = {};
 let _alignCurrentFilter = 'all';
 let _alignChatHistory = [];
 
-const ALIGN_ACTION_LABELS = { modify: '修改', delete: '删除', add: '新增', supplement: '补充' };
+const ALIGN_ACTION_LABELS = { modify: t('align_action_modify', '修改'), delete: t('align_action_delete', '删除'), add: t('align_action_add', '新增'), supplement: t('align_action_supplement', '补充') };
 const ALIGN_ACTION_COLORS = { modify: '#faad14', delete: '#ff4d4f', add: '#52c41a', supplement: '#1890ff' };
 
 // ── 修订经验批注 / 追问卡片 ──
 const TACIT_FOLLOWUP_QUESTIONS = {
-  modify: '请补充您对本条的经验批注，以完善最终校验',
-  delete: '请说明本条在什么情况下可能产生误导，便于后续核查',
-  add: '请补充新增内容背后的判断经验，帮助其他人理解',
-  supplement: '请补充您的经验批注，说明补充内容的依据'
+  modify: t('tacit_followup_modify', '请补充您对本条的经验批注，以完善最终校验'),
+  delete: t('tacit_followup_delete', '请说明本条在什么情况下可能产生误导，便于后续核查'),
+  add: t('tacit_followup_add', '请补充新增内容背后的判断经验，帮助其他人理解'),
+  supplement: t('tacit_followup_supplement', '请补充您的经验批注，说明补充内容的依据')
 };
 
 function showTacitFollowup(noteEl, noteId, actionType) {
   // 已有追问卡片则跳过
   if (noteEl.querySelector('.tacit-followup')) return;
-  var question = TACIT_FOLLOWUP_QUESTIONS[actionType] || '能分享一下这次修订背后的经验吗？';
+  var question = TACIT_FOLLOWUP_QUESTIONS[actionType] || t('tacit_followup_default', '能分享一下这次修订背后的经验吗？');
   var safeNoteId = String(noteId).replace(/[^\w-]/g, '');
   var safeActionType = String(actionType).replace(/[^\w-]/g, '');
   var safeQuestion = String(question).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -2579,10 +2579,10 @@ function showTacitFollowup(noteEl, noteId, actionType) {
   card.className = 'tacit-followup';
   card.innerHTML =
     '<div class="tacit-followup-label">💡 ' + escapeHtml(question) + '</div>' +
-    '<textarea id="tacit-answer-' + safeNoteId + '" placeholder="简要记录您的修订经验与判断依据..."></textarea>' +
+    '<textarea id="tacit-answer-' + safeNoteId + '" placeholder="' + t('tacit_placeholder', '简要记录您的修订经验与判断依据...') + '"></textarea>' +
     '<div class="tacit-followup-actions">' +
-      '<button type="button" class="btn btn--ghost btn--sm tacit-followup-skip" onclick="dismissTacitFollowup(this)"><span class="btn__text">跳过</span></button>' +
-      '<button type="button" class="btn btn--primary btn--sm tacit-followup-save" data-note-id="' + safeNoteId + '" data-action-type="' + safeActionType + '" data-question="' + safeQuestion + '"><span class="btn__text">保存经验批注</span></button>' +
+      '<button type="button" class="btn btn--ghost btn--sm tacit-followup-skip" onclick="dismissTacitFollowup(this)"><span class="btn__text">' + t('tacit_skip', '跳过') + '</span></button>' +
+      '<button type="button" class="btn btn--primary btn--sm tacit-followup-save" data-note-id="' + safeNoteId + '" data-action-type="' + safeActionType + '" data-question="' + safeQuestion + '"><span class="btn__text">' + t('tacit_save_annotation', '保存经验批注') + '</span></button>' +
     '</div>';
   card.querySelector('.tacit-followup-save').addEventListener('click', function() {
     saveTacitAnnotation(this.dataset.noteId, this.dataset.actionType, this.dataset.question);
@@ -2604,10 +2604,10 @@ function saveTacitAnnotation(noteId, actionType, question) {
   // 视觉反馈
   var card = ta.closest('.tacit-followup');
   if (card) {
-    card.innerHTML = '<div style="color:var(--green);font-size:12px;padding:4px 0">✓ 经验批注已记录 — 将在生成定稿时一并保存</div>';
+    card.innerHTML = '<div style="color:var(--green);font-size:12px;padding:4px 0">' + t('tacit_annotation_recorded', '✓ 经验批注已记录 — 将在生成定稿时一并保存') + '</div>';
     setTimeout(function () { if (card.parentNode) card.remove(); }, 2000);
   }
-  showToast('经验批注已保存');
+  showToast(t('tacit_annotation_saved', '经验批注已保存'));
 }
 
 function getTacitAnnotationsPayload() {
@@ -2637,7 +2637,7 @@ async function loadStep3PrevOutput() {
       card.style.display = '';
       empty.style.display = 'none';
       const extractedCount = data.extracted_count || (data.fields_info && data.fields_info[0] ? data.fields_info[0].rows : 0);
-      info.textContent = `${data.file_name}` + (data.scenario ? ` · ${data.scenario}` : '') + (data.style ? ` · ${data.style}` : '') + (extractedCount > 0 ? ` · 萃取${extractedCount}条知识` : '');
+      info.textContent = `${data.file_name}` + (data.scenario ? ` · ${data.scenario}` : '') + (data.style ? ` · ${data.style}` : '') + (extractedCount > 0 ? ` · ` + t('step2_extracted_short', '萃取{count}条知识').replace('{count}', extractedCount) : '');
 
       // 深挖补充记录 badge
       var interviewRecordsStr = currentPipeline?.step_data?.step2_interview_records;
@@ -2645,7 +2645,7 @@ async function loadStep3PrevOutput() {
         try {
           var interviewRecords = JSON.parse(interviewRecordsStr);
           if (Array.isArray(interviewRecords) && interviewRecords.length > 0) {
-            info.innerHTML += ' · <span class="s2-prev-card-badge" style="background:#fef3c7;color:#92400e;">含深挖补充 ' + interviewRecords.length + ' 条</span>';
+            info.innerHTML += ' · <span class="s2-prev-card-badge" style="background:#fef3c7;color:#92400e;">' + t('tacit_includes_supplement', '含深挖补充') + ' ' + interviewRecords.length + t('items', ' 条') + '</span>';
           }
         } catch (_) { /* ignore parse error */ }
       }
@@ -2657,7 +2657,7 @@ async function loadStep3PrevOutput() {
         let actionBtns = '';
         // Markdown group
         if (data.markdown_file) {
-          actionBtns += `<button type="button" class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 萃取 Markdown 预览')">预览/编辑 Markdown</button>`;
+          actionBtns += `<button type="button" class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 ' + t('step3_preview_md', '预览/编辑 Markdown'))">${t('step3_preview_md', '预览/编辑 Markdown')}</button>`;
         }
         if (data.markdown_download_url) {
           actionBtns += `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>`;
@@ -2707,12 +2707,12 @@ async function loadStep3IRForAlignment() {
     const sd = data.pipeline.step_data || {};
     const irName = sd.step3_aligned_file || sd.step2_draft_file;
     if (!irName) {
-      listEl.innerHTML = '<div class="output-placeholder">请先完成 Step2 萃取</div>';
+      listEl.innerHTML = '<div class="output-placeholder">' + t('step3_need_complete_step2', '请先完成 Step2 萃取') + '</div>';
       return;
     }
     // Markdown 流产物是 .md，不需要 IR 解析
     if (!irName.endsWith('.json')) {
-      listEl.innerHTML = '<div class="output-placeholder">Markdown 流无需 IR 对齐</div>';
+      listEl.innerHTML = '<div class="output-placeholder">' + t('step3_mdflow_no_ir', 'Markdown 流无需 IR 对齐') + '</div>';
       return;
     }
     const irResp = await fetch(API_BASE + '/downloads/' + irName);
@@ -2720,7 +2720,7 @@ async function loadStep3IRForAlignment() {
     renderStep3IRDualView(ir);
   } catch (e) {
     console.error('loadStep3IRForAlignment failed:', e);
-    listEl.innerHTML = '<div class="output-placeholder">加载 IR 失败: ' + escapeHtml(e.message) + '</div>';
+    listEl.innerHTML = '<div class="output-placeholder">' + t('step3_load_ir_failed', '加载 IR 失败') + ': ' + escapeHtml(e.message) + '</div>';
   }
 }
 
@@ -2736,7 +2736,7 @@ async function loadStep3SkillMd() {
     var sd = (data.pipeline || {}).step_data || {};
     var mdFile = sd.step3_skill_md_file || sd.step2_skill_md_file || sd.step2_draft_file;
     if (!mdFile) {
-      editor.value = '请先完成 Step2 知识萃取';
+      editor.value = t('step3_need_complete_step2', '请先完成 Step2 知识萃取');
       return;
     }
     var mdResp = await fetch(API_BASE + '/downloads/' + mdFile);
@@ -2757,7 +2757,7 @@ async function step3SubmitFeedback() {
   var pid = getCurrentPipelineId();
   var feedback = document.getElementById('s3-expert-feedback').value;
   var model = resolveModelName('s3-model');
-  if (!feedback) { showToast('请输入修订意见', 'error'); return; }
+  if (!feedback) { showToast(t('enter_feedback', '请输入修订意见'), 'error'); return; }
 
   var formData = new FormData();
   formData.append('pipeline_id', pid);
@@ -2774,19 +2774,19 @@ async function step3SubmitFeedback() {
       }
       document.getElementById('s3-expert-input-area').style.display = 'none';
       document.getElementById('s3-expert-feedback').value = '';
-      showToast('修订完成，请检查后再保存', 'ok');
+      showToast(t('step3_revise_complete', '修订完成，请检查后再保存'), 'ok');
     } else {
-      showToast(data.error || '修订失败', 'error');
+      showToast(data.error || t('step3_revise_failed', '修订失败'), 'error');
     }
   } catch (e) {
-    showToast('修订失败: ' + e.message, 'error');
+    showToast(t('step3_revise_failed', '修订失败') + ': ' + e.message, 'error');
   }
 }
 
 async function step3SaveMd() {
   var pid = getCurrentPipelineId();
   var md = document.getElementById('s3-md-editor').value;
-  if (!md) { showToast('没有可保存的内容', 'error'); return; }
+  if (!md) { showToast(t('no_content_to_save', '没有可保存的内容'), 'error'); return; }
   try {
     var resp = await fetch(API_BASE + '/api/step3/save_skill_md', {
       method: 'POST',
@@ -2795,19 +2795,19 @@ async function step3SaveMd() {
     });
     var data = await resp.json();
     if (data.status === 'ok') {
-      showToast('已保存', 'ok');
+      showToast(t('saved', '已保存'), 'ok');
     } else {
-      showToast(data.error || '保存失败', 'error');
+      showToast(data.error || t('save_failed', '保存失败'), 'error');
     }
   } catch (e) {
-    showToast('保存失败: ' + e.message, 'error');
+    showToast(t('save_failed', '保存失败') + ': ' + e.message, 'error');
   }
 }
 
 async function step3ConfirmMd() {
   var pid = getCurrentPipelineId();
   var md = document.getElementById('s3-md-editor').value;
-  if (!md) { showToast('无内容可确认', 'error'); return; }
+  if (!md) { showToast(t('no_content_to_confirm', '无内容可确认'), 'error'); return; }
   try {
     var resp = await fetch(API_BASE + '/api/step3/confirm_skill_md', {
       method: 'POST',
@@ -2816,13 +2816,13 @@ async function step3ConfirmMd() {
     });
     var data = await resp.json();
     if (data.status === 'ok') {
-      showToast('对齐确认完成', 'ok');
+      showToast(t('step3_confirm_complete', '对齐确认完成'), 'ok');
       await refreshCurrentPipeline();
     } else {
-      showToast(data.error || '确认失败', 'error');
+      showToast(data.error || t('step3_confirm_failed', '确认失败'), 'error');
     }
   } catch (e) {
-    showToast('确认失败: ' + e.message, 'error');
+    showToast(t('step3_confirm_failed', '确认失败') + ': ' + e.message, 'error');
   }
 }
 
@@ -2830,13 +2830,13 @@ function renderStep3ChatHistory() {
   const box = document.getElementById('s3-chat-history');
   if (!box) return;
   if (!Array.isArray(_alignChatHistory) || _alignChatHistory.length === 0) {
-    box.innerHTML = '<div class="align-chat-empty">暂无对话。请先输入一条修订意见并发送。</div>';
+    box.innerHTML = '<div class="align-chat-empty">' + t('step3_chat_empty', '暂无对话。请先输入一条修订意见并发送。') + '</div>';
     return;
   }
   let html = '';
   _alignChatHistory.forEach((item) => {
     const role = item?.role === 'assistant' ? 'assistant' : 'user';
-    const roleText = role === 'assistant' ? '模型' : '专家';
+    const roleText = role === 'assistant' ? t('step3_role_assistant', '模型') : t('step3_role_expert', '专家');
     const ts = item?.ts ? String(item.ts) : '';
     html += `<div class="align-chat-item role-${role}">`;
     html += `<div class="align-chat-meta"><span class="align-chat-role">${roleText}</span><span>${escapeHtml(ts)}</span></div>`;
@@ -2909,12 +2909,12 @@ async function loadStep3SuggestionPool() {
     if (countEl) {
       var srcParts = [];
       var bySrc = data.by_source || {};
-      var srcNames = { validation: '验证回流', interview: '访谈转化' };
+      var srcNames = { validation: t('align_src_validation', '验证回流'), interview: t('align_src_interview', '访谈转化') };
       Object.keys(bySrc).forEach(function (k) { srcParts.push((srcNames[k] || k) + ' ' + bySrc[k]); });
       countEl.textContent = '共 ' + _s3SuggestionPool.length + ' 条' + (srcParts.length ? '（' + srcParts.join(' · ') + '）' : '');
     }
-    var actionNames = { modify: '修改', supplement: '补充', delete: '清空字段', delete_entry: '删除条目', add: '新增条目' };
-    var srcNames2 = { validation: '🔁 验证回流', interview: '🎙 访谈转化' };
+    var actionNames = { modify: t('align_action_modify', '修改'), supplement: t('align_action_supplement', '补充'), delete: t('align_action_clear_field', '清空字段'), delete_entry: t('align_action_delete_entry', '删除条目'), add: t('align_action_add_entry', '新增条目') };
+    var srcNames2 = { validation: '🔁 ' + t('align_src_validation', '验证回流'), interview: '🎙 ' + t('align_src_interview', '访谈转化') };
     var html = '';
     _s3SuggestionPool.forEach(function (s) {
       html += '<div class="rc-insight" style="margin-bottom:8px;">';
@@ -2925,7 +2925,7 @@ async function loadStep3SuggestionPool() {
       if (s.entry_id) html += ' · <strong>' + escapeHtml(s.entry_id) + '</strong>';
       if (s.field) html += ' / ' + escapeHtml(s.field);
       html += '</div>';
-      if (s.new_value) html += '<div class="rc-text">新值：' + escapeHtml(String(s.new_value).slice(0, 200)) + '</div>';
+      if (s.new_value) html += '<div class="rc-text">' + t('step3_new_value', '新值：') + escapeHtml(String(s.new_value).slice(0, 200)) + '</div>';
       if (s.fields && s.fields['知识描述']) html += '<div class="rc-text">' + escapeHtml(String(s.fields['知识描述']).slice(0, 200)) + '</div>';
       if (s.note) html += '<div class="rc-text" style="opacity:.75;">' + escapeHtml(String(s.note).slice(0, 160)) + '</div>';
       html += '</div></label></div>';
@@ -2953,7 +2953,7 @@ async function step3ApplySuggestions() {
   var pid = currentPipeline ? currentPipeline.id : null;
   if (!pid) return;
   var ids = _s3CheckedSuggestionIds();
-  if (!ids.length) { showToast('请先勾选要采纳的建议', 'error'); return; }
+  if (!ids.length) { showToast(t('step3_select_to_accept', '请先勾选要采纳的建议'), 'error'); return; }
 
   var btn = document.getElementById('s3-suggestion-apply');
   if (btn) btn.disabled = true;
@@ -2965,13 +2965,13 @@ async function step3ApplySuggestions() {
     for (var i = 0; i < suggestions.length; i++) {
       var s = suggestions[i];
       if (ids.indexOf(String(s.id)) !== -1) {
-        var line = '建议 #' + s.id + '：';
+        var line = t('step3_suggestion', '建议 #{id}：').replace('{id}', s.id);
         if (s.note) line += s.note;
-        if (s.new_value) line += ' 修改为：' + s.new_value;
+        if (s.new_value) line += ' ' + t('step3_change_to', '修改为：') + s.new_value;
         feedbackLines.push(line);
       }
     }
-    if (!feedbackLines.length) { showToast('未找到选中建议的内容', 'error'); return; }
+    if (!feedbackLines.length) { showToast(t('step3_no_matching_suggestions', '未找到选中建议的内容'), 'error'); return; }
 
     var feedback = feedbackLines.join('\n');
     var model = resolveModelName('s3-model');
@@ -2987,15 +2987,15 @@ async function step3ApplySuggestions() {
     if (result.status === 'ok') {
       // Recreate editor structure (renderLoading destroyed it)
       var s3out = document.getElementById('s3-output');
-      s3out.innerHTML = '<div id="s3-md-editor-area" style="margin-bottom:12px;"><label style="font-size:12px;color:#6b7280;">修订 SKILL.md（可直接编辑代码块中的 SQL）：</label><textarea id="s3-md-editor" rows="20" style="width:100%;font-family:monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:8px;">' + escapeHtml(result.skill_md) + '</textarea></div>';
-      showToast('已应用 ' + ids.length + ' 条建议，修订稿已更新', 'ok');
+      s3out.innerHTML = '<div id="s3-md-editor-area" style="margin-bottom:12px;"><label style="font-size:12px;color:#6b7280;">' + t('step3_revise_skill_md', '修订 SKILL.md（可直接编辑代码块中的 SQL）：') + '</label><textarea id="s3-md-editor" rows="20" style="width:100%;font-family:monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:8px;">' + escapeHtml(result.skill_md) + '</textarea></div>';
+      showToast(t('step3_apply_success', '已应用 {count} 条建议，修订稿已更新').replace('{count}', ids.length), 'ok');
       loadStep3SuggestionPool();
       refreshCurrentPipeline();
     } else {
-      showToast(result.error || '应用建议失败', 'error');
+      showToast(result.error || t('step3_apply_failed', '应用建议失败'), 'error');
     }
   } catch (e) {
-    showToast('应用建议失败: ' + e.message, 'error');
+    showToast(t('step3_apply_failed', '应用建议失败') + ': ' + e.message, 'error');
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -3005,21 +3005,21 @@ async function step3RejectSuggestions() {
   var pid = currentPipeline ? currentPipeline.id : null;
   if (!pid) return;
   var ids = _s3CheckedSuggestionIds();
-  if (!ids.length) { showToast('请先勾选要驳回的建议', 'error'); return; }
+  if (!ids.length) { showToast(t('step3_select_to_reject', '请先勾选要驳回的建议'), 'error'); return; }
   // Remove selected suggestions from pool via rejection API
   try {
     var result = await apiCallJSON('/api/step3/apply_suggestions', { pipeline_id: pid, rejected_ids: ids });
-    showToast('已驳回 ' + ids.length + ' 条建议', 'ok');
+    showToast(t('step3_reject_success', '已驳回 {count} 条建议').replace('{count}', ids.length), 'ok');
     loadStep3SuggestionPool();
   } catch (e) {
-    showToast('驳回失败: ' + e.message, 'error');
+    showToast(t('step3_reject_failed', '驳回失败') + ': ' + e.message, 'error');
   }
 }
 
 // Phase 1: Generate alignment preview (AI suggestions only)
 async function step3GeneratePreview() {
   const pid = currentPipeline ? currentPipeline.id : null;
-  if (!pid) { showToast('请先进入流水线', 'error'); return; }
+  if (!pid) { showToast(t('please_enter_pipeline', '请先进入流水线'), 'error'); return; }
   const expertText = (document.getElementById('s3-expert-text')?.value || '').trim();
   const model = document.getElementById('s3-model')?.value || resolveModelName('s3-model');
 
@@ -3065,7 +3065,7 @@ async function step3GeneratePreview() {
         // Recreate editor after renderLoading destroyed output
         var s3out = document.getElementById('s3-output');
         s3out.innerHTML = '<div id="s3-md-editor-area" style="margin-bottom:12px;"><label style="font-size:12px;color:#6b7280;">修订 SKILL.md（可直接编辑代码块中的 SQL）：</label><textarea id="s3-md-editor" rows="20" style="width:100%;font-family:monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:8px;">' + escapeHtml(data.skill_md) + '</textarea></div>';
-        showToast('修订完成，请检查后点击保存', 'ok');
+        showToast(t('revision_complete_check_save', '修订完成，请检查后点击保存'), 'ok');
         if (currentPipeline) {
           currentPipeline.step_status = currentPipeline.step_status || {};
           currentPipeline.step_status['3'] = 'done';
@@ -3123,27 +3123,27 @@ function renderAlignNotesList() {
     if (n.action === 'add' || n.action === 'supplement') {
       html += `<div class="align-diff-add">${escapeHtml(editedVal || n.new_value || '')}</div>`;
     } else if (n.action === 'delete') {
-      html += `<div class="align-diff-old">${escapeHtml(n.old_value || '(原值)')}</div>`;
+      html += `<div class="align-diff-old">${escapeHtml(n.old_value || t('step3_original_value', '(原值)'))}</div>`;
     } else {
-      html += `<div class="align-diff-old">${escapeHtml(n.old_value || '(原值)')}</div>`;
+      html += `<div class="align-diff-old">${escapeHtml(n.old_value || t('step3_original_value', '(原值)'))}</div>`;
       html += `<div class="align-diff-new">${escapeHtml(editedVal || n.new_value || '')}</div>`;
     }
     html += `</div>`;
 
     // Action buttons
     html += `<div class="align-note-actions">`;
-    html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-accept ${state === 'accepted' || state === 'edited' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'accepted')"><span class="btn__text">采纳</span></button>`;
-    html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-reject ${state === 'rejected' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'rejected')"><span class="btn__text">驳回</span></button>`;
+    html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-accept ${state === 'accepted' || state === 'edited' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'accepted')"><span class="btn__text">${t('step3_accept', '采纳')}</span></button>`;
+    html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-reject ${state === 'rejected' ? 'active' : ''}" onclick="alignSetState(${n.id}, 'rejected')"><span class="btn__text">${t('step3_reject', '驳回')}</span></button>`;
     if (n.action !== 'delete') {
-      html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-edit" onclick="alignToggleEdit(${n.id})"><span class="btn__text">编辑</span></button>`;
+      html += `<button type="button" class="btn btn--ghost btn--sm align-note-btn align-note-btn-edit" onclick="alignToggleEdit(${n.id})"><span class="btn__text">${t('step3_edit', '编辑')}</span></button>`;
     }
     html += `</div>`;
 
     // Inline editor
     if (n.action !== 'delete') {
       html += `<div class="align-inline-editor" id="align-editor-${n.id}">`;
-      html += `<textarea class="align-inline-textarea" id="align-textarea-${n.id}" placeholder="修改后的内容">${escapeHtml(editedVal || n.new_value || '')}</textarea>`;
-      html += `<button type="button" class="btn btn--primary btn--sm align-inline-save" onclick="alignSaveEdit(${n.id})"><span class="btn__icon btn__icon--left" data-lucide="check"></span><span class="btn__text">保存修改</span></button>`;
+      html += `<textarea class="align-inline-textarea" id="align-textarea-${n.id}" placeholder="${t('step3_edit_placeholder', '修改后的内容')}">${escapeHtml(editedVal || n.new_value || '')}</textarea>`;
+      html += `<button type="button" class="btn btn--primary btn--sm align-inline-save" onclick="alignSaveEdit(${n.id})"><span class="btn__icon btn__icon--left" data-lucide="check"></span><span class="btn__text">${t('step3_save_edit', '保存修改')}</span></button>`;
       html += `</div>`;
     }
 
@@ -3151,7 +3151,7 @@ function renderAlignNotesList() {
   });
 
   if (!html) {
-    html = '<div style="text-align:center;padding:40px;color:var(--text-muted);">无匹配的对齐建议</div>';
+    html = '<div style="text-align:center;padding:40px;color:var(--text-muted);">' + t('step3_no_matching_suggestions', '无匹配的对齐建议') + '</div>';
   }
   container.innerHTML = html;
   refreshIcons();
@@ -3245,7 +3245,7 @@ function updateAlignStats() {
 
   // Update toolbar progress
   var reviewTitle = document.getElementById('s3-review-title');
-  if (reviewTitle) reviewTitle.textContent = `审核进度 ${processed}/${total}`;
+  if (reviewTitle) reviewTitle.textContent = t('step3_review_progress', '审核进度 {processed}/{total}').replace('{processed}', processed).replace('{total}', total);
   var reviewCount = document.getElementById('s3-review-count');
   if (reviewCount) reviewCount.textContent = `共 ${total} 条`;
 
@@ -3310,10 +3310,10 @@ async function showStep3AlignComplete(result, options) {
   const mdFlow = prefersMarkdownFlow();
   let html = '';
   if (opts.noRevision) {
-    html += '<div class="align-result-header"><span>&#10003;</span> 已确认（无修订）</div>';
-    html += '<div class="align-result-meta">' + escapeHtml(result.message || '当前稿已作为对齐稿') + '</div>';
+    html += '<div class="align-result-header"><span>&#10003;</span> ' + t('step3_confirmed_no_revision', '已确认（无修订）') + '</div>';
+    html += '<div class="align-result-meta">' + escapeHtml(result.message || t('step3_current_as_aligned', '当前稿已作为对齐稿')) + '</div>';
   } else {
-    html += '<div class="align-result-header"><span>&#10003;</span> 知识对齐完成</div>';
+    html += '<div class="align-result-header"><span>&#10003;</span> ' + t('step3_complete', '知识对齐完成') + '</div>';
     html += '<div class="align-result-meta">采纳 <strong>' + (result.accepted_count || 0) + '</strong> / ' +
       (result.total_suggested || _alignNotes.length) + ' 条建议 · 共处理 <strong>' +
       (result.revision_count || 0) + '</strong> 处修订</div>';
@@ -3322,7 +3322,7 @@ async function showStep3AlignComplete(result, options) {
   // Markdown group
   if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
   if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>下载 Markdown</a>';
-  html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">重新对齐</button>';
+  html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">' + t('step3_re_align', '重新对齐') + '</button>';
   html += '</div>';
   document.getElementById('s3-result-card').innerHTML = html;
   updateStepProgress();
@@ -3331,7 +3331,7 @@ async function showStep3AlignComplete(result, options) {
 // Phase 2: Apply selected notes to generate final
 async function step3ApplyNotes() {
   const pid = currentPipeline ? currentPipeline.id : null;
-  if (!pid) { alert('请先进入流水线'); return; }
+  if (!pid) { alert(t('please_enter_pipeline', '请先进入流水线')); return; }
 
   const acceptedIds = [];
   const editedNotes = [];
@@ -3345,7 +3345,7 @@ async function step3ApplyNotes() {
     }
   }
 
-  if (acceptedIds.length === 0) { alert('请至少采纳一条对齐建议'); return; }
+  if (acceptedIds.length === 0) { alert(t('step3_need_accept_one', '请至少采纳一条对齐建议')); return; }
 
   const btn = document.getElementById('s3-apply-btn');
   const origBtnHtml = btn.innerHTML;
@@ -3368,7 +3368,7 @@ async function step3ApplyNotes() {
       alert(result.error || '生成对齐稿失败');
     }
   } catch (e) {
-    alert('生成对齐稿出错: ' + e.message);
+    alert(t('step3_align_failed', '生成对齐稿失败') + ': ' + e.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = origBtnHtml;
@@ -3381,7 +3381,7 @@ function renderStep3IRDualView(ir) {
   const list = document.getElementById('s3-ir-list');
   if (!list) return;
   if (!ir || !ir.entries || !ir.entries.length) {
-    list.innerHTML = '<div class="output-placeholder">暂无 IR 条目</div>';
+    list.innerHTML = '<div class="output-placeholder">' + t('step3_no_ir_entries', '暂无 IR 条目') + '</div>';
     return;
   }
   let html = '';
@@ -3394,13 +3394,13 @@ function renderStep3IRDualView(ir) {
     html += '<span class="s3-ir-phase">' + escapeHtml(e.step_phase) + '</span>';
     html += '<span class="s3-ir-sub">' + escapeHtml(e.sub_scenario) + '</span>';
     html += '</div>';
-    html += '<div class="s3-ir-row"><label>业务描述</label><textarea class="s3-field" data-field="knowledge_desc" rows="2">' + escapeHtml(fields.knowledge_desc || '') + '</textarea></div>';
-    html += '<div class="s3-ir-row"><label>数据来源</label><input type="text" class="s3-field" data-field="knowledge_ref" value="' + escapeHtml(fields.knowledge_ref || '') + '"></div>';
-    html += '<div class="s3-ir-row"><label>规则引用</label><textarea class="s3-field" data-field="rule_ref" rows="2">' + escapeHtml(fields.rule_ref || '') + '</textarea></div>';
+    html += '<div class="s3-ir-row"><label>' + t('step3_knowledge_desc', '业务描述') + '</label><textarea class="s3-field" data-field="knowledge_desc" rows="2">' + escapeHtml(fields.knowledge_desc || '') + '</textarea></div>';
+    html += '<div class="s3-ir-row"><label>' + t('step3_data_source', '数据来源') + '</label><input type="text" class="s3-field" data-field="knowledge_ref" value="' + escapeHtml(fields.knowledge_ref || '') + '"></div>';
+    html += '<div class="s3-ir-row"><label>' + t('step3_rule_ref', '规则引用') + '</label><textarea class="s3-field" data-field="rule_ref" rows="2">' + escapeHtml(fields.rule_ref || '') + '</textarea></div>';
     html += '<div class="s3-ir-row"><label>SQL</label><textarea class="s3-field s3-sql" data-field="data_logic.sql" rows="3">' + escapeHtml(dataLogic.sql || '') + '</textarea></div>';
     html += '<div class="s3-ir-actions">';
-    html += '<button type="button" class="btn btn--secondary btn--sm" onclick="step3SaveEntryRevision(\'' + escapeJsString(e.entry_id) + '\')">保存修订</button>';
-    html += '<button type="button" class="btn btn--outline btn--sm" onclick="step3RegenerateEntrySQL(\'' + escapeJsString(e.entry_id) + '\')">重新生成 SQL</button>';
+    html += '<button type="button" class="btn btn--secondary btn--sm" onclick="step3SaveEntryRevision(\'' + escapeJsString(e.entry_id) + '\')">' + t('step3_save_revision', '保存修订') + '</button>';
+    html += '<button type="button" class="btn btn--outline btn--sm" onclick="step3RegenerateEntrySQL(\'' + escapeJsString(e.entry_id) + '\')">' + t('step3_regenerate_sql', '重新生成 SQL') + '</button>';
     html += '</div>';
     html += '</div>';
   });
@@ -3409,7 +3409,7 @@ function renderStep3IRDualView(ir) {
 
 async function step3SaveEntryRevision(entryId) {
   const pipelineId = getCurrentPipelineId();
-  if (!pipelineId) { showToast('流水线未加载', 'error'); return; }
+  if (!pipelineId) { showToast(t('pipeline_not_loaded', '流水线未加载'), 'error'); return; }
   const card = document.querySelector('.s3-ir-card[data-entry-id="' + entryId + '"]');
   if (!card) return;
   const updates = [];
@@ -3429,13 +3429,13 @@ async function step3SaveEntryRevision(entryId) {
       if (r.status !== 'ok') errors.push(u.field);
     }
     if (errors.length) {
-      showToast('部分字段保存失败: ' + errors.join(', '), 'error');
+      showToast(t('step3_partial_save_failed', '部分字段保存失败') + ': ' + errors.join(', '), 'error');
     } else {
-      showToast('修订已保存', 'ok');
+      showToast(t('step3_revision_saved', '修订已保存'), 'ok');
     }
   } catch (e) {
     console.error('step3SaveEntryRevision failed:', e);
-    showToast('保存失败: ' + e.message, 'error');
+    showToast(t('save_failed', '保存失败') + ': ' + e.message, 'error');
   }
 }
 
@@ -3457,15 +3457,15 @@ async function step3RegenerateEntrySQL(entryId) {
       if (idx >= 0) window.currentStep3IR.entries[idx] = result.entry;
     }
     renderStep3IRDualView(window.currentStep3IR);
-    showToast('SQL 已重新生成', 'ok');
+    showToast(t('step3_sql_regenerated', 'SQL 已重新生成'), 'ok');
   } else {
-    showToast(result.error || '生成失败', 'error');
+    showToast(result.error || t('step3_generate_failed', '生成失败'), 'error');
   }
 }
 
 async function step3ConfirmAsIs() {
   const pipelineId = getCurrentPipelineId();
-  if (!pipelineId) { showToast('流水线未加载', 'error'); return; }
+  if (!pipelineId) { showToast(t('pipeline_not_loaded', '流水线未加载'), 'error'); return; }
   try {
     const result = await apiCallJSON('/api/step3/confirm_as_is', { pipeline_id: pipelineId });
     if (result.status === 'ok') {
@@ -3551,7 +3551,7 @@ function renderStep4ArtifactCard(key, title, desc, countLabel, downloads, previe
     }
   });
   if (previewFn) {
-    html += '<button type="button" class="btn btn--outline btn--sm" onclick="' + previewFn + '">&#128065; 预览</button>';
+    html += '<button type="button" class="btn btn--outline btn--sm" onclick="' + previewFn + '">&#128065; ' + t('preview', '预览') + '</button>';
   }
   html += '</div></div>';
   return html;
@@ -3573,7 +3573,7 @@ async function step4GenerateExecSkill() {
 
 
 	async function previewStep4File(fileName, title) {
-  if (!fileName) { alert('暂无可预览文件'); return; }
+  if (!fileName) { alert(t('no_file_preview', '暂无可预览文件')); return; }
   try {
     let url = API_BASE + '/api/files/read?file_name=' + encodeURIComponent(fileName);
     if (currentPipeline?.id) url += '&pipeline_id=' + encodeURIComponent(currentPipeline.id);
@@ -3586,25 +3586,25 @@ async function step4GenerateExecSkill() {
       alert('加载失败: ' + (data.error || '未知错误'));
     }
   } catch (e) {
-    alert('加载失败: ' + e.message);
+    alert(t('load_failed', '加载失败') + ': ' + e.message);
   }
 }
 
 function previewStep4Cot() {
-  previewStep4File(currentPipeline?.step_data?.step4_cot_file, '思维链预览');
+  previewStep4File(currentPipeline?.step_data?.step4_cot_file, t('step4_cot_preview', '思维链预览'));
 }
 function previewStep4Qa() {
   const sd = currentPipeline?.step_data || {};
-  previewStep4File(sd.step4_qa_md_file || sd.step4_qa_file, 'QA 对预览');
+  previewStep4File(sd.step4_qa_md_file || sd.step4_qa_file, t('step4_qa_preview_title', 'QA 对预览'));
 }
 function previewStep4Skill() {
-  previewStep4File(currentPipeline?.step_data?.step4_skill_file, 'Skill 预览');
+  previewStep4File(currentPipeline?.step_data?.step4_skill_file, t('step4_skill_preview', 'Skill 预览'));
 }
 
 async function step4Quality() {
   var output = document.getElementById('s4-output');
   if (!output) return; // safety guard
-  if (!currentPipeline) { alert('请先进入流水线'); return; }
+  if (!currentPipeline) { alert(t('please_enter_pipeline', '请先进入流水线')); return; }
   renderLoading('s4-output');
   output.style.display = 'block';
   try {
@@ -3619,20 +3619,20 @@ async function step4Quality() {
       html += '<div class="s4-compile-result">';
       html += '<div class="s4-compile-header">';
       html += '<div class="s4-compile-icon">&#11088;</div>';
-      html += '<div class="s4-compile-title">质量报告</div>';
-      html += '<div class="s4-compile-subtitle">五维度质量评估</div>';
+      html += '<div class="s4-compile-title">' + t('step4_quality_report', '质量报告') + '</div>';
+      html += '<div class="s4-compile-subtitle">' + t('step4_quality_dimensions', '五维度质量评估') + '</div>';
       html += '</div>';
 
       html += '<div class="s4-stats-grid">';
-      html += '<div class="s4-stat-card"><div class="s4-stat-value">' + result.overall_score + '</div><div class="s4-stat-label">综合评分</div></div>';
-      html += '<div class="s4-stat-card"><div class="s4-stat-value"><span class="grade-badge ' + gradeCls + '">' + grade + '</span></div><div class="s4-stat-label">质量等级</div></div>';
+      html += '<div class="s4-stat-card"><div class="s4-stat-value">' + result.overall_score + '</div><div class="s4-stat-label">' + t('step4_overall_score', '综合评分') + '</div></div>';
+      html += '<div class="s4-stat-card"><div class="s4-stat-value"><span class="grade-badge ' + gradeCls + '">' + grade + '</span></div><div class="s4-stat-label">' + t('step4_quality_grade', '质量等级') + '</div></div>';
       html += '</div>';
 
       if (result.dimensions) {
-        html += '<div class="s4-section"><div class="s4-section-title">维度详情</div>';
+        html += '<div class="s4-section"><div class="s4-section-title">' + t('step4_dimension_details', '维度详情') + '</div>';
         html += '<div class="s4-coverage-grid">';
         Object.entries(result.dimensions).forEach(([k, v]) => {
-          const label = { completeness: '完整性', accuracy: '准确性', actionability: '可操作性', antipattern: '反模式覆盖', traceability: '来源可溯' }[k] || k;
+          const label = { completeness: t('step4_dimension_completeness', '完整性'), accuracy: t('step4_dimension_accuracy', '准确性'), actionability: t('step4_dimension_actionability', '可操作性'), antipattern: t('step4_dimension_antipattern', '反模式覆盖'), traceability: t('step4_dimension_traceability', '来源可溯') }[k] || k;
           const pct = typeof v === 'object' ? (v.score || v.value || 0) : v;
           const cls = pct >= 80 ? 'green' : pct >= 60 ? 'orange' : 'red';
           html += '<div class="s4-coverage-item"><div class="s4-coverage-info"><div class="s4-coverage-label">' + label + '</div>';
@@ -3644,7 +3644,7 @@ async function step4Quality() {
 
       if (result.download_url) {
         html += '<div class="s4-actions">';
-        html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + result.download_url + '" download>&#11015; 下载质量报告</a>';
+        html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + result.download_url + '" download>&#11015; ' + t('step4_download_quality_report', '下载质量报告') + '</a>';
         html += '</div>';
       }
       html += '</div>';
@@ -3711,7 +3711,7 @@ function copyMarkdownContent() {
     const btn = document.querySelector('.md-btn-copy');
     if (btn) {
       const orig = btn.innerHTML;
-      btn.innerHTML = renderBtnChildren({ icon: 'check', text: '已复制' });
+      btn.innerHTML = renderBtnChildren({ icon: 'check', text: t('copied', '已复制') });
       refreshIcons();
       setTimeout(() => { btn.innerHTML = orig; refreshIcons(); }, 1500);
     }
@@ -3724,7 +3724,7 @@ async function saveMarkdownContent() {
   const content = document.getElementById('markdown-editor-content').value;
   const saveBtn = document.getElementById('md-editor-save-btn');
 
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存中...' }); refreshIcons(); }
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: t('saving', '保存中...') }); refreshIcons(); }
 
   try {
     const resp = await fetch(API_BASE + '/api/files/save', {
@@ -3734,15 +3734,15 @@ async function saveMarkdownContent() {
     });
     const data = await resp.json();
     if (data.status === 'ok') {
-      if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'check', text: '已保存' }); refreshIcons(); }
-      showToast('文件已保存');
-      setTimeout(() => { if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); } }, 2000);
+      if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'check', text: t('saved', '已保存') }); refreshIcons(); }
+      showToast(t('file_saved', '文件已保存'));
+      setTimeout(() => { if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: t('save', '保存') }); refreshIcons(); } }, 2000);
     } else {
-      alert('保存失败: ' + (data.error || '未知错误'));
+      alert(t('save_failed', '保存失败') + ': ' + (data.error || t('unknown_error', '未知错误')));
       if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); }
     }
   } catch (e) {
-    alert('保存失败: ' + e.message);
+    alert(t('save_failed', '保存失败') + ': ' + e.message);
     if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); }
   } finally {
     if (saveBtn) saveBtn.disabled = false;
@@ -3775,12 +3775,12 @@ async function loadPipelineOverview() {
   const container = document.getElementById('pipeline-list-container');
   if (!container) return;
 
-  container.innerHTML = '<div class="pipeline-overview"><div style="text-align:center;padding:40px"><div class="spinner"></div>加载中...</div></div>';
+  container.innerHTML = '<div class="pipeline-overview"><div style="text-align:center;padding:40px"><div class="spinner"></div>' + t('loading', '加载中...') + '</div></div>';
 
   try {
     const resp = await fetch(API_BASE + '/api/pipelines');
     const data = await resp.json();
-    if (data.status !== 'ok') throw new Error(data.error || '加载失败');
+    if (data.status !== 'ok') throw new Error(data.error || t('load_failed', '加载失败'));
 
     const pipelines = data.pipelines || [];
 
@@ -3802,12 +3802,12 @@ async function loadPipelineOverview() {
     html += '<div class="overview-banner">';
     html += '<div class="overview-banner-inner">';
     html += '<div class="overview-banner-text">';
-    html += '<div class="overview-banner-title">隐性知识显性化 · 五步法萃取流水线</div>';
-    html += '<div class="overview-banner-desc">将领域专家的隐性经验系统性显性化为 AI 可加载的结构化知识，通过五步法流水线，从场景定义到智能转化，层层递进、步步可追溯。</div>';
+    html += '<div class="overview-banner-title">' + t('overview_title', '隐性知识显性化 · 五步法萃取流水线') + '</div>';
+    html += '<div class="overview-banner-desc">' + t('overview_desc', '将领域专家的隐性经验系统性显性化为 AI 可加载的结构化知识，通过五步法流水线，从场景定义到智能转化，层层递进、步步可追溯。') + '</div>';
     html += '</div>';
     html += '<button type="button" class="btn btn--light btn--lg" onclick="showNewPipelineForm()">';
     html += '<span class="btn__icon btn__icon--left" data-lucide="plus"></span>';
-    html += '<span class="btn__text">新建流水线</span>';
+    html += '<span class="btn__text">' + t('new_pipeline', '新建流水线') + '</span>';
     html += '</button>';
     html += '</div>';
     html += '</div>';
@@ -3821,7 +3821,7 @@ async function loadPipelineOverview() {
       { num: '05', title: '验证回放', desc: '用 SKILL 终版判历史案例，分歧回流第3步形成闭环', icon: '&#9851;' },
     ];
     html += '<div class="overview-roadmap">';
-    html += '<div class="roadmap-header"><span class="roadmap-header-line"></span><span class="roadmap-header-text">五步法流程概览</span><span class="roadmap-header-line"></span></div>';
+    html += '<div class="roadmap-header"><span class="roadmap-header-line"></span><span class="roadmap-header-text">' + t('process_overview', '五步法流程概览') + '</span><span class="roadmap-header-line"></span></div>';
     html += '<div class="roadmap-cards">';
     stepCards.forEach((s, i) => {
       html += '<div class="roadmap-step" data-step="' + s.num + '">';
@@ -3841,36 +3841,36 @@ async function loadPipelineOverview() {
 
     // New Pipeline Form (hidden)
     html += '<div class="new-pipeline-form" id="new-pipeline-form" style="display:none">';
-    html += '<h3>新建流水线</h3>';
+    html += '<h3>' + t('new_pipeline', '新建流水线') + '</h3>';
     html += '<div class="form-row">';
-    html += '<div class="form-group half"><label>流水线名称</label><input type="text" id="np-name" placeholder="如：信贷审批知识萃取"></div>';
-    html += '<div class="form-group half"><label>场景名称</label>';
+    html += '<div class="form-group half"><label>' + t('pipeline_name', '流水线名称') + '</label><input type="text" id="np-name" placeholder="如：信贷审批知识萃取"></div>';
+    html += '<div class="form-group half"><label>' + t('scenario_name_label', '场景名称') + '</label>';
     html += '<select id="np-scenario" onchange="if(this.value===\'custom\'){document.getElementById(\'np-scenario-custom\').classList.remove(\'hidden\')}else{document.getElementById(\'np-scenario-custom\').classList.add(\'hidden\')}">';
-    html += '<option value="">-- 选择预设场景 --</option>';
+    html += '<option value="">' + t('select_preset_scenario', '-- 选择预设场景 --') + '</option>';
     html += '<option value="信贷审批">信贷审批</option>';
     html += '<option value="风控">风控</option>';
     html += '<option value="营销">营销</option>';
     html += '<option value="custom">自定义</option>';
     html += '</select>';
-    html += '<input type="text" id="np-scenario-custom" class="hidden" placeholder="输入自定义场景名称">';
+    html += '<input type="text" id="np-scenario-custom" class="hidden" placeholder="' + t('enter_custom_scenario', '输入自定义场景名称') + '">';
     html += '</div>';
     html += '</div>';
-    html += '<div class="form-group"><label>业务领域</label><input type="text" id="np-domain" placeholder="如：信贷、风控、营销（默认同场景名称）"></div>';
+    html += '<div class="form-group"><label>' + t('domain', '业务领域') + '</label><input type="text" id="np-domain" placeholder="如：信贷、风控、营销（默认同场景名称）"></div>';
     html += '<div class="form-actions">';
-    html += '<button type="button" class="btn btn--secondary btn--md" onclick="hideNewPipelineForm()"><span class="btn__text">取消</span></button>';
-    html += '<button type="button" class="btn btn--primary btn--md" onclick="createPipeline()"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">创建并开始</span></button>';
+    html += '<button type="button" class="btn btn--secondary btn--md" onclick="hideNewPipelineForm()"><span class="btn__text">' + t('cancel', '取消') + '</span></button>';
+    html += '<button type="button" class="btn btn--primary btn--md" onclick="createPipeline()"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">' + t('create_start', '创建并开始') + '</span></button>';
     html += '</div>';
     html += '</div>';
 
     // Pipeline History
     html += '<div class="overview-history-header">';
-    html += '<div class="overview-history-title">历史流水线</div>';
-    html += '<div class="overview-history-count">共 ' + sorted.length + ' 条</div>';
+    html += '<div class="overview-history-title">' + t('pipeline_history', '历史流水线') + '</div>';
+    html += '<div class="overview-history-count">' + t('overview_history_count', '共 {count} 条').replace('{count}', sorted.length) + '</div>';
     html += '</div>';
 
     // Search / filter bar
     html += '<div class="pipeline-search-bar">';
-    html += '<input type="text" id="pipeline-search-input" placeholder="搜索流水线名称、场景..." oninput="filterPipelineList(this.value)" class="pipeline-search-input">';
+    html += '<input type="text" id="pipeline-search-input" placeholder="' + t('search_placeholder', '搜索流水线名称、场景...') + '" oninput="filterPipelineList(this.value)" class="pipeline-search-input">';
     html += '</div>';
 
     if (sorted.length > 0 && pageItems.length > 0) {
@@ -3883,15 +3883,15 @@ async function loadPipelineOverview() {
       // Pagination controls
       if (totalPages > 1) {
         html += '<div class="pagination">';
-        html += '<button class="pagination-btn" onclick="changePage(' + Math.max(1, currentPage - 1) + ')\"' + (currentPage <= 1 ? ' disabled' : '') + '>&#9664; 上一页</button>';
-        html += '<span class="pagination-info">第 ' + currentPage + ' / ' + totalPages + ' 页</span>';
-        html += '<button class="pagination-btn" onclick="changePage(' + Math.min(totalPages, currentPage + 1) + ')\"' + (currentPage >= totalPages ? ' disabled' : '') + '>下一页 &#9654;</button>';
+        html += '<button class="pagination-btn" onclick="changePage(' + Math.max(1, currentPage - 1) + ')\"' + (currentPage <= 1 ? ' disabled' : '') + '>&#9664; ' + t('prev_page', '上一页') + '</button>';
+        html += '<span class="pagination-info">' + t('page_info', '第 {current} / {total} 页').replace('{current}', currentPage).replace('{total}', totalPages) + '</span>';
+        html += '<button class="pagination-btn" onclick="changePage(' + Math.min(totalPages, currentPage + 1) + ')\"' + (currentPage >= totalPages ? ' disabled' : '') + '>' + t('next_page', '下一页') + ' &#9654;</button>';
         html += '</div>';
       }
     } else {
       html += '<div class="pipeline-empty">';
       html += '<div class="pipeline-empty-icon">📋</div>';
-      html += '<div class="pipeline-empty-text">暂无历史流水线，点击上方"新建流水线"开始</div>';
+      html += '<div class="pipeline-empty-text">' + t('no_pipelines', '暂无历史流水线，点击上方"新建流水线"开始') + '</div>';
       html += '</div>';
     }
 
@@ -3899,7 +3899,7 @@ async function loadPipelineOverview() {
     container.innerHTML = html;
     refreshIcons();
   } catch (e) {
-    container.innerHTML = '<div class="pipeline-overview"><div class="error-list"><div class="error-item">加载失败: ' + escapeHtml(e.message) + '</div></div></div>';
+    container.innerHTML = '<div class="pipeline-overview"><div class="error-list"><div class="error-item">' + t('load_failed', '加载失败') + ': ' + escapeHtml(e.message) + '</div></div></div>';
   }
 }
 
@@ -3960,7 +3960,7 @@ function renderPipelineItem(p) {
   const updatedAt = p.updated_at ? p.updated_at.slice(0, 16).replace('T', ' ') : '-';
 
   const statusClass = isComplete ? 'completed' : 'in-progress';
-  const statusLabel = isComplete ? '已完成' : '进行中';
+  const statusLabel = isComplete ? t('completed', '已完成') : t('in_progress', '进行中');
   const statusIcon = isComplete ? '&#10003;' : '&#9679;';
 
   let html = '<div class="pipeline-item ' + statusClass + '" onclick="enterPipeline(\'' + p.id + '\')">';
@@ -3971,14 +3971,14 @@ function renderPipelineItem(p) {
   html += '</div>';
   html += '<div class="pipeline-item-right">';
   if (!isComplete) {
-    html += '<button type="button" class="btn btn--outline btn--sm"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">继续</span></button>';
+    html += '<button type="button" class="btn btn--outline btn--sm"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">' + t('continue', '继续') + '</span></button>';
   }
-  html += '<button type="button" class="btn btn--ghost btn--sm" onclick="event.stopPropagation();deletePipeline(\'' + p.id + '\', this)" title="删除"><span class="btn__icon btn__icon--left" data-lucide="trash-2"></span><span class="btn__text">删除</span></button>';
+  html += '<button type="button" class="btn btn--ghost btn--sm" onclick="event.stopPropagation();deletePipeline(\'' + p.id + '\', this)" title="' + t('delete', '删除') + '"><span class="btn__icon btn__icon--left" data-lucide="trash-2"></span><span class="btn__text">' + t('delete', '删除') + '</span></button>';
   html += '</div>';
   html += '</div>';
   html += '<div class="pipeline-item-meta">';
   html += '<span class="pipeline-item-scenario">' + escapeHtml(p.scenario || '-') + '</span>';
-  html += '<span>进度 ' + shownDoneCount + '/' + MAX_STEP + '</span>';
+  html += '<span>' + t('progress', '进度') + ' ' + shownDoneCount + '/' + MAX_STEP + '</span>';
   html += '<span class="pipeline-item-time">' + updatedAt + '</span>';
   html += '</div>';
 
@@ -4031,8 +4031,8 @@ async function createPipeline() {
   }
   const domain = (document.getElementById('np-domain') || {}).value || scenario;
 
-  if (!name.trim()) { alert('请输入流水线名称'); return; }
-  if (!scenario.trim()) { alert('请选择或输入场景名称'); return; }
+  if (!name.trim()) { alert(t('enter_pipeline_name', '请输入流水线名称')); return; }
+  if (!scenario.trim()) { alert(t('enter_scenario_name', '请选择或输入场景名称')); return; }
 
   try {
     const result = await apiCallJSON('/api/pipelines', {
@@ -4049,10 +4049,10 @@ async function createPipeline() {
       if (nameEl) nameEl.value = scenario;
       switchPanel(1);
     } else {
-      alert(result.error || '创建失败');
+      alert(result.error || t('create_failed', '创建失败'));
     }
   } catch (e) {
-    alert('创建失败: ' + e.message);
+    alert(t('create_failed', '创建失败') + ': ' + e.message);
   }
 }
 
@@ -4072,15 +4072,15 @@ async function enterPipeline(pipelineId) {
       const step = Math.min(MAX_STEP, Math.max(1, currentPipeline.current_step || 1));
       switchPanel(step);
     } else {
-      alert(data.error || '加载流水线失败');
+      alert(data.error || t('load_failed', '加载流水线失败'));
     }
   } catch (e) {
-    alert('加载失败: ' + e.message);
+    alert(t('load_failed', '加载失败') + ': ' + e.message);
   }
 }
 
 async function deletePipeline(pipelineId, btnEl) {
-  if (!confirm('确定删除该流水线？删除后不可恢复。')) return;
+  if (!confirm(t('confirm_delete_pipeline', '确定删除该流水线？删除后不可恢复。'))) return;
   if (btnEl) { btnEl.textContent = '...'; btnEl.disabled = true; }
   try {
     const resp = await fetch(API_BASE + '/api/pipelines/' + pipelineId, { method: 'DELETE' });
@@ -4088,10 +4088,10 @@ async function deletePipeline(pipelineId, btnEl) {
     if (data.status === 'ok') {
       loadPipelineOverview();
     } else {
-      alert(data.error || '删除失败');
+      alert(data.error || t('delete_failed', '删除失败'));
     }
   } catch (e) {
-    alert('删除失败: ' + e.message);
+    alert(t('model_delete_failed', '删除失败') + ': ' + e.message);
   }
 }
 
@@ -4121,11 +4121,11 @@ function closeExcelEditor() {
 }
 
 async function editStep2Preextract() {
-  if (!currentPipeline) { alert('请先进入流水线'); return; }
+  if (!currentPipeline) { alert(t('please_enter_pipeline', '请先进入流水线')); return; }
 
   const fileName = currentPipeline.step_data?.step2_output_file;
   if (!fileName || !isStep2PreextractFile(fileName)) {
-    alert('未找到有效的萃取 Excel（preextract_*.xlsx），请先执行知识萃取');
+    alert(t('no_extract_excel', '未找到有效的萃取 Excel（preextract_*.xlsx），请先执行知识萃取'));
     return;
   }
 
@@ -4153,10 +4153,10 @@ async function editStep2Preextract() {
         requestAnimationFrame(function () { renderExcelEditorContent(); });
       });
     } else {
-      alert('读取萃取 Excel 失败: ' + (data.error || '未知错误'));
+      alert(t('read_extract_excel_failed', '读取萃取 Excel 失败') + ': ' + (data.error || t('unknown_error', '未知错误')));
     }
   } catch (e) {
-    alert('加载萃取 Excel 出错: ' + e.message);
+    alert(t('load_extract_excel_failed', '加载萃取 Excel 出错') + ': ' + e.message);
   }
 }
 
@@ -4183,12 +4183,12 @@ function resolveStep3ExcelFile(stepData) {
 }
 
 async function editStep3Revision() {
-  if (!currentPipeline) { alert('请先进入流水线'); return; }
+  if (!currentPipeline) { alert(t('please_enter_pipeline', '请先进入流水线')); return; }
 
   await refreshCurrentPipeline();
   const resolved = resolveStep3ExcelFile(currentPipeline.step_data);
   if (!resolved || !resolved.fileName) {
-    alert('未找到可编辑的 Excel，请先完成知识萃取（Step2）');
+    alert(t('no_editable_excel', '未找到可编辑的 Excel，请先完成知识萃取（Step2）'));
     return;
   }
 
@@ -4215,24 +4215,24 @@ async function editStep3Revision() {
       _excelEditorData.modified = false;
       const stepLabel = document.getElementById('excel-editor-step-label');
       if (stepLabel) {
-        stepLabel.textContent = resolved.isRevision ? '在线编辑：知识对齐稿' : '在线编辑：萃取底稿（执行后生成知识对齐稿）';
+        stepLabel.textContent = resolved.isRevision ? t('online_edit_revision', '在线编辑：知识对齐稿') : t('online_edit_extraction', '在线编辑：萃取底稿（执行后生成知识对齐稿）');
       }
       openExcelEditor(_excelEditorData.step);
       requestAnimationFrame(function () {
         requestAnimationFrame(function () { renderExcelEditorContent(); });
       });
     } else {
-      alert('读取 Excel 失败: ' + (data.error || '未知错误'));
+      alert(t('read_excel_failed', '读取 Excel 失败') + ': ' + (data.error || t('unknown_error', '未知错误')));
     }
   } catch (e) {
-    alert('加载 Excel 出错: ' + e.message);
+    alert(t('load_excel_failed', '加载 Excel 出错') + ': ' + e.message);
   }
 }
 
 async function loadExcelToEditor(fileInputId, step) {
   const fileInput = document.getElementById(fileInputId);
   if (!fileInput || !fileInput.files[0]) {
-    alert('请先上传 Excel 文件');
+    alert(t('please_upload_excel', '请先上传 Excel 文件'));
     return;
   }
 
@@ -4257,10 +4257,10 @@ async function loadExcelToEditor(fileInputId, step) {
         requestAnimationFrame(function () { renderExcelEditorContent(); });
       });
     } else {
-      alert(data.error || '读取 Excel 失败');
+      alert(data.error || t('read_excel_failed', '读取 Excel 失败'));
     }
   } catch (e) {
-    alert('读取失败: ' + e.message);
+    alert(t('read_failed', '读取失败') + ': ' + e.message);
   }
 }
 
@@ -4269,7 +4269,7 @@ function renderExcelEditorLoading() {
   if (!modal) return;
   modal.classList.add('active');
   const content = document.getElementById('excel-editor-content');
-  if (content) content.innerHTML = '<div class="excel-editor-loading">正在加载 Excel 数据...</div>';
+  if (content) content.innerHTML = '<div class="excel-editor-loading">' + t('excel_editor_loading', '正在加载 Excel 数据...') + '</div>';
 }
 
 function renderExcelEditorContent() {
@@ -4288,7 +4288,7 @@ function renderExcelEditorContent() {
   if (mountEl && typeof ExcelEditor !== 'undefined') {
     ExcelEditor.mount(mountEl, _excelEditorData.sheets, _excelEditorData.active_sheet).catch(function (e) {
       console.error('ExcelEditor.mount failed:', e);
-      mountEl.innerHTML = '<div class="excel-editor-loading">表格编辑器加载异常：' + escapeHtml(e.message || String(e)) + '</div>';
+      mountEl.innerHTML = '<div class="excel-editor-loading">' + t('excel_editor_load_error', '表格编辑器加载异常：') + escapeHtml(e.message || String(e)) + '</div>';
     });
   }
 }
@@ -4304,21 +4304,21 @@ function markExcelModified() {
   const indicator = document.getElementById('excel-modified-indicator');
   const text = document.getElementById('excel-modified-text');
   if (indicator) indicator.style.display = 'inline-block';
-  if (text) text.textContent = '已修改（未保存）';
+  if (text) text.textContent = t('modified_unsaved', '已修改（未保存）');
 }
 
 async function saveExcelEditor() {
   syncExcelDataFromDOM();
 
   if (!_excelEditorData.file_path) {
-    alert('无源文件路径，请重新上传');
+    alert(t('no_source_path', '无源文件路径，请重新上传'));
     return;
   }
 
   const saveBtn = document.getElementById('excel-editor-save-btn');
   const saveBtnText = saveBtn ? saveBtn.querySelector('.btn__text') : null;
   if (saveBtn) { saveBtn.disabled = true; }
-  if (saveBtnText) { saveBtnText.textContent = '保存中...'; }
+  if (saveBtnText) { saveBtnText.textContent = t('saving', '保存中...'); }
 
   try {
     const resp = await fetch(API_BASE + '/api/excel/save', {
@@ -4340,7 +4340,7 @@ async function saveExcelEditor() {
       const indicator = document.getElementById('excel-modified-indicator');
       const text = document.getElementById('excel-modified-text');
       if (indicator) indicator.style.display = 'none';
-      if (text) text.textContent = '已保存';
+      if (text) text.textContent = t('saved', '已保存');
 
       const step = _excelEditorData.step;
       if (String(step) === '1' && currentPipeline && data.file_path) {
@@ -4352,7 +4352,7 @@ async function saveExcelEditor() {
         persistPipeline({
           step1_output_file: base,
           step1_download_url: data.download_url || ('/downloads/' + base),
-        }).catch(e => { console.error('Link step1 output failed:', e); showToast('Excel 已保存，但流水线同步失败', 'error'); });
+        }).catch(e => { console.error('Link step1 output failed:', e); showToast(t('excel_save_sync_failed', 'Excel 已保存，但流水线同步失败'), 'error'); });
         if (currentStep === 2) loadStep2PrevOutput();
       }
 
@@ -4405,21 +4405,21 @@ async function saveExcelEditor() {
       if (outputEl && data.download_url) {
         let existing = outputEl.querySelector('.excel-download-link');
         if (!existing) {
-          const label = step === 3 ? '修订稿' : step === 4 ? '最终稿' : step === 1 ? '场景骨架' : 'Excel';
+          const label = step === 3 ? t('revision_draft', '修订稿') : step === 4 ? t('final_draft', '最终稿') : step === 1 ? t('scenario_skeleton', '场景骨架') : 'Excel';
           const div = document.createElement('div');
           div.className = 'excel-download-link';
-          div.innerHTML = '<span class="download-icon">📥</span> <a href="' + escapeHtml(API_BASE + data.download_url) + '" download>下载' + label + ' Excel</a>';
+          div.innerHTML = '<span class="download-icon">📥</span> <a href="' + escapeHtml(API_BASE + data.download_url) + '" download>' + t('download', '下载') + ' ' + label + ' Excel</a>';
           outputEl.appendChild(div);
         }
       }
     } else {
-      alert(data.error || '保存失败');
+      alert(data.error || t('save_failed', '保存失败'));
     }
   } catch (e) {
-    alert('保存失败: ' + e.message);
+    alert(t('save_failed', '保存失败') + ': ' + e.message);
   } finally {
     if (saveBtn) { saveBtn.disabled = false; }
-    if (saveBtnText) { saveBtnText.textContent = '保存'; }
+    if (saveBtnText) { saveBtnText.textContent = t('save', '保存'); }
   }
 }
 
@@ -4446,7 +4446,7 @@ async function saveExcelEditor() {
 async function step4Compile() {
   var pid = getCurrentPipelineId();
   var model = resolveModelName('s4-model');
-  if (!pid || !model) { showToast('请先选择模型', 'error'); return; }
+  if (!pid || !model) { showToast(t('please_select_model', '请先选择模型'), 'error'); return; }
 
   var formData = new FormData();
   formData.append('pipeline_id', pid);
@@ -4457,18 +4457,18 @@ async function step4Compile() {
     var resp = await fetch(API_BASE + '/api/step4/build_skill', { method: 'POST', body: formData });
     var data = await resp.json();
     if (data.status === 'ok') {
-      var html = '<div class="s2-result-success" style="margin-bottom:12px;"><div class="s2-result-header">生成完成（' + (data.knowledge_count || 0) + ' 条知识）</div></div>';
+      var html = '<div class="s2-result-success" style="margin-bottom:12px;"><div class="s2-result-header">' + t('step4_complete', '生成完成（{count} 条知识）').replace('{count}', data.knowledge_count || 0) + '</div></div>';
       html += '<div class="s4-cards">';
 
       // 1. QA pairs card
       html += '<div class="s4-card">';
       html += '<div class="s4-card-icon">❓</div>';
-      html += '<div class="s4-card-title">QA 对</div>';
-      html += '<div class="s4-card-desc">用于 RAG 检索和 Step5 验证的问答对</div>';
+      html += '<div class="s4-card-title">' + t('step4_qa_pairs', 'QA 对') + '</div>';
+      html += '<div class="s4-card-desc">' + t('step4_qa_desc', '用于 RAG 检索和 Step5 验证的问答对') + '</div>';
       if (data.qa_url) {
         html += '<div class="s4-card-actions">';
-        html += '<button class="btn btn--primary btn--sm" onclick="previewStep4QA(\'' + escapeHtml(data.qa_url) + '\')">预览</button>';
-        html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.qa_url + '" download>下载</a>';
+        html += '<button class="btn btn--primary btn--sm" onclick="previewStep4QA(\'' + escapeHtml(data.qa_url) + '\')">' + t('step4_preview', '预览') + '</button>';
+        html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.qa_url + '" download>' + t('step4_download', '下载') + '</a>';
         html += '</div>';
       }
       html += '</div>';
@@ -4476,12 +4476,12 @@ async function step4Compile() {
       // 2. Chain of Thought card
       html += '<div class="s4-card">';
       html += '<div class="s4-card-icon">🧠</div>';
-      html += '<div class="s4-card-title">思维链</div>';
-      html += '<div class="s4-card-desc">分步推理链条，供 Agent 决策参考</div>';
+      html += '<div class="s4-card-title">' + t('step4_chain_of_thought', '思维链') + '</div>';
+      html += '<div class="s4-card-desc">' + t('step4_cot_desc', '分步推理链条，供 Agent 决策参考') + '</div>';
       if (data.cot_url) {
         html += '<div class="s4-card-actions">';
-        html += '<button class="btn btn--primary btn--sm" onclick="previewStep4COT(\'' + escapeHtml(data.cot_url) + '\')">预览</button>';
-        html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.cot_url + '" download>下载</a>';
+        html += '<button class="btn btn--primary btn--sm" onclick="previewStep4COT(\'' + escapeHtml(data.cot_url) + '\')">' + t('step4_preview', '预览') + '</button>';
+        html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + data.cot_url + '" download>' + t('step4_download', '下载') + '</a>';
         html += '</div>';
       }
       html += '</div>';
@@ -4489,12 +4489,12 @@ async function step4Compile() {
       // 3. Agent-Skill zip card
       html += '<div class="s4-card">';
       html += '<div class="s4-card-icon">🤖</div>';
-      html += '<div class="s4-card-title">待验证 Agent-Skill</div>';
-      html += '<div class="s4-card-desc">可执行 Skill 包，供 Step5 验证回放</div>';
+      html += '<div class="s4-card-title">' + t('step4_agent_skill', '待验证 Agent-Skill') + '</div>';
+      html += '<div class="s4-card-desc">' + t('step4_agent_skill_desc', '可执行 Skill 包，供 Step5 验证回放') + '</div>';
       var skillZipUrl = data.skill_dir_zip_url || data.skill_zip_url || '';
       if (skillZipUrl) {
         html += '<div class="s4-card-actions">';
-        html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + skillZipUrl + '" download>下载</a>';
+        html += '<a class="btn btn--primary btn--sm" href="' + API_BASE + skillZipUrl + '" download>' + t('step4_download', '下载') + '</a>';
         html += '</div>';
       }
       html += '</div>';
@@ -4503,7 +4503,7 @@ async function step4Compile() {
       renderOutput('s4-output', html);
       await refreshCurrentPipeline();
     } else {
-      renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '生成失败') + '</div></div>');
+      renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || t('step4_generate_failed', '生成失败')) + '</div></div>');
     }
   } catch (e) {
     renderOutput('s4-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
@@ -4516,7 +4516,7 @@ async function previewStep4QA(url) {
     var data = await resp.json();
     var items = data.items || data[0] || data;
     var html = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">';
-    html += '<div class="modal-dialog modal-lg"><div class="modal-header"><span>QA 对预览（' + (Array.isArray(items) ? items.length : 0) + ' 条）</span><button class="modal-close" onclick="closeModal()">&times;</button></div>';
+    html += '<div class="modal-dialog modal-lg"><div class="modal-header"><span>' + t('step4_qa_preview', 'QA 对预览（{count} 条）').replace('{count}', Array.isArray(items) ? items.length : 0) + '</span><button class="modal-close" onclick="closeModal()">&times;</button></div>';
     html += '<div class="modal-body" style="max-height:70vh;overflow:auto;">';
     var list = Array.isArray(items) ? items : (Array.isArray(data) ? data : [data]);
     list.forEach(function(item) {
@@ -4529,7 +4529,7 @@ async function previewStep4QA(url) {
     html += '</div></div></div>';
     document.body.insertAdjacentHTML('beforeend', html);
   } catch (e) {
-    showToast('加载失败: ' + e.message, 'error');
+    showToast(t('load_failed', '加载失败') + ': ' + e.message, 'error');
   }
 }
 
@@ -4538,13 +4538,13 @@ async function previewStep4COT(url) {
     var resp = await fetch(API_BASE + url);
     var md = await resp.text();
     var html = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">';
-    html += '<div class="modal-dialog modal-lg"><div class="modal-header"><span>思维链预览</span><button class="modal-close" onclick="closeModal()">&times;</button></div>';
+    html += '<div class="modal-dialog modal-lg"><div class="modal-header"><span>' + t('step4_cot_preview', '思维链预览') + '</span><button class="modal-close" onclick="closeModal()">&times;</button></div>';
     html += '<div class="modal-body md-preview" style="max-height:70vh;overflow:auto;">';
     html += (typeof marked !== 'undefined' ? marked.parse(md) : '<pre>' + escapeHtml(md) + '</pre>');
     html += '</div></div></div>';
     document.body.insertAdjacentHTML('beforeend', html);
   } catch (e) {
-    showToast('加载失败: ' + e.message, 'error');
+    showToast(t('load_failed', '加载失败') + ': ' + e.message, 'error');
   }
 }
 
@@ -4552,10 +4552,10 @@ async function step4PublishToKb() {
   if (!currentPipeline) return;
   try {
     var result = await apiCallJSON('/api/kb/publish', { pipeline_id: currentPipeline.id });
-    if (result.status !== 'ok') { showToast(result.error || '发布失败', 'error'); return; }
-    showToast('已发布到知识库：新增 ' + (result.created || 0) + ' 条 · 更新 ' + (result.superseded || 0) + ' 条');
+    if (result.status !== 'ok') { showToast(result.error || t('step4_publish_failed', '发布失败'), 'error'); return; }
+    showToast(t('step4_publish_success', '已发布到知识库：新增 {created} 条 · 更新 {updated} 条').replace('{created}', result.created || 0).replace('{updated}', result.superseded || 0));
   } catch (e) {
-    showToast('发布失败: ' + e.message, 'error');
+    showToast(t('step4_publish_failed', '发布失败') + ': ' + e.message, 'error');
   }
 }
 
@@ -4574,24 +4574,24 @@ function loadStep5Context() {
   var sd = currentPipeline?.step_data || {};
   var html = '';
   if (sd.step4_skill_file) {
-    html += '<div class="s2-prev-name">&#9989; SKILL 终版：' + escapeHtml(sd.step4_skill_file) + '</div>';
-    html += '<div class="s2-prev-meta">验证对象 = Step4 编译的最终交付物</div>';
-    if (readinessEl) renderStepReadiness('s5-readiness', '已就绪：可执行决策回放', 'ok');
+    html += '<div class="s2-prev-name">&#9989; ' + t('step5_final_skill', 'SKILL 终版：') + escapeHtml(sd.step4_skill_file) + '</div>';
+    html += '<div class="s2-prev-meta">' + t('step5_target_final', '验证对象 = Step4 编译的最终交付物') + '</div>';
+    if (readinessEl) renderStepReadiness('s5-readiness', t('step5_ready_replay', '已就绪：可执行决策回放'), 'ok');
   } else if (sd.step3_aligned_file) {
-    html += '<div class="s2-prev-name">&#128260; 对齐稿 Skill 草稿 v' + (sd.step3_aligned_version || '?') + '</div>';
-    html += '<div class="s2-prev-meta">尚未编译 SKILL 终版，将以 IR 渲染结果作为验证对象</div>';
-    if (readinessEl) renderStepReadiness('s5-readiness', '可执行（建议先在第 4 步编译 SKILL 终版）', 'ok');
+    html += '<div class="s2-prev-name">&#128260; ' + t('step3_draft_title', '知识萃取稿') + ' Skill ' + t('step2_skill_draft', '草稿 v{version}').replace('{version}', sd.step3_aligned_version || '?') + '</div>';
+    html += '<div class="s2-prev-meta">' + t('step5_use_ir_target', '尚未编译 SKILL 终版，将以 IR 渲染结果作为验证对象') + '</div>';
+    if (readinessEl) renderStepReadiness('s5-readiness', t('step5_executable_recommend_compile', '可执行（建议先在第 4 步编译 SKILL 终版）'), 'ok');
   } else if (sd.step2_draft_file) {
-    html += '<div class="s2-prev-name">&#128221; 萃取稿 Skill 草稿 v' + (sd.step2_draft_version || 1) + '</div>';
-    html += '<div class="s2-prev-meta">尚未对齐，仅可做冒烟验证</div>';
-    if (readinessEl) renderStepReadiness('s5-readiness', '可冒烟验证（建议先完成知识对齐与转化）', 'warn');
+    html += '<div class="s2-prev-name">&#128221; ' + t('step2_draft_title', '萃取稿') + ' Skill ' + t('step2_skill_draft', '草稿 v{version}').replace('{version}', sd.step2_draft_version || 1) + '</div>';
+    html += '<div class="s2-prev-meta">' + t('step5_smoke_only', '尚未对齐，仅可做冒烟验证') + '</div>';
+    if (readinessEl) renderStepReadiness('s5-readiness', t('step5_smoke_recommend', '可冒烟验证（建议先完成知识对齐与转化）'), 'warn');
   } else {
-    html += '<div class="s2-prev-meta">暂无可验证的 SKILL/草稿，请先完成前序步骤</div>';
-    if (readinessEl) renderStepReadiness('s5-readiness', '请先完成知识萃取', 'warn');
+    html += '<div class="s2-prev-meta">' + t('step5_no_skill', '暂无可验证的 SKILL/草稿，请先完成前序步骤') + '</div>';
+    if (readinessEl) renderStepReadiness('s5-readiness', t('step5_please_complete_extraction', '请先完成知识萃取'), 'warn');
   }
   if (sd.step5_hit_rate != null && sd.step5_run_id) {
-    html += '<div class="s2-prev-meta" style="margin-top:6px;">上次回放命中率：<strong>' + Math.round(sd.step5_hit_rate * 100) + '%</strong>';
-    if (sd.step5_replay_url) html += ' · <a href="' + API_BASE + sd.step5_replay_url + '" target="_blank">查看报告</a>';
+    html += '<div class="s2-prev-meta" style="margin-top:6px;">' + t('step5_last_hit_rate', '上次回放命中率：') + '<strong>' + Math.round(sd.step5_hit_rate * 100) + '%</strong>';
+    if (sd.step5_replay_url) html += ' · <a href="' + API_BASE + sd.step5_replay_url + '" target="_blank">' + t('step5_view_report', '查看报告') + '</a>';
     html += '</div>';
   }
   infoEl.innerHTML = html;
@@ -4616,18 +4616,18 @@ async function loadStep5PrevOutput() {
       if (empty) empty.style.display = 'none';
       if (info) {
         let infoHtml = '<div class="s2-prev-name">Agent-Skill 交付包 v' + (data.published_version || '?') + '</div>';
-        infoHtml += '<div class="s2-prev-meta">编译完成，可供验证回放</div>';
+        infoHtml += '<div class="s2-prev-meta">' + t('step5_package_ready', '编译完成，可供验证回放') + '</div>';
         info.innerHTML = infoHtml;
       }
       if (tags) {
         let tagHtml = '';
-        if (data.step5_input_file) tagHtml += '<span class="s2-tag">验证输入 (.json)</span>';
+        if (data.step5_input_file) tagHtml += '<span class="s2-tag">' + t('step5_validation_input_tag', '验证输入 (.json)') + '</span>';
         tags.innerHTML = tagHtml;
       }
       if (actions) {
         let actionHtml = '';
         if (data.step5_input_url) {
-          actionHtml += '<button type="button" class="btn btn--primary btn--sm" onclick="previewStep5InputJSON(\'' + escapeHtml(data.step5_input_url) + '\')">预览验证输入</button>';
+          actionHtml += '<button type="button" class="btn btn--primary btn--sm" onclick="previewStep5InputJSON(\'' + escapeHtml(data.step5_input_url) + '\')">' + t('step5_preview_input', '预览验证输入') + '</button>';
         }
         actions.innerHTML = actionHtml;
       }
@@ -4646,12 +4646,12 @@ async function previewStep5InputJSON(url) {
     const data = await resp.json();
     var html = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">';
     html += '<div class="modal-dialog modal-lg">';
-    html += '<div class="modal-header"><span>验证输入 JSON（' + (data.count || 0) + ' 条 QA）</span><button class="modal-close" onclick="closeModal()">×</button></div>';
+    html += '<div class="modal-header"><span>' + t('step5_input_json', '验证输入 JSON（{count} 条 QA）').replace('{count}', data.count || 0) + '</span><button class="modal-close" onclick="closeModal()">×</button></div>';
     html += '<div class="modal-body"><pre class="s5-json-body" style="max-height:70vh;">' + escapeHtml(JSON.stringify(data, null, 2)) + '</pre></div>';
     html += '</div></div>';
     document.body.insertAdjacentHTML('beforeend', html);
   } catch (e) {
-    showToast('加载 JSON 失败: ' + e.message, 'error');
+    showToast(t('step5_load_json_failed', '加载 JSON 失败') + ': ' + e.message, 'error');
   }
 }
 function closeModal() {
@@ -4666,19 +4666,19 @@ async function step5RunReplay() {
   btn.disabled = true;
   try {
     const pipelineId = getCurrentPipelineId();
-    if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
+    if (!pipelineId) { showToast(t('step5_please_enter_pipeline', '请先进入一条流水线'), 'error'); return; }
     const testSource = document.getElementById('s5-source')?.value || '';
 
     const formData = new FormData();
     formData.append('pipeline_id', pipelineId);
     formData.append('test_source', testSource);
 
-    renderOutput('s5-output', '<div class="loading">验证中...</div>');
+    renderOutput('s5-output', '<div class="loading">' + t('step5_validating', '验证中...') + '</div>');
     try {
       const resp = await fetch(API_BASE + '/api/step5/replay', { method: 'POST', body: formData });
       const data = await resp.json();
       if (data.status !== 'ok') {
-        renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '验证失败') + '</div></div>');
+        renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || t('step5_validation_failed', '验证失败')) + '</div></div>');
         return;
       }
       const m = data.metrics || {};
@@ -4692,19 +4692,19 @@ async function step5RunReplay() {
       html += '</div>';
 
       if (data.mismatches && data.mismatches.length > 0) {
-        html += '<div class="s5-mismatches"><div class="s5-mismatch-header">分歧详情 (' + data.mismatches.length + ')</div>';
+        html += '<div class="s5-mismatches"><div class="s5-mismatch-header">' + t('step5_mismatch_details', '分歧详情') + ' (' + data.mismatches.length + ')</div>';
         data.mismatches.forEach(function (mm) {
           html += '<div class="s5-mismatch-item">';
           html += '<span class="s5-mm-cid">' + escapeHtml(mm.customer_id) + '</span>';
-          html += ' 期望: ' + escapeHtml(JSON.stringify(mm.expected));
-          html += ' → 预测: ' + escapeHtml(JSON.stringify(mm.predicted));
+          html += ' ' + t('step5_expected', '期望') + ': ' + escapeHtml(JSON.stringify(mm.expected));
+          html += ' → ' + t('step5_predicted', '预测') + ': ' + escapeHtml(JSON.stringify(mm.predicted));
           html += '</div>';
         });
         html += '</div>';
       }
 
       if (m.f1 >= 0.5) {
-        html += '<button type="button" class="btn btn--primary btn--md" onclick="step5Finalize()" style="margin-top:12px;">生成最终版 Agent-Skill</button>';
+        html += '<button type="button" class="btn btn--primary btn--md" onclick="step5Finalize()" style="margin-top:12px;">' + t('step5_generate_final', '生成最终版 Agent-Skill') + '</button>';
       }
 
       window._s5_metrics = m;
@@ -4730,15 +4730,15 @@ async function step5PushFeedback() {
       suggestions: _s5LastSuggestions,
     });
     if (result.status !== 'ok') { showToast(result.error || '回流失败', 'error'); return; }
-    showToast(result.message || ('已回流 ' + result.pushed + ' 条建议'));
+    showToast(result.message || t('step5_feedback_backflow_success', '已回流 {count} 条建议').replace('{count}', result.pushed || 0));
   } catch (e) {
-    showToast('回流失败: ' + e.message, 'error');
+    showToast(t('step5_feedback_backflow_failed', '回流失败') + ': ' + e.message, 'error');
   }
 }
 
 async function step5RunFeedback() {
   const pipelineId = getCurrentPipelineId();
-  if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
+  if (!pipelineId) { showToast(t('step5_please_enter_pipeline', '请先进入一条流水线'), 'error'); return; }
   try {
     const resp = await fetch(API_BASE + '/api/step5/feedback', {
       method: 'POST',
@@ -4747,13 +4747,13 @@ async function step5RunFeedback() {
     });
     const data = await resp.json();
     if (data.status === 'ok') {
-      showToast('已反馈 ' + (data.suggestions_count || 0) + ' 条建议到 Step3', 'ok');
+      showToast(t('step5_feedback_sent', '已反馈 {count} 条建议到 Step3').replace('{count}', data.suggestions_count || 0), 'ok');
     } else {
-      showToast(data.error || '反馈失败', 'error');
+      showToast(data.error || t('step5_feedback_failed', '反馈失败'), 'error');
     }
   } catch (e) {
     console.error('step5RunFeedback failed:', e);
-    showToast('反馈失败: ' + e.message, 'error');
+    showToast(t('step5_feedback_failed', '反馈失败') + ': ' + e.message, 'error');
   }
 }
 
@@ -4772,16 +4772,16 @@ async function step5Finalize() {
     });
     var data = await resp.json();
     if (data.status === 'ok') {
-      showToast('最终版已生成', 'ok');
+      showToast(t('step5_final_generated', '最终版已生成'), 'ok');
       var a = document.createElement('a');
       a.href = API_BASE + data.final_zip_url;
       a.download = data.final_zip_file;
       a.click();
     } else {
-      showToast(data.error || '生成失败', 'error');
+      showToast(data.error || t('step5_generate_failed', '生成失败'), 'error');
     }
   } catch (e) {
-    showToast('生成失败: ' + e.message, 'error');
+    showToast(t('step3_generate_failed', '生成失败') + ': ' + e.message, 'error');
   }
 }
 
@@ -4835,17 +4835,17 @@ function renderIRMarkdown(ir) {
   var md = '# ' + (ir.anchors && ir.anchors.scenario ? ir.anchors.scenario : 'Skill IR') + '\n\n';
   (ir.entries || []).forEach(function (e) {
     md += '## ' + e.entry_id + ' | ' + e.sub_scenario + ' | ' + e.step_phase + '\n';
-    md += '- 业务描述：' + (e.fields.knowledge_desc || '') + '\n';
-    md += '- 规则：' + (e.fields.rule_ref || '') + '\n';
-    md += '- SQL：```sql\n' + ((e.fields.data_logic || {}).sql || '待生成') + '\n```\n\n';
+    md += '- ' + t('step3_knowledge_desc', '业务描述') + '：' + (e.fields.knowledge_desc || '') + '\n';
+    md += '- ' + t('step3_rule_ref', '规则引用') + '：' + (e.fields.rule_ref || '') + '\n';
+    md += '- ' + t('sql', 'SQL') + '：```sql\n' + ((e.fields.data_logic || {}).sql || t('step3_sql_pending', '待生成')) + '\n```\n\n';
   });
   return md;
 }
 
 function renderIRTable(ir) {
-  var html = '<table class="ir-table"><thead><tr><th>编号</th><th>子场景</th><th>阶段</th><th>业务描述</th><th>规则</th><th>SQL</th></tr></thead><tbody>';
+  var html = '<table class="ir-table"><thead><tr><th>' + t('id', '编号') + '</th><th>' + t('sub_scenario', '子场景') + '</th><th>' + t('stage', '阶段') + '</th><th>' + t('step3_knowledge_desc', '业务描述') + '</th><th>' + t('step3_rule_ref', '规则引用') + '</th><th>SQL</th></tr></thead><tbody>';
   (ir.entries || []).forEach(function (e) {
-    var sql = (e.fields.data_logic || {}).sql || '待生成';
+    var sql = (e.fields.data_logic || {}).sql || t('step3_sql_pending', '待生成');
     html += '<tr><td>' + escapeHtml(e.entry_id) + '</td><td>' + escapeHtml(e.sub_scenario) + '</td><td>' + escapeHtml(e.step_phase) + '</td><td>' + escapeHtml(e.fields.knowledge_desc) + '</td><td>' + escapeHtml(e.fields.rule_ref) + '</td><td><code>' + escapeHtml(sql) + '</code></td></tr>';
   });
   html += '</tbody></table>';
@@ -4854,9 +4854,9 @@ function renderIRTable(ir) {
 
 async function step2ExtractSkillMd() {
   var pipelineId = getCurrentPipelineId();
-  if (!pipelineId) { showToast('请先进入一条流水线', 'error'); return; }
+  if (!pipelineId) { showToast(t('step5_please_enter_pipeline', '请先进入一条流水线'), 'error'); return; }
   var model = resolveModelName('s2-model');
-  if (!model) { showToast('请先选择模型', 'error'); return; }
+  if (!model) { showToast(t('please_select_model', '请先选择模型'), 'error'); return; }
 
   var formData = new FormData();
   formData.append('pipeline_id', pipelineId);
@@ -4895,7 +4895,7 @@ async function step2ExtractSkillMd() {
       // Recreate the output structure (renderLoading destroyed it)
       var s2out = document.getElementById('s2-output');
       s2out.innerHTML = '<div id="s2-md-preview" class="md-preview" style="max-height:500px;overflow:auto;">' + html + '</div>';
-      s2out.innerHTML += '<div id="s2-actions" style="margin-top:12px;"><a class="btn btn--primary btn--sm" href="' + API_BASE + data.download_url + '" download>下载 SKILL.md</a></div>';
+      s2out.innerHTML += '<div id="s2-actions" style="margin-top:12px;"><a class="btn btn--primary btn--sm" href="' + API_BASE + data.download_url + '" download>' + t('step2_download_skill_md', '下载 SKILL.md') + '</a></div>';
       await refreshCurrentPipeline();
     } else {
       renderError('s2-output', data.error);

@@ -74,7 +74,7 @@
       try { return JSON.parse(text); } catch (_) { return { raw: text }; }
     } catch (e) {
       if (e.name === 'AbortError') {
-        return { status: 'error', error: '请求超时，请检查网络后重试' };
+        return { status: 'error', error: App.I18n.t('toast_network_error', '请求超时，请检查网络后重试') };
       }
       throw e;
     } finally {
@@ -102,7 +102,7 @@
       try { return JSON.parse(text); } catch (_) { return { raw: text }; }
     } catch (e) {
       if (e.name === 'AbortError') {
-        return { status: 'error', error: '请求超时，请检查网络后重试' };
+        return { status: 'error', error: App.I18n.t('toast_network_error', '请求超时，请检查网络后重试') };
       }
       throw e;
     } finally {
@@ -153,7 +153,7 @@
     var el = document.getElementById(containerId);
     if (!el) return;
     el.style.display = '';
-    el.innerHTML = '<div class="loading"><div class="spinner"></div>处理中...</div>';
+    el.innerHTML = '<div class="loading"><div class="spinner"></div>' + App.I18n.t('loading', '处理中...') + '</div>';
   }
 
   // -- 列宽拖动调节 --
