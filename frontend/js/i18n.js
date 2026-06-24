@@ -227,6 +227,12 @@
       excel_placeholder: '请上传 Excel 文件后点击"在线编辑"按钮',
 
       loading: '处理中...',
+
+      select_model_label: '选择模型',
+      step4_generate_btn: '生成待验证 Skill + 思维链 + QA 对',
+      step5_run_validation_btn: '执行 P/R/F1 验证',
+      step5_feedback_btn: '反馈分歧到 Step3',
+      lang_zh_cn: '简体中文',
     },
     en: {
       page_title: 'Tacit Knowledge Externalization · 5-Step Pipeline',
@@ -435,6 +441,12 @@
       excel_placeholder: 'Please upload an Excel file and click the "Online Edit" button',
 
       loading: 'Processing...',
+
+      select_model_label: 'Select Model',
+      step4_generate_btn: 'Generate Skill + CoT + QA Pairs',
+      step5_run_validation_btn: 'Run P/R/F1 Validation',
+      step5_feedback_btn: 'Feedback Divergence to Step 3',
+      lang_zh_cn: 'Simplified Chinese',
     },
   };
 

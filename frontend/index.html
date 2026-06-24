@@ -198,7 +198,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
     <div class="lang-panel-body">
       <div class="lang-option" data-lang="zh-CN" onclick="App.I18n.selectLang('zh-CN')">
         <span class="lang-option-radio" data-lang-radio="zh-CN"></span>
-        <span class="lang-option-label">简体中文</span>
+        <span class="lang-option-label" data-i18n="lang_zh_cn">简体中文</span>
       </div>
       <div class="lang-option" data-lang="en" onclick="App.I18n.selectLang('en')">
         <span class="lang-option-radio" data-lang-radio="en"></span>
@@ -417,7 +417,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
               </div><!-- /s2-single-controls -->
 
               <div class="form-group" style="margin-bottom:12px">
-                <label data-i18n="select_model">选择模型</label>
+                <label data-i18n="select_model_label">选择模型</label>
                 <select id="s2-model"></select>
               </div>
               <button type="button" class="btn btn--primary btn--md" id="s2-extract-btn" onclick="step2ExtractSkillMd()" data-i18n="generate_skill_md">生成 SKILL.md</button>
@@ -514,7 +514,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   </select>
                 </div>
                 <div class="form-group">
-                  <label data-i18n="select_model">选择模型</label>
+                  <label data-i18n="select_model_label">选择模型</label>
                   <select id="s3-model"></select>
                 </div>
                 <div class="form-group" style="margin-bottom:12px">
@@ -720,11 +720,11 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                 </select>
               </div>
               <div class="form-group" style="margin-bottom:12px">
-                <label>选择模型</label>
+                <label data-i18n="select_model_label">选择模型</label>
                 <select id="s4-model"></select>
               </div>
 
-              <button type="button" class="btn btn--primary btn--md" id="s4-compile-btn" onclick="step4Compile()" data-i18n="generate_deliverables">
+              <button type="button" class="btn btn--primary btn--md" id="s4-compile-btn" onclick="step4Compile()" data-i18n="step4_generate_btn">
                 生成待验证 Skill + 思维链 + QA 对
               </button>
               <div class="action-note" data-i18n="step4_action_note">LLM 解析 Step3 对齐稿，生成 QA对/思维链/待验证 Agent-Skill 三个交付物</div>
@@ -793,12 +793,12 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
                   <option value="" data-i18n="all_test_customers">全部 test_customers</option>
                 </select>
               </div>
-              <button type="button" class="btn btn--primary btn--md" id="s5-replay-btn" onclick="step5RunReplay()" data-i18n="run_replay">
+              <button type="button" class="btn btn--primary btn--md" id="s5-replay-btn" onclick="step5RunReplay()" data-i18n="step5_run_validation_btn">
                 执行 P/R/F1 验证
               </button>
               <div class="action-note" data-i18n="step5_action_note">在 test_customers 表上执行 agent-skill，对照期望结果计算精度/召回/F1</div>
               <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-                <button type="button" class="btn btn--outline btn--md" id="s5-feedback-btn" onclick="step5RunFeedback()" style="width:100%;" data-i18n="feedback_divergence">
+                <button type="button" class="btn btn--outline btn--md" id="s5-feedback-btn" onclick="step5RunFeedback()" style="width:100%;" data-i18n="step5_feedback_btn">
                   反馈分歧到 Step3
                 </button>
                 <div class="file-hint" style="margin-top:4px" data-i18n="feedback_hint">将验证分歧推入 Step3 建议池，专家可重新审核</div>
