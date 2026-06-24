@@ -2200,22 +2200,7 @@ async function step1Generate() {
     const result = await apiCall('/api/step1/generate', fd);
     let html = '';
     if (result.status === 'ok') {
-      applyStep1GenerateResult(result);
-      syncPipelineFromStep1Response(result);
-      const allForm = collectAllStepsFormData();
-      currentPipeline.step_data = mergeStepDataPreserveOutputs(currentPipeline.step_data, allForm);
-      const excelFile = result.excel_file || result.file_name;
-      await persistPipeline({
-        ...allForm,
-        step1_output_file: excelFile,
-        step1_download_url: result.excel_download_url || ('/downloads/' + excelFile),
-        step1_knowledge_columns: result.knowledge_columns || knowledgeColumns,
-        step1_output_format: result.output_format || outputFormat,
-        ...(result.markdown_file ? {
-          step1_md_file: result.markdown_file,
-          step1_md_download_url: result.markdown_download_url,
-        } : {}),
-      });
+      // 先构建并渲染结果，让用户立刻看到输出，不受后续 persistPipeline 网络延迟影响
       html += '<div class="s1-result-box">';
       html += '<div class="s1-result-title">场景骨架生成成功</div>';
       html += '<div class="s1-result-stats">';
@@ -2238,7 +2223,6 @@ async function step1Generate() {
       }
       if (result.columns_enriched) {
         html += '<div class="s1-result-template file-hint">已按 Markdown 模式自动补齐富语义列，Step2 将按完整字段深度萃取。</div>';
-        step1RenderKnowledgeColumns(result.knowledge_columns);
       }
       if (result.fields_info && result.fields_info.length) {
         html += '<div class="s1-result-sheets">';
@@ -2264,13 +2248,40 @@ async function step1Generate() {
       }
       html += '</div>';
       html += '</div>';
+      console.log('[step1Generate] render output, html length:', html.length);
+      renderOutput('s1-output', html);
+
+      // 更新列输入框（如果有富语义列补齐）
+      if (result.columns_enriched) {
+        step1RenderKnowledgeColumns(result.knowledge_columns);
+      }
+
+      // 再保存状态到服务器
+      console.log('[step1Generate] start persistence');
+      applyStep1GenerateResult(result);
+      syncPipelineFromStep1Response(result);
+      const allForm = collectAllStepsFormData();
+      currentPipeline.step_data = mergeStepDataPreserveOutputs(currentPipeline.step_data, allForm);
+      const excelFile = result.excel_file || result.file_name;
+      await persistPipeline({
+        ...allForm,
+        step1_output_file: excelFile,
+        step1_download_url: result.excel_download_url || ('/downloads/' + excelFile),
+        step1_knowledge_columns: result.knowledge_columns || knowledgeColumns,
+        step1_output_format: result.output_format || outputFormat,
+        ...(result.markdown_file ? {
+          step1_md_file: result.markdown_file,
+          step1_md_download_url: result.markdown_download_url,
+        } : {}),
+      });
       await markStepDone(1);
       if (currentStep === 2) loadStep2PrevOutput();
     } else {
       html = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '未知错误') + '</div></div>';
+      renderOutput('s1-output', html);
     }
-    renderOutput('s1-output', html);
   } catch (e) {
+    console.error('[step1Generate] error during generation:', e);
     renderOutput('s1-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
   }
   } finally {
