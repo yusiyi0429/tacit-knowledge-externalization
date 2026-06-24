@@ -1608,7 +1608,6 @@
   "操作流程": "Operation Process",
   "反模式": "Anti-pattern",
 
-  "场景骨架": "Scenario Skeleton",
   "当前 SKILL.md": "Current SKILL.md",
   "专家反馈意见": "Expert Feedback",
   "修订要求": "Revision Requirements",
