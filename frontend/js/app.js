@@ -777,8 +777,8 @@ function step2Execute() {
       }
 
       html += '<div class="s2-result-actions" style="margin-top:12px;">';
-      if (mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">预览/编辑 Markdown</button>';
-      if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>' + t('step3_download_md', '下载 Markdown') + '</a>';
+      if (mdFile) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step2 萃取 Markdown 预览\')">' + t('step3_preview_md', '预览/编辑 Markdown') + '</button>';
+      if (mdUrl) html += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>' + t('download_md', '下载 Markdown') + '</a>';
       html += '</div>';
       html += '</div>';
 
@@ -937,7 +937,7 @@ document.querySelectorAll('.step-btn').forEach(btn => {
       switchPanel(targetStep);
     } else {
       // 跳过未完成的步骤：不允许
-      showToast('请先完成第 ' + farthestStep + ' 步', 'error');
+      showToast(t('complete_step_first', '请先完成第 {step} 步').replace('{step}', farthestStep), 'error');
     }
   });
 });
@@ -1055,9 +1055,9 @@ function restoreStep3Output() {
   html += '<div class="align-result-header"><span>&#10003;</span> ' + t('step3_complete', '知识对齐完成') + '</div>';
   html += '<div class="align-result-meta">' + t('step3_revision_count', '已生成对齐稿（共处理 {count} 处修订）').replace('{count}', sd.step3_final_count || 0) + '</div>';
   html += '<div class="align-result-actions">';
-  if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-  if (!mdFlow && mdName) html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-  if (mdUrl) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>' + t('step3_download_md', '下载 Markdown') + '</a>';
+  if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">' + t('step3_preview_md', '预览/编辑 Markdown') + '</button>';
+  if (!mdFlow && mdName) html += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">' + t('step3_preview_md', '预览/编辑 Markdown') + '</button>';
+  if (mdUrl) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>' + t('download_md', '下载 Markdown') + '</a>';
   html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">' + t('step3_re_align', '重新对齐') + '</button>';
   html += '</div>';
   resultCard.innerHTML = html;
@@ -1226,9 +1226,9 @@ async function rollbackToStep(step) {
       currentPipeline = data.pipeline;
       currentPipeline.step_data = currentPipeline.step_data || {};
       switchPanel(step);
-      showToast('已回退到第 ' + step + ' 步');
+      showToast(t('rollback_success', '已回退到第 {step} 步').replace('{step}', step));
     } else {
-      showToast(data.error || '回退失败', 'error');
+      showToast(data.error || t('rollback_failed', '回退失败'), 'error');
     }
   } catch (e) {
     showToast('回退失败: ' + e.message, 'error');
@@ -1261,7 +1261,7 @@ function renderLoading(containerId) {
   if (el) { el.style.display = ''; el.innerHTML = '<div class="loading"><div class="spinner"></div>' + t('loading') + '</div>'; }
 }
 function renderError(containerId, msg) {
-  renderOutput(containerId, '<div class="error-list"><div class="error-item">' + escapeHtml(msg || '未知错误') + '</div></div>');
+  renderOutput(containerId, '<div class="error-list"><div class="error-item">' + escapeHtml(msg || t('unknown_error', 'Unknown error')) + '</div></div>');
 }
 function escapeHtml(str) {
   if (str == null) return '';
@@ -1455,7 +1455,7 @@ function resetAllStepFormInputs() {
   resetValue('s2-source-files', '');
   resetValue('s3-expert-file', '');
 
-  resetSelect('s3-revision-style', '标准修订');
+  resetSelect('s3-revision-style', t('align_style_standard', '标准修订'));
   resetSelect('s1-output-format', 'excel');
   resetSelect('s1-legacy-template', '');
   step1RenderKnowledgeColumns([]);
@@ -1463,7 +1463,7 @@ function resetAllStepFormInputs() {
   resetSelect('s3-model', '');
   resetSelect('s3-skill-select', '');
 
-  resetText('s1-template-file-name', '未选择');
+  resetText('s1-template-file-name', t('no_file_chosen', '未选择'));
   resetText('s2-file-name', '');
   resetText('s3-file-name', '');
 }
@@ -1512,7 +1512,7 @@ function clearCurrentPipeline() {
     resetValue('s2-source-files', '');
     resetValue('s3-expert-file', '');
 
-    resetSelect('s3-revision-style', '标准修订');
+    resetSelect('s3-revision-style', t('align_style_standard', '标准修订'));
     resetSelect('s1-output-format', 'excel');
     resetSelect('s1-legacy-template', '');
     step1RenderKnowledgeColumns([]);
@@ -1520,7 +1520,7 @@ function clearCurrentPipeline() {
     resetSelect('s3-model', '');
     resetSelect('s3-skill-select', '');
 
-    resetText('s1-template-file-name', '未选择');
+    resetText('s1-template-file-name', t('no_file_chosen', '未选择'));
     resetText('s2-file-name', '');
     resetText('s3-file-name', '');
 
@@ -1657,7 +1657,7 @@ function renderSkills(container) {
           <div class="skill-card-icon ${meta.iconCls}">${meta.icon}</div>
           <div class="skill-card-info">
             <div class="skill-card-name">${escapeHtml(skill.name)}</div>
-            <div class="skill-card-brief">\${enabled ? t('skill_enabled', '已启用') : t('skill_disabled', '已禁用')}</div>
+            <div class="skill-card-brief">${enabled ? t('skill_enabled', '已启用') : t('skill_disabled', '已禁用')}</div>
           </div>
           <div class="skill-card-controls">
             <div class="skill-toggle ${enabled ? 'on' : ''}" onclick="event.stopPropagation(); toggleSkill('${skill.id}', ${!enabled})">
@@ -1667,7 +1667,7 @@ function renderSkills(container) {
           </div>
         </div>
         <div class="skill-card-detail hidden" id="skill-detail-${skill.id}">
-          <div class="skill-loading">\${t('skill_loading_details', '加载详情...')}</div>
+          <div class="skill-loading">${t('skill_loading_details', '加载详情...')}</div>
         </div>
       </div>
     `;
@@ -1793,7 +1793,7 @@ async function toggleSkill(skillId, enable) {
     if (data.status === 'ok') {
       await loadSkills();
     } else {
-      alert('操作失败: ' + (data.error || '未知错误'));
+      alert(t('operation_failed_prefix', '操作失败：') + (data.error || t('unknown_error', 'Unknown error')));
     }
   } catch (e) {
     alert(t('network_error', '网络错误'));
@@ -2381,7 +2381,7 @@ function restoreStep1Output() {
   html += '<div class="s1-result-actions">';
   // Markdown group
   if (mdFlow && mdFile) {
-    html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step1 骨架 Markdown 预览\')">预览/编辑 Markdown</button>';
+    html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdFile) + '\',\'Step1 骨架 Markdown 预览\')">' + t('step3_preview_md', '预览/编辑 Markdown') + '</button>';
   }
   if (sd.step1_download_url) {
     const dlLabel = mdFlow ? t('step1_download_md_skeleton', '下载 Markdown 骨架') : t('step1_download_excel_skeleton', '下载 Excel 骨架');
@@ -2467,10 +2467,10 @@ function renderStep2PrevOutputCard(data) {
       </div>
       ${fieldsHtml}
       <div class="s2-result-actions" style="margin-top:8px;">
-        ${data.markdown_file ? `<button class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 ' + t('step1_preview_md', '预览/编辑 Markdown'))">\${t('step1_preview_md', '预览/编辑 Markdown')}</button>` : ''}
-        ${data.markdown_download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>\${t('step3_download_md', '下载 Markdown')}</a>` : ''}
-        ${data.download_url ? `<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">\${t('step1_preview_excel', '预览 Excel')}</button>` : ''}
-        ${data.download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.download_url}" download>\${t('download_excel', '下载 Excel')}</a>` : ''}
+        ${data.markdown_file ? `<button class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step1 ' + t('step1_preview_md', '预览/编辑 Markdown'))">${t('step1_preview_md', '预览/编辑 Markdown')}</button>` : ''}
+        ${data.markdown_download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>${t('download_md', '下载 Markdown')}</a>` : ''}
+        ${data.download_url ? `<button class="btn btn--outline btn--sm" onclick="step1PreviewExcel('${escapeHtml(data.file_name || '')}')">${t('step1_preview_excel', '预览 Excel')}</button>` : ''}
+        ${data.download_url ? `<a class="btn btn--outline btn--sm" href="${API_BASE + data.download_url}" download>${t('download_excel', '下载 Excel')}</a>` : ''}
       </div>
     </div>
   `;
@@ -2660,7 +2660,7 @@ async function loadStep3PrevOutput() {
           actionBtns += `<button type="button" class="btn btn--outline btn--sm" onclick="previewStep4File('${escapeHtml(data.markdown_file)}','Step2 ' + t('step3_preview_md', '预览/编辑 Markdown'))">${t('step3_preview_md', '预览/编辑 Markdown')}</button>`;
         }
         if (data.markdown_download_url) {
-          actionBtns += `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>下载 Markdown</a>`;
+          actionBtns += `<a class="btn btn--outline btn--sm" href="${API_BASE + data.markdown_download_url}" download>${t('download_md', '下载 Markdown')}</a>`;
         }
         var actionsEl = document.getElementById('s3-prev-actions');
         if (actionsEl) actionsEl.innerHTML = actionBtns;
@@ -3320,8 +3320,8 @@ async function showStep3AlignComplete(result, options) {
   }
   html += '<div class="align-result-actions">';
   // Markdown group
-  if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-  if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>下载 Markdown</a>';
+  if (mdFlow && mdName) html += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">' + t('step3_preview_md', '预览/编辑 Markdown') + '</button>';
+  if (mdName) html += '<a href="' + escapeHtml(mdUrl) + '" class="btn btn--outline btn--sm" download>' + t('download_md', '下载 Markdown') + '</a>';
   html += '<button class="btn btn--outline btn--sm" onclick="step3BackToInput()">' + t('step3_re_align', '重新对齐') + '</button>';
   html += '</div>';
   document.getElementById('s3-result-card').innerHTML = html;
@@ -3518,9 +3518,9 @@ async function loadStep4PrevOutput() {
         const mdUrl = mdName ? ('/downloads/' + mdName) : '';
         const excelUrl = data.download_url || '';
         // Markdown group
-        if (mdFlow && mdName) btns += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-        if (!mdFlow && mdName) btns += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">预览/编辑 Markdown</button>';
-        if (mdUrl) btns += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>下载 Markdown</a>';
+        if (mdFlow && mdName) btns += '<button class="btn btn--primary btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">' + t('step3_preview_md', '预览/编辑 Markdown') + '</button>';
+        if (!mdFlow && mdName) btns += '<button class="btn btn--outline btn--sm" onclick="previewStep4File(\'' + escapeHtml(mdName) + '\',\'Step3 对齐 Markdown 预览\')">' + t('step3_preview_md', '预览/编辑 Markdown') + '</button>';
+        if (mdUrl) btns += '<a class="btn btn--outline btn--sm" href="' + API_BASE + mdUrl + '" download>' + t('download_md', '下载 Markdown') + '</a>';
         actionsEl.innerHTML = btns;
       }
     } else {
@@ -3738,12 +3738,12 @@ async function saveMarkdownContent() {
       showToast(t('file_saved', '文件已保存'));
       setTimeout(() => { if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: t('save', '保存') }); refreshIcons(); } }, 2000);
     } else {
-      alert(t('save_failed', '保存失败') + ': ' + (data.error || t('unknown_error', '未知错误')));
-      if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); }
+      alert(t('save_failed', '保存失败') + ': ' + (data.error || t('unknown_error', 'Unknown error')));
+      if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: t('save', 'Save') }); refreshIcons(); }
     }
   } catch (e) {
     alert(t('save_failed', '保存失败') + ': ' + e.message);
-    if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: '保存' }); refreshIcons(); }
+    if (saveBtn) { saveBtn.innerHTML = renderBtnChildren({ icon: 'save', text: t('save', 'Save') }); refreshIcons(); }
   } finally {
     if (saveBtn) saveBtn.disabled = false;
   }
@@ -4091,7 +4091,7 @@ async function deletePipeline(pipelineId, btnEl) {
       alert(data.error || t('delete_failed', '删除失败'));
     }
   } catch (e) {
-    alert(t('model_delete_failed', '删除失败') + ': ' + e.message);
+    alert(t('delete_failed', '删除失败') + ': ' + e.message);
   }
 }
 
@@ -4714,7 +4714,7 @@ async function step5RunReplay() {
       await refreshCurrentPipeline();
     } catch (e) {
       console.error('step5RunReplay failed:', e);
-      renderOutput('s5-output', '<div class="error-list"><div class="error-item">验证失败: ' + escapeHtml(e.message) + '</div></div>');
+      renderOutput('s5-output', '<div class="error-list"><div class="error-item">' + t('validation_failed_prefix', '验证失败：') + escapeHtml(e.message) + '</div></div>');
     }
   } finally {
     btn._locked = false;
@@ -4781,7 +4781,7 @@ async function step5Finalize() {
       showToast(data.error || t('step5_generate_failed', '生成失败'), 'error');
     }
   } catch (e) {
-    showToast(t('step3_generate_failed', '生成失败') + ': ' + e.message, 'error');
+    showToast(t('step5_generate_failed', '生成失败') + ': ' + e.message, 'error');
   }
 }
 
@@ -4854,7 +4854,7 @@ function renderIRTable(ir) {
 
 async function step2ExtractSkillMd() {
   var pipelineId = getCurrentPipelineId();
-  if (!pipelineId) { showToast(t('step5_please_enter_pipeline', '请先进入一条流水线'), 'error'); return; }
+  if (!pipelineId) { showToast(t('please_enter_pipeline', '请先进入流水线'), 'error'); return; }
   var model = resolveModelName('s2-model');
   if (!model) { showToast(t('please_select_model', '请先选择模型'), 'error'); return; }
 

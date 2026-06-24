@@ -187,6 +187,22 @@ def test_english_i18n_values_no_unexpected_cjk():
     assert not offenders, f"English i18n values contain unexpected CJK: {offenders[:20]}"
 
 
+def test_no_escaped_template_literal_i18n_calls():
+    """Template literals must evaluate t() calls, not render them literally."""
+    js_dir = os.path.join(FRONTEND_DIR, "js")
+    offenders = []
+    for filename in os.listdir(js_dir):
+        if not filename.endswith(".js"):
+            continue
+        path = os.path.join(js_dir, filename)
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        # Match escaped ${t(...)} or ${App.I18n.t(...)} inside template literals.
+        for m in re.finditer(r"\\\$\{(?:App\.I18n\.)?t\(", content):
+            offenders.append((filename, m.start()))
+    assert not offenders, f"Escaped i18n template literal calls found: {offenders}"
+
+
 def test_no_unwrapped_chinese_labels():
     proc = subprocess.Popen(
         # -u ensures http.server prints its "Serving HTTP ..." line immediately.
