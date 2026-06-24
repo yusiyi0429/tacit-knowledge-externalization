@@ -51,7 +51,7 @@ def run_agent_skill(
         phase = entry.get("step_phase")
         fields = entry.get("fields", {})
         data_logic = fields.get("data_logic") or {}
-        sql = data_logic.get("sql", "")
+        sql = data_logic.get("sql") or ""
 
         if not sql.strip():
             phase_results.append({
