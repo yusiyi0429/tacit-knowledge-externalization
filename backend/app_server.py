@@ -31,6 +31,9 @@ from llm_client import (
 )
 import openpyxl
 
+from i18n import t
+from shared import get_current_locale
+
 PROMPT_DIR = Path(__file__).parent / "prompts"
 
 from pipeline_artifacts import (
@@ -754,14 +757,15 @@ def vendor_static(filename):
 @app.route("/downloads/<path:filename>")
 def downloads(filename):
     base = basename_only(filename)
-    if not is_download_allowed(base):
-        return jsonify({"status": "error", "error": "不允许下载该文件"}), 403
-
     pipeline_id = request.args.get("pipeline_id", "") or request.form.get("pipeline_id", "")
+    locale = get_current_locale(pipeline_id)
+    if not is_download_allowed(base):
+        return jsonify({"status": "error", "error": t("download_not_allowed", locale)}), 403
+
     from pipeline_artifacts import locate_workspace_file
     path = locate_workspace_file(WORKSPACE, base, pipeline_id=pipeline_id or None)
     if not path:
-        return jsonify({"status": "error", "error": "文件不存在"}), 404
+        return jsonify({"status": "error", "error": t("file_not_found", locale)}), 404
     return send_from_directory(str(path.parent), path.name, as_attachment=True)
 
 
@@ -988,8 +992,10 @@ def api_create_pipeline():
     scenario = (data.get("scenario") or "").strip()
     domain = (data.get("domain") or "").strip()
 
+    locale = get_current_locale()
     if not name:
-        return jsonify({"status": "error", "error": "流水线名称不能为空"})
+        message = t("pipeline_name_required", locale)
+        return jsonify({"status": "error", "error": message, "message": message}), 400
 
     now = datetime.datetime.now().isoformat()
     pipeline_id = uuid.uuid4().hex[:12]
@@ -1009,7 +1015,9 @@ def api_create_pipeline():
             "4": "pending",
             "5": "pending",
         },
-        "step_data": {},
+        "step_data": {
+            "locale": data.get("locale", "zh-CN"),
+        },
         "created_at": now,
         "updated_at": now,
     }
@@ -1030,13 +1038,15 @@ def api_get_pipeline(pipeline_id):
     for p in pipelines:
         if p["id"] == pipeline_id:
             return jsonify({"status": "ok", "pipeline": p})
-    return jsonify({"status": "error", "error": "流水线不存在"})
+    locale = get_current_locale(pipeline_id)
+    return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
 
 @app.route("/api/pipelines/<pipeline_id>", methods=["PUT"])
 def api_update_pipeline(pipeline_id):
     """Update a pipeline's step status/data."""
     data = request.get_json(force=True)
+    locale = get_current_locale(pipeline_id)
 
     with _pipelines_lock:
         pipelines = load_pipelines()
@@ -1046,7 +1056,7 @@ def api_update_pipeline(pipeline_id):
                 target = p
                 break
         if not target:
-            return jsonify({"status": "error", "error": "流水线不存在"})
+            return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
         if "current_step" in data:
             target["current_step"] = max(target.get("current_step", 1), data["current_step"])
@@ -1062,6 +1072,8 @@ def api_update_pipeline(pipeline_id):
             if err:
                 return jsonify({"status": "error", "error": err})
             target["step_data"].update(patch)
+        if "locale" in data:
+            target.setdefault("step_data", {})["locale"] = data["locale"]
         if "name" in data:
             old_name = target.get("name", "")
             new_name = data["name"]
@@ -1086,6 +1098,7 @@ def api_update_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>", methods=["DELETE"])
 def api_delete_pipeline(pipeline_id):
     """Delete a pipeline."""
+    locale = get_current_locale(pipeline_id)
     removed_pipeline = None
     with _pipelines_lock:
         pipelines = load_pipelines()
@@ -1093,7 +1106,7 @@ def api_delete_pipeline(pipeline_id):
         removed_pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         pipelines = [p for p in pipelines if p["id"] != pipeline_id]
         if len(pipelines) == before:
-            return jsonify({"status": "error", "error": "流水线不存在"})
+            return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
         save_pipelines(pipelines)
 
     if removed_pipeline:
@@ -1110,11 +1123,12 @@ def api_delete_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>/clear", methods=["POST"])
 def api_clear_pipeline(pipeline_id):
     """Clear a pipeline's step data and reset all steps to pending."""
+    locale = get_current_locale(pipeline_id)
     with _pipelines_lock:
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         if not pipeline:
-            return jsonify({"status": "error", "error": "流水线不存在"})
+            return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
         pipeline["step_data"] = {}
         pipeline["step_status"] = {str(i): "pending" for i in range(1, 6)}
         pipeline["current_step"] = 1
@@ -1126,6 +1140,7 @@ def api_clear_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>/rollback/<int:step>", methods=["POST"])
 def api_rollback_pipeline(pipeline_id, step):
     """Roll back a pipeline to a previous step; reset downstream step status and outputs."""
+    locale = get_current_locale(pipeline_id)
     if step < 1 or step > 5:
         return jsonify({"status": "error", "error": "步骤号必须在 1-5 之间"})
 
@@ -1133,7 +1148,7 @@ def api_rollback_pipeline(pipeline_id, step):
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         if not pipeline:
-            return jsonify({"status": "error", "error": "流水线不存在"})
+            return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
         for s in range(step, 6):
             pipeline["step_status"][str(s)] = "pending"
@@ -1488,7 +1503,8 @@ def api_step2_prev_output():
                 break
 
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     step_data = pipeline.get("step_data", {})
     step1_file = step_data.get("step1_output_file", "")
@@ -1563,14 +1579,15 @@ def api_step4_build_skill():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
         sd = pipeline.get("step_data") or {}
         step1_form = sd.get("step1_form_data") or {}
         md_file = sd.get("step3_skill_md_file") or sd.get("step3_aligned_file") or sd.get("step2_skill_md_file") or sd.get("step2_draft_file")
         if not md_file:
-            return jsonify({"status": "error", "error": "未找到 SKILL.md（请先完成 Step2/Step3）"})
+            return jsonify({"status": "error", "error": t("skill_md_not_found", get_current_locale(pipeline_id))})
 
         from pipeline_artifacts import locate_workspace_file
         md_path = locate_workspace_file(WORKSPACE, md_file, pipeline_id=pipeline_id)
@@ -1969,12 +1986,13 @@ def api_step4_generate_executable_skill():
     if not pipeline_id:
         return jsonify({"status": "error", "error": "缺少 pipeline_id"})
 
+    locale = get_current_locale(pipeline_id)
     # Resolve pipeline and golden DB
     with _pipelines_lock:
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         if not pipeline:
-            return jsonify({"status": "error", "error": "流水线不存在"})
+            return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
         pipeline = dict(pipeline)
         pipeline["step_data"] = dict(pipeline.get("step_data", {}))
 
@@ -2070,11 +2088,12 @@ def api_step4_generate_executable_skill():
 
 def _read_step3_knowledge_items(pipeline_id: str) -> tuple[list[dict], dict]:
     """Shared helper: resolve pipeline, read step3 IR/Excel, return (items, pipeline_dict)."""
+    locale = get_current_locale(pipeline_id)
     with _pipelines_lock:
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         if not pipeline:
-            raise ValueError("流水线不存在")
+            raise ValueError(t("pipeline_not_found", locale))
         pipeline = dict(pipeline)
         pipeline["step_data"] = dict(pipeline.get("step_data", {}))
 
@@ -5380,7 +5399,8 @@ def api_step3_align_ir():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
 
@@ -5453,7 +5473,8 @@ def api_step3_confirm_as_is():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
 
@@ -5583,7 +5604,8 @@ def api_step3_revision_with_expert():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
         sd = pipeline.get("step_data") or {}
@@ -5750,7 +5772,8 @@ def api_step5_replay():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
     skill_zip = sd.get("step4_skill_zip_file") or sd.get("step4_skill_dir_zip_file", "")
@@ -5852,7 +5875,8 @@ def api_step5_feedback():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
         sd = pipeline.get("step_data") or {}
@@ -5950,7 +5974,8 @@ def api_step5_finalize():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
     zip_file = sd.get("step4_skill_zip_file", "")
@@ -6282,7 +6307,8 @@ def api_step2_extract_rules():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     if not model_name:
         return jsonify({"status": "error", "error": "缺少 model 参数"})
@@ -6359,7 +6385,8 @@ def api_step2_extract_sql():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     if not model_name:
         return jsonify({"status": "error", "error": "缺少 model 参数"})
@@ -6895,7 +6922,8 @@ def api_step2_extract_skill_md():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(pipeline_id)
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
         sd = pipeline.get("step_data") or {}

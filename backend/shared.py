@@ -46,6 +46,7 @@ from interview_session import (
     execute_interview_session, collect_interview_answers,
     build_interview_prompt, INTERVIEW_METHODS,
 )
+from i18n import resolve_locale, t
 
 # ─── Path Resolution ──────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -276,6 +277,27 @@ def _maybe_generate_markdown_artifact(pipeline_id: str, excel_name: str, *, md_p
         return md_name, f"/downloads/{md_name}"
     except Exception:
         return "", ""
+
+
+def get_current_locale(pipeline_id: str | None = None) -> str:
+    """Resolve locale from request context and pipeline state."""
+    from flask import request
+    query_lang = (request.args.get("lang") or "").strip() or None
+    header_lang = (request.headers.get("Accept-Language") or "").strip() or None
+    pipeline_locale = None
+    if pipeline_id:
+        for p in load_pipelines():
+            if p.get("id") == pipeline_id:
+                pipeline_locale = (p.get("step_data") or {}).get("locale")
+                break
+    else:
+        body = request.get_json(silent=True) or {}
+        pipeline_locale = (body.get("locale") or "").strip() or None
+    return resolve_locale(
+        query_lang=query_lang,
+        header_lang=header_lang,
+        pipeline_locale=pipeline_locale,
+    )
 
 
 # ─── JSON Parsing (6-layer fallback) ───────────────────────────────
