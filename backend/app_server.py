@@ -758,7 +758,10 @@ def vendor_static(filename):
 def downloads(filename):
     base = basename_only(filename)
     pipeline_id = request.args.get("pipeline_id", "") or request.form.get("pipeline_id", "")
-    locale = get_current_locale(pipeline_id)
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     if not is_download_allowed(base):
         return jsonify({"status": "error", "error": t("download_not_allowed", locale)}), 403
 
@@ -992,7 +995,11 @@ def api_create_pipeline():
     scenario = (data.get("scenario") or "").strip()
     domain = (data.get("domain") or "").strip()
 
-    locale = get_current_locale()
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+        body_locale=data.get("locale"),
+    )
     if not name:
         message = t("pipeline_name_required", locale)
         return jsonify({"status": "error", "error": message, "message": message}), 400
@@ -1016,7 +1023,7 @@ def api_create_pipeline():
             "5": "pending",
         },
         "step_data": {
-            "locale": data.get("locale", "zh-CN"),
+            "locale": locale,
         },
         "created_at": now,
         "updated_at": now,
@@ -1038,7 +1045,10 @@ def api_get_pipeline(pipeline_id):
     for p in pipelines:
         if p["id"] == pipeline_id:
             return jsonify({"status": "ok", "pipeline": p})
-    locale = get_current_locale(pipeline_id)
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
 
@@ -1046,17 +1056,22 @@ def api_get_pipeline(pipeline_id):
 def api_update_pipeline(pipeline_id):
     """Update a pipeline's step status/data."""
     data = request.get_json(force=True)
-    locale = get_current_locale(pipeline_id)
 
     with _pipelines_lock:
         pipelines = load_pipelines()
-        target = None
-        for p in pipelines:
-            if p["id"] == pipeline_id:
-                target = p
-                break
+        target = next((p for p in pipelines if p["id"] == pipeline_id), None)
         if not target:
+            locale = get_current_locale(
+                query_lang=request.args.get("lang"),
+                header_lang=request.headers.get("Accept-Language"),
+            )
             return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
+
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            body_locale=data.get("locale"),
+        )
 
         if "current_step" in data:
             target["current_step"] = max(target.get("current_step", 1), data["current_step"])
@@ -1072,8 +1087,7 @@ def api_update_pipeline(pipeline_id):
             if err:
                 return jsonify({"status": "error", "error": err})
             target["step_data"].update(patch)
-        if "locale" in data:
-            target.setdefault("step_data", {})["locale"] = data["locale"]
+        target.setdefault("step_data", {})["locale"] = locale
         if "name" in data:
             old_name = target.get("name", "")
             new_name = data["name"]
@@ -1098,7 +1112,10 @@ def api_update_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>", methods=["DELETE"])
 def api_delete_pipeline(pipeline_id):
     """Delete a pipeline."""
-    locale = get_current_locale(pipeline_id)
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     removed_pipeline = None
     with _pipelines_lock:
         pipelines = load_pipelines()
@@ -1123,7 +1140,10 @@ def api_delete_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>/clear", methods=["POST"])
 def api_clear_pipeline(pipeline_id):
     """Clear a pipeline's step data and reset all steps to pending."""
-    locale = get_current_locale(pipeline_id)
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     with _pipelines_lock:
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
@@ -1140,7 +1160,10 @@ def api_clear_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>/rollback/<int:step>", methods=["POST"])
 def api_rollback_pipeline(pipeline_id, step):
     """Roll back a pipeline to a previous step; reset downstream step status and outputs."""
-    locale = get_current_locale(pipeline_id)
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     if step < 1 or step > 5:
         return jsonify({"status": "error", "error": "步骤号必须在 1-5 之间"})
 
@@ -1503,7 +1526,10 @@ def api_step2_prev_output():
                 break
 
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     step_data = pipeline.get("step_data", {})
@@ -1579,7 +1605,10 @@ def api_step4_build_skill():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
@@ -1587,7 +1616,11 @@ def api_step4_build_skill():
         step1_form = sd.get("step1_form_data") or {}
         md_file = sd.get("step3_skill_md_file") or sd.get("step3_aligned_file") or sd.get("step2_skill_md_file") or sd.get("step2_draft_file")
         if not md_file:
-            return jsonify({"status": "error", "error": t("skill_md_not_found", get_current_locale(pipeline_id))})
+            return jsonify({"status": "error", "error": t("skill_md_not_found", get_current_locale(
+                query_lang=request.args.get("lang"),
+                header_lang=request.headers.get("Accept-Language"),
+                pipeline_locale=pipeline["step_data"].get("locale"),
+            ))})
 
         from pipeline_artifacts import locate_workspace_file
         md_path = locate_workspace_file(WORKSPACE, md_file, pipeline_id=pipeline_id)
@@ -1986,7 +2019,10 @@ def api_step4_generate_executable_skill():
     if not pipeline_id:
         return jsonify({"status": "error", "error": "缺少 pipeline_id"})
 
-    locale = get_current_locale(pipeline_id)
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     # Resolve pipeline and golden DB
     with _pipelines_lock:
         pipelines = load_pipelines()
@@ -2088,7 +2124,10 @@ def api_step4_generate_executable_skill():
 
 def _read_step3_knowledge_items(pipeline_id: str) -> tuple[list[dict], dict]:
     """Shared helper: resolve pipeline, read step3 IR/Excel, return (items, pipeline_dict)."""
-    locale = get_current_locale(pipeline_id)
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     with _pipelines_lock:
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
@@ -5399,7 +5438,10 @@ def api_step3_align_ir():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
@@ -5473,7 +5515,10 @@ def api_step3_confirm_as_is():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
@@ -5604,7 +5649,10 @@ def api_step3_revision_with_expert():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
@@ -5772,7 +5820,10 @@ def api_step5_replay():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
@@ -5875,7 +5926,10 @@ def api_step5_feedback():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
@@ -5974,7 +6028,10 @@ def api_step5_finalize():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
@@ -6307,7 +6364,10 @@ def api_step2_extract_rules():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     if not model_name:
@@ -6385,7 +6445,10 @@ def api_step2_extract_sql():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     if not model_name:
@@ -6922,7 +6985,10 @@ def api_step2_extract_skill_md():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        locale = get_current_locale(pipeline_id)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
         return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:

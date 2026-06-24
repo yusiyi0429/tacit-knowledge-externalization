@@ -279,24 +279,21 @@ def _maybe_generate_markdown_artifact(pipeline_id: str, excel_name: str, *, md_p
         return "", ""
 
 
-def get_current_locale(pipeline_id: str | None = None) -> str:
-    """Resolve locale from request context and pipeline state."""
-    from flask import request
-    query_lang = (request.args.get("lang") or "").strip() or None
-    header_lang = (request.headers.get("Accept-Language") or "").strip() or None
-    pipeline_locale = None
-    if pipeline_id:
-        for p in load_pipelines():
-            if p.get("id") == pipeline_id:
-                pipeline_locale = (p.get("step_data") or {}).get("locale")
-                break
-    else:
-        body = request.get_json(silent=True) or {}
-        pipeline_locale = (body.get("locale") or "").strip() or None
+def get_current_locale(
+    *,
+    query_lang: str | None = None,
+    header_lang: str | None = None,
+    pipeline_locale: str | None = None,
+    body_locale: str | None = None,
+) -> str:
+    """Resolve locale from request context.
+
+    Resolution order: query_lang -> pipeline_locale -> body_locale -> header_lang -> DEFAULT_LANG.
+    """
     return resolve_locale(
         query_lang=query_lang,
         header_lang=header_lang,
-        pipeline_locale=pipeline_locale,
+        pipeline_locale=pipeline_locale or body_locale,
     )
 
 

@@ -13,7 +13,7 @@ def client(tmp_path, monkeypatch):
 def test_create_pipeline_stores_locale(client):
     resp = client.post("/api/pipelines", json={
         "name": "EN demo",
-        "scenario_name": "Credit",
+        "scenario": "Credit",
         "locale": "en",
     })
     assert resp.status_code == 200
@@ -24,7 +24,7 @@ def test_create_pipeline_stores_locale(client):
 def test_missing_name_returns_english_when_locale_en(client):
     resp = client.post("/api/pipelines", json={
         "name": "",
-        "scenario_name": "Credit",
+        "scenario": "Credit",
         "locale": "en",
     })
     assert resp.status_code == 400
@@ -34,7 +34,7 @@ def test_missing_name_returns_english_when_locale_en(client):
 def test_update_locale_changes_pipeline_locale(client):
     resp = client.post("/api/pipelines", json={
         "name": "Demo",
-        "scenario_name": "Credit",
+        "scenario": "Credit",
         "locale": "zh-CN",
     })
     pid = resp.get_json()["pipeline"]["id"]
@@ -42,3 +42,22 @@ def test_update_locale_changes_pipeline_locale(client):
     assert resp.status_code == 200
     resp = client.get(f"/api/pipelines/{pid}")
     assert resp.get_json()["pipeline"]["step_data"]["locale"] == "en"
+
+
+def test_query_lang_overrides_body_locale(client):
+    resp = client.post("/api/pipelines", json={
+        "name": "",
+        "scenario": "Credit",
+        "locale": "zh-CN",
+    }, query_string={"lang": "en"})
+    assert resp.status_code == 400
+    assert "Pipeline name is required" in resp.get_json()["message"]
+
+
+def test_header_lang_falls_back_to_english(client):
+    resp = client.post("/api/pipelines", json={
+        "name": "",
+        "scenario": "Credit",
+    }, headers={"Accept-Language": "en-US"})
+    assert resp.status_code == 400
+    assert "Pipeline name is required" in resp.get_json()["message"]
