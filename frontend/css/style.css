@@ -2096,6 +2096,9 @@ a { color: var(--red); text-decoration: none; }
   color: #16a34a; background: #dcfce7; padding: 1px 6px; border-radius: 3px;
   margin-bottom: 4px; margin-right: 6px;
 }
+html[lang="en"] .align-diff-old::before { content: 'Original'; }
+html[lang="en"] .align-diff-new::before { content: 'Modified'; }
+html[lang="en"] .align-diff-add::before { content: 'Added'; }
 
 .align-note-actions {
   display: flex; align-items: center; gap: 8px;

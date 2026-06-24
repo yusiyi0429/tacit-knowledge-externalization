@@ -78,6 +78,21 @@ def _read_assigned_port(stdout):
     raise RuntimeError("Could not read assigned server port from http.server output")
 
 
+def test_css_english_diff_labels_present():
+    css_path = os.path.join(FRONTEND_DIR, "css", "style.css")
+    assert os.path.exists(css_path), f"expected CSS file at {css_path}"
+    with open(css_path, "r", encoding="utf-8") as f:
+        css = f.read()
+
+    expected_rules = [
+        'html[lang="en"] .align-diff-old::before { content: \'Original\'; }',
+        'html[lang="en"] .align-diff-new::before { content: \'Modified\'; }',
+        'html[lang="en"] .align-diff-add::before { content: \'Added\'; }',
+    ]
+    for rule in expected_rules:
+        assert rule in css, f"expected CSS to contain {rule!r}"
+
+
 def test_no_unwrapped_chinese_labels():
     proc = subprocess.Popen(
         # -u ensures http.server prints its "Serving HTTP ..." line immediately.
