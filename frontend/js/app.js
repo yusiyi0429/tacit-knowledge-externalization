@@ -2298,6 +2298,10 @@ async function step1Generate() {
       console.log('[step1Generate] render output, html length:', html.length);
       renderOutput('s1-output', html);
 
+      // 保险：强制浏览器重排，确保输出区立即渲染
+      const s1OutputEl = document.getElementById('s1-output');
+      if (s1OutputEl) { void s1OutputEl.offsetHeight; }
+
       // 更新列输入框（如果有富语义列补齐）
       if (result.columns_enriched) {
         step1RenderKnowledgeColumns(result.knowledge_columns);
@@ -2322,6 +2326,10 @@ async function step1Generate() {
         } : {}),
       });
       await markStepDone(1);
+      // 保险：如果用户仍在 Step1，确保输出区显示最新结果
+      if (currentStep === 1) {
+        restoreStep1Output();
+      }
       if (currentStep === 2) loadStep2PrevOutput();
     } else {
       html = '<div class="error-list"><div class="error-item">' + escapeHtml(result.error || '未知错误') + '</div></div>';
