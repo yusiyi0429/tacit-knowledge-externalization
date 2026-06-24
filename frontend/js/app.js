@@ -1409,6 +1409,53 @@ async function saveCurrentPipeline() {
   }
 }
 
+function resetAllStepFormInputs() {
+  // 清空所有步骤表单输入，避免新建/切换流水线时旧内容污染。
+  const resetValue = (id, value = '') => {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  };
+  const resetSelect = (id, preferred = '') => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (preferred && Array.from(el.options || []).some(o => o.value === preferred)) {
+      el.value = preferred;
+    } else {
+      el.selectedIndex = 0;
+    }
+  };
+  const resetText = (id, text = '') => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  };
+
+  resetValue('s1-scenario-name', '');
+  resetValue('s1-scenario-content', '');
+
+  // 清空子场景
+  const subList = document.getElementById('s1-sub-scenarios');
+  if (subList) subList.innerHTML = '';
+  if (typeof _s1SubScenarioCount !== 'undefined') _s1SubScenarioCount = 0;
+
+  resetValue('s3-expert-text', '');
+
+  resetValue('s1-template-file', '');
+  resetValue('s2-source-files', '');
+  resetValue('s3-expert-file', '');
+
+  resetSelect('s3-revision-style', '标准修订');
+  resetSelect('s1-output-format', 'excel');
+  resetSelect('s1-legacy-template', '');
+  step1RenderKnowledgeColumns([]);
+  resetSelect('s2-model', '');
+  resetSelect('s3-model', '');
+  resetSelect('s3-skill-select', '');
+
+  resetText('s1-template-file-name', '未选择');
+  resetText('s2-file-name', '');
+  resetText('s3-file-name', '');
+}
+
 function clearCurrentPipeline() {
   if (!currentPipeline) return;
   if (!confirm('确定要清空当前流水线所有数据吗？此操作不可撤销。')) return;
@@ -3972,6 +4019,8 @@ async function createPipeline() {
     });
     if (result.status === 'ok' && result.pipeline) {
       currentPipeline = result.pipeline;
+      // 清空旧流水线表单内容，避免污染新流水线
+      resetAllStepFormInputs();
       // Pre-fill Step 1 form for new pipeline
       const nameEl = document.getElementById('s1-scenario-name');
       if (nameEl) nameEl.value = scenario;
