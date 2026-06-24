@@ -130,7 +130,6 @@
       style_standard: '标准萃取（8-22条）',
       style_deep: '深度萃取（12-40条）',
       style_compact: '精简萃取（5-10条）',
-      select_model: '选择模型',
       generate_skill_md: '生成 SKILL.md',
       execute_extraction: '执行知识萃取',
       step2_readiness_default: '请补全模型与文档后点击生成规则',
@@ -197,7 +196,6 @@
       s4_no_aligned: '暂无知识对齐稿，请先完成知识对齐节点',
       skill_generator: 'Skill生成器（内置）',
       select_skill_label: '选择 Skill',
-      generate_deliverables: '生成待验证 Skill + 思维链 + QA 对',
       step4_action_note: 'LLM 解析 Step3 对齐稿，生成 QA对/思维链/待验证 Agent-Skill 三个交付物',
       step4_output_placeholder: '点击「生成」创建三个交付物',
 
@@ -210,9 +208,7 @@
       s5_no_deliverables_hint: '请先完成智能转化节点',
       test_data_source: '测试数据来源',
       all_test_customers: '全部 test_customers',
-      run_replay: '执行 P/R/F1 验证',
       step5_action_note: '在 test_customers 表上执行 agent-skill，对照期望结果计算精度/召回/F1',
-      feedback_divergence: '反馈分歧到 Step3',
       feedback_hint: '将验证分歧推入 Step3 建议池，专家可重新审核',
       step5_output_placeholder: '执行 P/R/F1 验证后查看度量结果',
 
@@ -345,7 +341,6 @@
       style_standard: 'Standard (8-22 items)',
       style_deep: 'Deep (12-40 items)',
       style_compact: 'Compact (5-10 items)',
-      select_model: 'Select Model',
       generate_skill_md: 'Generate SKILL.md',
       execute_extraction: 'Run Extraction',
       step2_readiness_default: 'Please complete model and document selection before generating rules.',
@@ -411,7 +406,6 @@
       s4_no_aligned: 'No aligned draft; please complete knowledge alignment first.',
       skill_generator: 'Skill Generator (built-in)',
       select_skill_label: 'Select Skill',
-      generate_deliverables: 'Generate Skill + CoT + QA Pairs',
       step4_action_note: 'LLM parses the Step 3 aligned draft and generates three deliverables: QA pairs, chain-of-thought, and an Agent-Skill pending validation.',
       step4_output_placeholder: 'Click "Generate" to create the three deliverables',
 
@@ -424,9 +418,7 @@
       s5_no_deliverables_hint: 'Please complete the knowledge delivery step first.',
       test_data_source: 'Test Data Source',
       all_test_customers: 'All test_customers',
-      run_replay: 'Run P/R/F1 Validation',
       step5_action_note: 'Run the agent-skill on the test_customers table and calculate precision/recall/F1 against expected results.',
-      feedback_divergence: 'Feedback Divergence to Step 3',
       feedback_hint: 'Push validation disagreements into the Step 3 suggestion pool for expert review.',
       step5_output_placeholder: 'Run P/R/F1 validation to view metrics',
 
@@ -1067,7 +1059,14 @@
   function translateDocument() {
     document.querySelectorAll('[data-i18n]').forEach(function (el) {
       const val = t(el.getAttribute('data-i18n'), null);
-      if (val != null) el.innerHTML = val;
+      if (val == null) return;
+      // Use textContent for plain strings to avoid treating user-visible text as HTML.
+      // Keep innerHTML only for keys that are known to contain markup.
+      if (/<[^>]+>/.test(val)) {
+        el.innerHTML = val;
+      } else {
+        el.textContent = val;
+      }
     });
     document.querySelectorAll('[data-i18n-text]').forEach(function (el) {
       const val = t(el.getAttribute('data-i18n-text'), null);
