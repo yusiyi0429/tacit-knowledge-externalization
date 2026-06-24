@@ -1242,7 +1242,19 @@ checkServer();
 /* ===== Utility ===== */
 function renderOutput(containerId, html) {
   var el = document.getElementById(containerId);
-  if (el) { el.style.display = ''; el.innerHTML = '<div class="output-result">' + html + '</div>'; }
+  if (!el) return;
+  el.style.display = '';
+  el.innerHTML = '<div class="output-result">' + html + '</div>';
+  console.log('[renderOutput]', containerId, 'set innerHTML length:', el.innerHTML.length);
+  // 保险：部分浏览器/环境下 innerHTML 写入后会被异常清空，50ms 后检查并重绘
+  var expectedHtml = html;
+  setTimeout(function() {
+    if (!el.querySelector('.output-result') || el.innerHTML.length < 50) {
+      console.warn('[renderOutput] output was cleared, re-render', containerId);
+      el.style.display = '';
+      el.innerHTML = '<div class="output-result">' + expectedHtml + '</div>';
+    }
+  }, 50);
 }
 function renderLoading(containerId) {
   var el = document.getElementById(containerId);
@@ -2340,8 +2352,11 @@ async function step1Generate() {
     renderOutput('s1-output', '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>');
   }
   } finally {
-    btn.disabled = false;
-    btn._locked = false;
+    // 即使请求很快完成，也保持按钮锁定至少 500ms，防止用户连续快速点击造成视觉抖动
+    setTimeout(function() {
+      btn.disabled = false;
+      btn._locked = false;
+    }, 500);
   }
 }
 
