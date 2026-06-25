@@ -364,9 +364,10 @@
 
   function createLuckysheetInstance(sheetHost, containerEl, luckysheetData, names, host) {
     return waitForContainerReady(sheetHost).then(function () {
+      const lang = App.I18n.getLang() === 'en' ? 'en' : 'zh';
       global.luckysheet.create({
         container: CONTAINER_ID,
-        lang: 'zh',
+        lang: lang,
         data: luckysheetData,
         showinfobar: false,
         showsheetbar: names.length > 1,

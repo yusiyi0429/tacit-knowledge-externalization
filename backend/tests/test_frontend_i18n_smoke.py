@@ -203,6 +203,17 @@ def test_no_escaped_template_literal_i18n_calls():
     assert not offenders, f"Escaped i18n template literal calls found: {offenders}"
 
 
+def test_luckysheet_vendor_has_english_locale():
+    luckysheet_js = os.path.join(FRONTEND_DIR, "vendor", "luckysheet", "luckysheet.umd.js")
+    assert os.path.exists(luckysheet_js), f"expected Luckysheet build at {luckysheet_js}"
+    with open(luckysheet_js, "r", encoding="utf-8") as f:
+        content = f.read()
+    # Luckysheet bundles all locales; the English toolbar must be present so
+    # excel-luckysheet.js can render an English UI when App.I18n.getLang() == 'en'.
+    assert '"Undo"' in content, "expected English 'Undo' toolbar label in Luckysheet build"
+    assert '"Redo"' in content, "expected English 'Redo' toolbar label in Luckysheet build"
+
+
 def test_no_unwrapped_chinese_labels():
     proc = subprocess.Popen(
         # -u ensures http.server prints its "Serving HTTP ..." line immediately.
