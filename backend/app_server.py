@@ -1363,6 +1363,13 @@ def api_step1_generate():
     primary_download_name = output_name
     primary_download_url = "/downloads/" + output_name
 
+    pipeline_step1 = _get_pipeline(pipeline_id) if pipeline_id else None
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+        pipeline_locale=(pipeline_step1.get("step_data") or {}).get("locale") if pipeline_step1 else None,
+    )
+
     try:
         if template_path and os.path.exists(template_path):
             fill_result = fill_scenario_skeleton(
@@ -1397,6 +1404,7 @@ def api_step1_generate():
                 scenario_content,
                 sub_scenarios,
                 knowledge_columns,
+                locale=locale,
             )
             fill_result = generate_skeleton_from_schema(
                 SCHEMA_PATH,
@@ -1869,6 +1877,12 @@ def api_step4_compile():
     formats_raw = request.form.get("formats", "").strip()
     formats = [f.strip() for f in formats_raw.split(",") if f.strip()] if formats_raw else None
 
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+        pipeline_locale=pipeline.get("step_data", {}).get("locale") if pipeline else None,
+    )
+
     published_version = 0
     try:
         if ir_path:
@@ -1880,6 +1894,7 @@ def api_step4_compile():
             result = build_agent_skill_bundle(
                 ir,
                 output_dir,
+                locale=locale,
             )
             result["status"] = "ok"
             result["input_kind"] = "ir"
@@ -1888,7 +1903,8 @@ def api_step4_compile():
             result["knowledge_count"] = len(ir.get("entries", []))
         else:
             result = excel_to_delivery_bundle(
-                input_path, config_path, output_dir, pipeline_ctx or None, formats=formats
+                input_path, config_path, output_dir, pipeline_ctx or None, formats=formats,
+                locale=locale,
             )
             artifacts = result.get("artifacts") or {}
             skill_zip_path = (artifacts.get("skill") or {}).get("zip_path")
@@ -1979,7 +1995,7 @@ def api_step4_compile():
             if SCHEMA_PATH.exists():
                 from excel_to_skill import load_scenario_config
                 config = load_scenario_config(str(SCHEMA_PATH))
-            q = quality_report_from_records(_ir2rec(_load_ir(ir_path)), config)
+            q = quality_report_from_records(_ir2rec(_load_ir(ir_path)), config, locale=locale)
             if q.get("status") == "ok":
                 quality_score = q.get("total_score")
                 threshold = float((config.get("quality") or {}).get("skill_score_threshold", 75))
@@ -2077,11 +2093,18 @@ def api_step4_generate_executable_skill():
     if not model_cfg:
         return jsonify({"status": "error", "error": "无可用 LLM 模型"})
 
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+        pipeline_locale=pipeline.get("step_data", {}).get("locale"),
+    )
+
     prompt = build_skill_generation_prompt(
         scenario_name=pipeline.get("scenario", "") or pipeline.get("name", ""),
         scenario_description=sd.get("step1_form_data", {}).get("scenario_content", "") or "",
         knowledge_items=knowledge_items,
         golden_schema=golden_schema,
+        locale=locale,
     )
 
     try:
@@ -2356,6 +2379,12 @@ def api_step4_quality():
                 if resolved:
                     input_path = str(resolved)
 
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+        pipeline_locale=pipeline.get("step_data", {}).get("locale") if pipeline else None,
+    )
+
     # IR 路径：进程内规则评分（无子进程）
     if ir_path:
         try:
@@ -2366,7 +2395,7 @@ def api_step4_quality():
             if SCHEMA_PATH.exists():
                 from excel_to_skill import load_scenario_config
                 config = load_scenario_config(str(SCHEMA_PATH))
-            q = quality_report_from_records(ir_to_records(load_ir(ir_path)), config)
+            q = quality_report_from_records(ir_to_records(load_ir(ir_path)), config, locale=locale)
             if q.get("status") != "ok":
                 return jsonify(q)
             report_name = f"quality_report_{uuid.uuid4().hex[:8]}.md"

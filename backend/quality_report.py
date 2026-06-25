@@ -24,6 +24,7 @@ except ImportError:
     sys.exit(1)
 
 from field_aliases import FIELD_ALIASES, resolve_header
+from i18n_render import report_label
 
 NON_KNOWLEDGE_SHEETS = {"场景配置", "版本追踪", "配置", "config", "来源索引"}
 
@@ -327,22 +328,22 @@ def _compute_evidence_strength(records: list) -> dict:
 
 def generate_report(records: list, config: dict, scores: dict, total_score: float, grade: str,
                     tacit_ratio: float = 0, case_ratio: float = 0,
-                    evidence_stats: dict = None) -> str:
+                    evidence_stats: dict = None, locale: str = "zh-CN") -> str:
     """生成 Markdown 质量报告"""
     scenario = config.get("display_name", "未命名场景")
     total_items = len(records)
 
     lines = [
-        f"# 知识萃取质量报告",
+        report_label("report_quality_title", locale),
         "",
-        f"- **场景**：{scenario}",
-        f"- **知识条目数**：{total_items}",
-        f"- **总分**：{total_score:.1f} / 100",
-        f"- **等级**：{grade}",
+        f"- **{report_label('report_quality_scenario', locale)}**：{scenario}",
+        f"- **{report_label('report_quality_item_count', locale)}**：{total_items}",
+        f"- **{report_label('report_quality_total_score', locale)}**：{total_score:.1f} / 100",
+        f"- **{report_label('report_quality_grade', locale)}**：{grade}",
         "",
-        "## 各维度得分",
+        report_label("report_quality_dimensions", locale),
         "",
-        "| 维度 | 得分 | 满分 | 得分率 |",
+        f"| {report_label('report_quality_dimension', locale)} | {report_label('report_quality_score', locale)} | {report_label('report_quality_max', locale)} | {report_label('report_quality_rate', locale)} |",
         "|------|------|------|--------|",
     ]
 
@@ -352,12 +353,12 @@ def generate_report(records: list, config: dict, scores: dict, total_score: floa
         rate = round(score / max_score * 100, 1) if max_score > 0 else 0
         lines.append(f"| {dim_name} | {score:.1f} | {max_score} | {rate}% |")
 
-    lines.append(f"| **总计** | **{total_score:.1f}** | **100** | **{total_score:.0f}%** |")
+    lines.append(f"| **{report_label('report_quality_total', locale)}** | **{total_score:.1f}** | **100** | **{total_score:.0f}%** |")
     lines.append("")
 
     # 隐性化成效
     if evidence_stats:
-        lines.append("## 隐性化成效")
+        lines.append(report_label("report_quality_tacitness", locale))
         lines.append("")
         lines.append(f"- **隐性度（tacit_ratio）**：{tacit_ratio * 100:.1f}%（有专家经验判断/适用边界/例外情形的条目占比）")
         lines.append(f"- **案例衍生占比**：{case_ratio * 100:.1f}%（来自案例复盘或已被案例支撑的条目占比）")
@@ -367,7 +368,7 @@ def generate_report(records: list, config: dict, scores: dict, total_score: floa
         lines.append("")
 
     # 改进建议
-    lines.append("## 改进建议")
+    lines.append(report_label("report_quality_suggestions", locale))
     lines.append("")
 
     for dim_name, dim_data in scores.items():
@@ -384,15 +385,15 @@ def generate_report(records: list, config: dict, scores: dict, total_score: floa
     return "\n".join(lines)
 
 
-def quality_report(excel_path: str, config_path: str) -> dict:
+def quality_report(excel_path: str, config_path: str, locale: str = "zh-CN") -> dict:
     """Excel 入口：读取工作簿后委托 quality_report_from_records（过渡期兼容路径）。"""
     records, config_info = read_excel_data(excel_path)
     if not records:
         return {"status": "error", "message": f"No data found in {excel_path}"}
-    return quality_report_from_records(records, load_config(config_path))
+    return quality_report_from_records(records, load_config(config_path), locale=locale)
 
 
-def quality_report_from_records(records: list, config: dict | None = None) -> dict:
+def quality_report_from_records(records: list, config: dict | None = None, locale: str = "zh-CN") -> dict:
     """records 主评分流程（Skill IR 路径：ir_to_records(ir) 直接入参）。"""
     if not records:
         return {"status": "error", "message": "知识 records 为空"}
@@ -415,7 +416,7 @@ def quality_report_from_records(records: list, config: dict | None = None) -> di
     grade = get_grade(total_score)
 
     report_md = generate_report(records, config, scores, total_score, grade,
-                                tacit_ratio, case_ratio, evidence_stats)
+                                tacit_ratio, case_ratio, evidence_stats, locale=locale)
 
     return {
         "status": "ok",

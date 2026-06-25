@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from i18n_render import report_label
 from scenario_schema import ANCHOR_COLUMNS
 from step1_template import normalize_sub_scenarios
 
@@ -19,6 +20,7 @@ def generate_markdown_skeleton(
     scenario_content: str,
     sub_scenarios: list,
     knowledge_columns: list[str],
+    locale: str = "zh-CN",
 ) -> dict:
     """生成 Markdown 场景骨架（每个子场景一张表）。"""
     anchor = list(ANCHOR_COLUMNS)
@@ -28,13 +30,13 @@ def generate_markdown_skeleton(
         subs = [{"name": "", "content": ""}]
 
     lines = [
-        f"# 场景锚定骨架 · {scenario_name}",
+        report_label("report_scenario_skeleton_title", locale).format(scenario_name=scenario_name),
         "",
-        "## 场景说明",
+        report_label("report_scenario_description", locale),
         "",
         scenario_content or "（待补充）",
         "",
-        "## 知识列",
+        report_label("report_knowledge_columns", locale),
         "",
         "、".join(knowledge_columns) if knowledge_columns else "（无）",
         "",
@@ -43,7 +45,7 @@ def generate_markdown_skeleton(
     for i, sub in enumerate(subs, start=1):
         sub_name = sub.get("name", "") or f"子场景{i}"
         sub_content = sub.get("content", "")
-        lines.append(f"## 子场景：{sub_name}")
+        lines.append(report_label("report_sub_scenario", locale).format(sub_name=sub_name))
         if sub_content:
             lines.append("")
             lines.append(sub_content)
@@ -58,7 +60,7 @@ def generate_markdown_skeleton(
         ] + [""] * len(knowledge_columns)
         lines.append("| " + " | ".join(_md_cell(c) for c in row) + " |")
         lines.append("")
-        lines.append("> 可在下方继续追加知识条目行，或进入 Step2 使用同结构 Excel 萃取。")
+        lines.append(report_label("report_skeleton_footer", locale))
         lines.append("")
 
     text = "\n".join(lines).strip() + "\n"

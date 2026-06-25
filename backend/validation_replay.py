@@ -10,6 +10,8 @@ import json
 import re
 from datetime import datetime
 
+from i18n_render import report_label
+
 
 def extract_assistant_content(result: dict) -> str:
     """从 LLM 响应 dict 中提取 assistant content。"""
@@ -222,32 +224,32 @@ def validation_to_revision_suggestions(
     return suggestions[:10]
 
 
-def generate_replay_report(result: dict, cases: list[dict], predictions: list[dict]) -> str:
+def generate_replay_report(result: dict, cases: list[dict], predictions: list[dict], locale: str = "zh-CN") -> str:
     lines = [
-        "# 显性化校验报告 · 决策回放",
+        report_label("report_validation_title", locale),
         "",
-        f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"- 案例数：{result['total_cases']}",
-        f"- **命中率：{result['hit_rate'] * 100:.1f}%**（{result['hits']}/{result['total_cases']}）",
-        f"- 分歧数：{result['mismatch_count']}",
+        f"- {report_label('report_generated_at', locale)}：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        f"- {report_label('report_case_count', locale)}：{result['total_cases']}",
+        f"- **{report_label('report_hit_rate', locale)}：{result['hit_rate'] * 100:.1f}%**（{result['hits']}/{result['total_cases']}）",
+        f"- {report_label('report_mismatch_count', locale)}：{result['mismatch_count']}",
         "",
-        "## 不一致案例分析",
+        report_label("report_mismatch_analysis", locale),
         "",
     ]
     if not result["mismatches"]:
-        lines.append("> 所有案例判断与专家结论一致。")
+        lines.append("> " + report_label("report_all_cases_match", locale))
         lines.append("")
     else:
         for i, m in enumerate(result["mismatches"]):
-            lines.append(f"### 案例 {m['case_id']}")
-            lines.append(f"- **LLM 预测**：{m['prediction']}")
-            lines.append(f"- **专家结论**：{m['expert_conclusion']}")
-            lines.append(f"- 推理过程：{m.get('reasoning', '')[:200]}")
+            lines.append(f"### {report_label('report_case', locale)} {m['case_id']}")
+            lines.append(f"- **{report_label('report_llm_prediction', locale)}**：{m['prediction']}")
+            lines.append(f"- **{report_label('report_expert_conclusion', locale)}**：{m['expert_conclusion']}")
+            lines.append(f"- {report_label('report_reasoning_process', locale)}：{m.get('reasoning', '')[:200]}")
             rules = m.get("referenced_rules", [])
             if rules:
-                lines.append(f"- 引用的规则：{', '.join(rules)}")
+                lines.append(f"- {report_label('report_referenced_rules', locale)}：{', '.join(rules)}")
             lines.append("")
-            lines.append("> 建议：请检查上述规则是否需要更新或补充例外情形。")
+            lines.append("> " + report_label("report_suggestion", locale) + "：" + report_label("report_check_rules_suggestion", locale))
             lines.append("")
     return "\n".join(lines)
 
@@ -422,28 +424,28 @@ def generate_verification_report(run_records: list[dict]) -> dict:
     }
 
 
-def verification_report_to_markdown(report: dict) -> str:
+def verification_report_to_markdown(report: dict, locale: str = "zh-CN") -> str:
     """将验证报告渲染为 Markdown。"""
     lines = [
-        "# Agent-Skill 本地知识库验证报告",
+        report_label("report_verification_title", locale),
         "",
-        f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"- 用例总数：{report['total']}",
-        f"- **通过率：{report['pass_rate'] * 100:.1f}%**（{report['pass']}/{report['total']}）",
-        f"- 失败：{report['fail']}，部分通过：{report['partial']}",
+        f"- {report_label('report_generated_at', locale)}：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        f"- {report_label('report_total_cases', locale)}：{report['total']}",
+        f"- **{report_label('report_pass_rate', locale)}：{report['pass_rate'] * 100:.1f}%**（{report['pass']}/{report['total']}）",
+        f"- {report_label('report_fail_count', locale)}：{report['fail']}，{report_label('report_partial_count', locale)}：{report['partial']}",
         "",
-        "## 不一致用例",
+        report_label("report_verification_mismatches", locale),
         "",
     ]
     if not report["mismatches"]:
-        lines.append("> 所有用例均通过。")
+        lines.append("> " + report_label("report_all_cases_pass", locale))
         lines.append("")
     else:
         for m in report["mismatches"]:
             diff = m.get("diff") or {}
-            lines.append(f"### 用例 {m.get('case_id', '?')}")
-            lines.append(f"- **实际结论**：{diff.get('actual_prediction', '')}")
-            lines.append(f"- **期望结论**：{diff.get('expected_prediction', '')}")
-            lines.append(f"- 推理：{diff.get('actual_reasoning', '')[:200]}")
+            lines.append(f"### {report_label('report_case', locale)} {m.get('case_id', '?')}")
+            lines.append(f"- **{report_label('report_actual_conclusion', locale)}**：{diff.get('actual_prediction', '')}")
+            lines.append(f"- **{report_label('report_expected_conclusion', locale)}**：{diff.get('expected_prediction', '')}")
+            lines.append(f"- {diff.get('actual_reasoning', '')[:200]}")
             lines.append("")
     return "\n".join(lines)
