@@ -20,6 +20,23 @@ SKILL_REGISTRY = {
         "output_styles": ["结构化 SKILL.md", "含角色/流程/规则/数据"],
         "triggers": ["用户完成 Step1 场景锚定后", "用户上传知识文档并选择【知识萃取】"],
         "limitations": ["依赖输入的文档质量，文档信息不足时产出可能不完整", "LLM 生成的初稿需要专家在 Step3 对齐确认", "暂不支持图片/表格结构文档的深度解析"],
+        "i18n": {
+            "en": {
+                "name": "Knowledge Extraction",
+                "description": "Generate an Agent SKILL.md draft from scenario skeleton and knowledge documents via LLM.",
+                "detailed_description": "Knowledge Extraction is the core entry point of the tacit-knowledge externalization pipeline. The Skill receives the scenario skeleton produced in Step 1 and expert-provided knowledge documents, then invokes a large language model to distill a structured Agent SKILL.md containing role definition, core processes, decision rules, and data access logic.\n\nSKILL.md is the foundational input for all downstream steps.",
+                "business_value": "Convert expert experience scattered across documents, policies, and cases into machine-executable Agent Skills, significantly reducing the manual cost of knowledge沉淀. One extraction can cover a complete business scenario; the pipeline continuously iterates afterwards.",
+                "usage_guide": "1. Ensure Step 1 Scenario Anchoring is completed and the skeleton is generated.\n2. Prepare knowledge documents (.txt / .docx / .pdf) or paste text directly.\n3. Select Markdown Pipeline mode in the UI.\n4. Select a model and click Run Knowledge Extraction.\n5. Wait for the LLM to generate the SKILL.md draft, preview and confirm.",
+                "input_example": "Scenario: SME inclusive-loan potential-customer marketing. Knowledge document: english-loan-marketing-guide.txt (contains customer filtering rules, data tags, decision recommendations).",
+                "output_example": "SKILL.md file containing role definition, core process (customer filter → demand analysis → product matching → marketing execution), data table references, and decision rules.",
+                "applicable_scenarios": ["SME potential-customer mining and marketing", "Inclusive-loan product recommendation", "Customer segmentation and precision marketing", "New-customer admission assessment"],
+                "capabilities": ["Scenario skeleton parsing", "Knowledge-document understanding", "Rule and logic extraction", "Agent SKILL.md generation"],
+                "supported_formats": [".txt", ".docx", ".pdf", "plain text paste"],
+                "output_styles": ["Structured SKILL.md", "Includes role/process/rules/data"],
+                "triggers": ["User completes Step 1 Scenario Anchoring", "User uploads knowledge documents and selects Knowledge Extraction"],
+                "limitations": ["Output quality depends on input document quality", "LLM-generated draft requires expert alignment in Step 3", "Does not yet support deep parsing of image/table-structured documents"],
+            }
+        },
     },
     "knowledge-revision": {
         "id": "knowledge-revision",
@@ -40,6 +57,23 @@ SKILL_REGISTRY = {
         "output_styles": ["修订版 SKILL.md", "含修订记录元信息"],
         "triggers": ["Step2 知识萃取完成", "专家在 Step3 界面提交反馈"],
         "limitations": ["单次反馈建议聚焦于一个方面，避免多主题混杂降低修订质量", "修改幅度受 LLM 上下文窗口限制（max_tokens=100000）", "无法保证自动验证修订逻辑的正确性，需专家人工确认"],
+        "i18n": {
+            "en": {
+                "name": "Knowledge Alignment",
+                "description": "Revise and align SKILL.md based on expert natural-language feedback via LLM.",
+                "detailed_description": "Knowledge Alignment is the core step where experts participate in revision. The Skill receives the SKILL.md draft generated in Step 2, combines it with expert natural-language feedback (e.g., 'customer screening conditions need to add establishment-year judgment', 'the credit-limit calculation logic is wrong, refer to XX policy'), and invokes LLM to perform semantic-level revision to generate a new version of SKILL.md.\n\nSupports multi-round revision: each round of feedback independently generates a revision version without overwriting history, so experts can preview differences in the UI.",
+                "business_value": "Resolves the deviation between LLM drafts and actual expert experience. Through natural-language interaction rather than manual editing, experts' tacit judgments ('how to handle normal cases', 'what are boundary conditions') are quickly integrated into the knowledge system, ensuring the output matches business reality.",
+                "usage_guide": "1. Review the SKILL.md draft generated in Step 2.\n2. Describe the content that needs modification in natural language in the Expert Feedback input box.\n3. Select a model and click Send and Smart Revise.\n4. Preview the revised SKILL.md; continue giving feedback if not satisfied.\n5. After confirmation, proceed to Step 4.",
+                "input_example": "Expert feedback: 'In the customer screening section, technology enterprises should also be distinguished by whether they have valid patents; those without patents should not be prioritized for marketing even if they have qualification tags. In the credit-limit calculation section, add a rule: if the customer has credit loans from other banks and is repaying normally, the limit can be moderately increased.'",
+                "output_example": "Revised SKILL.md, based on the original text: 1) Customer screening rules add a new 'valid patent judgment' condition branch; 2) Credit-limit calculation section adds a new 'normal repayment of credit loans from other banks' increase rule; 3) Logic remains consistent throughout.",
+                "applicable_scenarios": ["LLM drafts require domain expert review and revision", "Business rules or policies change and logic needs updating", "Knowledge entries for multi-round iterative optimization"],
+                "capabilities": ["Natural-language feedback understanding", "SKILL.md semantic-level revision", "Multi-round revision version management", "Revision log and difference tracking"],
+                "supported_formats": ["Full-text SKILL.md revision"],
+                "output_styles": ["Revised SKILL.md", "Contains revision record metadata"],
+                "triggers": ["Step 2 Knowledge Extraction completed", "Expert submits feedback in Step 3 UI"],
+                "limitations": ["Single feedback should focus on one aspect; mixing multiple topics may reduce revision quality", "Revision amplitude is limited by LLM context window (max_tokens=100000)", "Cannot automatically verify correctness of revised logic; requires expert manual confirmation"],
+            }
+        },
     },
     "skill-generator": {
         "id": "skill-generator",
@@ -60,5 +94,45 @@ SKILL_REGISTRY = {
         "output_styles": ["结构化 QA 对", "Markdown 思维链", "agentskills.io 标准 zip"],
         "triggers": ["Step3 知识对齐完成并确认"],
         "limitations": ["QA 对的覆盖面和准确性受 SKILL.md 完整度影响", "思维链为 LLM 推导，可能存在推理盲区", "zip 包生成后需在 Step5 通过 P/R/F1 验证才能发布"],
+        "i18n": {
+            "en": {
+                "name": "Skill Generator",
+                "description": "Generate QA pairs, Chain-of-Thought, and an agent-ready Skill package from the revised SKILL.md via LLM.",
+                "detailed_description": "Skill Generator is the delivery step of the pipeline, transforming the expert-confirmed SKILL.md into a directly distributable Agent Skill package.\n\nOutput contains three parts: 1) QA pairs (Question-Answer validation cases for evaluating Skill accuracy); 2) Chain-of-Thought (step-by-step deduction of core judgment logic); 3) Agent-Skill executable package (zip containing SKILL.md, manifest.json, execution scripts, etc., conforming to the agentskills.io standard).\n\nThe generated Agent-Skill can be validated in Step 5 with P/R/F1 metrics; after passing, the final released Skill zip is produced.",
+                "business_value": "One-click packaging from human knowledge to distributable, executable Agent Skill. Generated QA pairs can be directly used for subsequent regression testing, Chain-of-Thought helps new users understand model judgment logic, and the zip package can be distributed to frontline account managers via intranet or platform.",
+                "usage_guide": "1. Ensure Step 3 Knowledge Alignment is completed and SKILL.md is confirmed.\n2. Select Build Skill in the Step 4 UI.\n3. Wait for LLM to generate three deliverables: QA pairs, CoT, Agent-Skill zip.\n4. Preview QA pairs and Chain-of-Thought content.\n5. Proceed to Step 5 for validation replay.",
+                "input_example": "Input: SME inclusive-loan potential-customer marketing SKILL.md confirmed by Step 3 expert (containing complete content such as customer screening rules, credit-limit calculation logic, product recommendation strategy).",
+                "output_example": "Output three files: 1) qa_*.json — about 10-20 QA pairs covering admission judgment, product recommendation, rejection reasons, etc.; 2) cot_*.md — step-by-step Chain-of-Thought showing the complete reasoning path from customer information to marketing recommendations; 3) SKILL_VERIFY_*.zip — deployable Agent Skill package.",
+                "applicable_scenarios": ["Generate deliverable Skill after SKILL.md finalization", "Need QA validation dataset", "Need Chain-of-Thought to explain logic"],
+                "capabilities": ["SKILL.md parsing and reconstruction", "QA validation set auto-generation", "Chain-of-Thought reasoning chain generation", "Agent-Skill zip packaging"],
+                "supported_formats": ["SKILL.md → QA JSON + CoT Markdown + Skill zip"],
+                "output_styles": ["Structured QA pairs", "Markdown Chain-of-Thought", "agentskills.io standard zip"],
+                "triggers": ["Step 3 Knowledge Alignment completed and confirmed"],
+                "limitations": ["Coverage and accuracy of QA pairs depend on completeness of SKILL.md", "Chain-of-Thought is LLM-derived and may have reasoning blind spots", "After zip package generation, must pass P/R/F1 validation in Step 5 before release"],
+            }
+        },
     },
 }
+
+
+def get_skill_registry(lang: str = "zh-CN") -> dict:
+    """Return a copy of SKILL_REGISTRY with metadata localized to ``lang``.
+
+    Supported languages: ``zh-CN`` and ``en``. Unknown languages fall back to
+    ``zh-CN``. Translations listed under ``skill["i18n"][lang]`` override the
+    default Chinese top-level fields; fields without a translation keep their
+    Chinese value. The ``i18n`` block itself is removed from the returned
+    entries so callers receive a flat skill dict.
+    """
+    if lang not in {"zh-CN", "en"}:
+        lang = "zh-CN"
+    result = {}
+    for sid, skill in SKILL_REGISTRY.items():
+        entry = dict(skill)
+        i18n = entry.pop("i18n", {})
+        translations = i18n.get(lang, {})
+        for key, value in translations.items():
+            if key in entry:
+                entry[key] = value
+        result[sid] = entry
+    return result

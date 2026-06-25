@@ -2855,20 +2855,15 @@ def api_excel_save():
 
 
 # ─── Skill Registry ───────────────────────────────────────────────
-from skill_registry import SKILL_REGISTRY
+from skill_registry import SKILL_REGISTRY, get_skill_registry
 @app.route("/api/skills", methods=["GET"])
 def api_skills_list():
-    """返回所有已注册 Skill 的简要信息"""
-    skills = []
-    for sid, info in SKILL_REGISTRY.items():
-        skills.append({
-            "id": sid,
-            "name": info["name"],
-            "version": info["version"],
-            "description": info["description"],
-            "enabled": info["enabled"],
-        })
-    return jsonify({"status": "ok", "skills": skills})
+    """返回所有已注册 Skill 的简要信息（按当前 locale 本地化）"""
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
+    return jsonify({"status": "ok", "skills": get_skill_registry(locale)})
 
 
 @app.route("/api/skills/<path:skill_id>", methods=["GET"])
