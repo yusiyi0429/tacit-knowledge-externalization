@@ -629,9 +629,30 @@ def _extract_item_content(item: dict, target_columns: list | None = None) -> str
     return _pick_text(item, keys)
 
 
+_CONFIDENCE_ALIASES = {
+    "high": ["high", "高", "极高"],
+    "medium": ["medium", "中"],
+    "low": ["low", "低", "极低"],
+}
+
+
+def normalize_confidence(value: str) -> str:
+    """Normalize a confidence label to English canonical (high/medium/low)."""
+    v = (value or "").strip().lower()
+    for canonical, aliases in _CONFIDENCE_ALIASES.items():
+        if v in [a.lower() for a in aliases]:
+            return canonical
+    return "medium"
+
+
+def confidence_rank(value: str) -> int:
+    """Return numeric rank for a confidence value (high=3, medium=2, low=1)."""
+    return {"high": 3, "medium": 2, "low": 1}.get(normalize_confidence(value), 2)
+
+
 def _extract_item_confidence_rank(item: dict) -> int:
-    conf = str(item.get("置信度", "")).strip()
-    return {"高": 3, "中": 2, "低": 1, "极高": 4, "极低": 0}.get(conf, 2)
+    conf = _pick_text(item, ("confidence", "置信度"))
+    return confidence_rank(conf)
 
 
 def _extract_item_richness(item: dict) -> int:

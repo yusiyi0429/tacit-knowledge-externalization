@@ -27,7 +27,7 @@ def test_new_draft_v2_basic():
     assert ir["ir_version"] == "2.0"
     assert ir["skill_meta"]["scenario_name"] == "科技型企业普惠贷款营销"
     assert len(ir["entries"]) == 1
-    assert ir["entries"][0]["step_phase"] == "客户筛选"
+    assert ir["entries"][0]["step_phase"] == "customer_filter"
     assert ir["entries"][0]["fields"]["data_logic"]["sql"] == ""
     assert "confidence" not in ir["entries"][0]["fields"]["data_logic"]
 

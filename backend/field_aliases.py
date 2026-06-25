@@ -1,52 +1,79 @@
 """
-字段别名表（quality_report.py 与 excel_to_skill.py 共用，消除两份别名表漂移）
+Bilingual field alias table shared by quality_report.py and excel_to_skill.py.
 
-L1 显性结论层 / L2 判断上下文层 / L3 证据层
+Canonical keys are English; each accepts both Chinese and English aliases.
+L1 explicit conclusion layer / L2 judgment context layer / L3 evidence layer
 """
 
 FIELD_ALIASES = {
-    # L1 显性结论层
-    "知识编号": ["知识编号", "编号", "KN编号", "知识ID", "knowledge_id"],
-    "知识分类": ["知识分类", "分类", "类型", "知识要点", "知识"],
-    "知识描述": [
+    # L1 explicit conclusion layer
+    "knowledge_id": ["知识编号", "编号", "KN编号", "知识ID", "knowledge_id", "id"],
+    "category": ["知识分类", "分类", "类型", "知识要点", "知识", "category", "type"],
+    "knowledge_desc": [
         "知识描述", "描述", "知识内容", "内容", "数据规则", "具体方案",
         "具体方法", "场景说明", "子场景说明", "知识说明",
+        "knowledge_desc", "knowledge description", "description", "method",
     ],
-    "适用条件": ["适用条件", "触发条件", "条件"],
-    "判断逻辑": ["判断逻辑", "判断规则", "逻辑", "规则引用"],
-    "反模式/踩坑提示": ["反模式/踩坑提示", "反模式", "踩坑提示", "注意事项"],
-    # L2 判断上下文层（隐性注释写入的目标列）
-    "经验判断": ["经验判断", "专家经验判断"],
-    "适用边界": ["适用边界", "适用边界/例外"],
-    "例外情形": ["例外情形", "例外场景", "破例场景"],
-    # L3 证据层
-    "来源文档": ["来源文档", "来源"],
-    "来源位置": ["来源位置", "位置", "页码"],
-    "原文摘录": ["原文摘录", "摘录"],
-    "置信度": ["置信度", "可信度"],
-    "贡献专家": ["贡献专家", "贡献人"],
-    "确认专家": ["确认专家", "确认人"],
-    "证据数": ["证据数", "案例支撑数", "evidence_count"],
-    "突破数": ["突破数", "被突破数", "break_count"],
-    "备注": ["备注", "说明", "修订说明"],
+    "applicable_condition": ["适用条件", "触发条件", "条件", "applicable_condition", "condition", "trigger"],
+    "judgment_logic": ["判断逻辑", "判断规则", "逻辑", "规则引用", "judgment_logic", "logic"],
+    "anti_pattern": ["反模式/踩坑提示", "反模式", "踩坑提示", "注意事项", "anti_pattern", "pitfall", "caveat"],
+    # L2 judgment context layer (targets for implicit annotation writes)
+    "expert_judgment": ["经验判断", "专家经验判断", "expert_judgment", "expert_opinion"],
+    "applicable_boundary": ["适用边界", "适用边界/例外", "applicable_boundary", "boundary"],
+    "exception_case": ["例外情形", "例外场景", "破例场景", "exception_case", "exception"],
+    # L3 evidence layer
+    "source_doc": ["来源文档", "来源", "source_doc", "source", "source_document"],
+    "source_location": ["来源位置", "位置", "页码", "source_location", "location", "page"],
+    "source_quote": ["原文摘录", "摘录", "source_quote", "quote", "excerpt"],
+    "confidence": ["置信度", "可信度", "confidence", "credibility"],
+    "contributor": ["贡献专家", "贡献人", "contributor", "contributing_expert"],
+    "confirmer": ["确认专家", "确认人", "confirmer", "confirming_expert"],
+    "evidence_count": ["证据数", "案例支撑数", "evidence_count", "evidences"],
+    "break_count": ["突破数", "被突破数", "break_count", "breaks"],
+    "remark": ["备注", "说明", "修订说明", "remark", "note", "comment"],
+}
+
+# Chinese / English display labels for canonical keys (optional UI helper).
+DISPLAY_NAMES = {
+    "knowledge_id": {"zh": "知识编号", "en": "Knowledge ID"},
+    "category": {"zh": "知识分类", "en": "Category"},
+    "knowledge_desc": {"zh": "知识描述", "en": "Knowledge Description"},
+    "applicable_condition": {"zh": "适用条件", "en": "Applicable Condition"},
+    "judgment_logic": {"zh": "判断逻辑", "en": "Judgment Logic"},
+    "anti_pattern": {"zh": "反模式/踩坑提示", "en": "Anti-pattern / Pitfall"},
+    "expert_judgment": {"zh": "经验判断", "en": "Expert Judgment"},
+    "applicable_boundary": {"zh": "适用边界", "en": "Applicable Boundary"},
+    "exception_case": {"zh": "例外情形", "en": "Exception Case"},
+    "source_doc": {"zh": "来源文档", "en": "Source Document"},
+    "source_location": {"zh": "来源位置", "en": "Source Location"},
+    "source_quote": {"zh": "原文摘录", "en": "Source Quote"},
+    "confidence": {"zh": "置信度", "en": "Confidence"},
+    "contributor": {"zh": "贡献专家", "en": "Contributor"},
+    "confirmer": {"zh": "确认专家", "en": "Confirmer"},
+    "evidence_count": {"zh": "证据数", "en": "Evidence Count"},
+    "break_count": {"zh": "突破数", "en": "Break Count"},
+    "remark": {"zh": "备注", "en": "Remark"},
 }
 
 REVISION_COLUMN_MARKERS = ("修订状态", "原始内容", "修订内容", "修订说明", "修订时间")
 
 
 def resolve_header(raw_header: str) -> str:
-    """将 Excel 表头文本解析为规范字段名。"""
+    """Resolve an Excel header text to a canonical English field name."""
     if not raw_header:
         return ""
     raw = str(raw_header).strip()
+    raw_lower = raw.lower()
     for canonical, aliases in FIELD_ALIASES.items():
         if raw in aliases:
+            return canonical
+        if raw_lower in [a.lower() for a in aliases]:
             return canonical
     return raw
 
 
 def match_alias(header: str, canonical_key: str) -> bool:
-    """检查 header 是否匹配某个 canonical 字段的任一别名。"""
+    """Check whether header matches any alias of a canonical field."""
     if not header:
         return False
     h = str(header).strip()

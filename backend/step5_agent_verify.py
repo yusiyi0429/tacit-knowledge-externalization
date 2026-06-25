@@ -5,18 +5,25 @@ from __future__ import annotations
 import json
 import sqlite3
 from skill_executor import run_agent_skill
+from skill_ir import normalize_step_phase
+
+
+_ACTION_ALIASES = {
+    "approve": ["approve", "通过", "同意", "yes"],
+    "reject": ["reject", "拒绝", "驳回", "否决", "no"],
+    "conditional": ["conditional", "条件通过", "条件", "附条件"],
+    "cultivate": ["cultivate", "培育", "培养"],
+    "market": ["market", "营销", "推荐"],
+}
 
 
 def _normalize_action(action: str) -> str:
-    """将动作归一化为营销/拒绝/条件通过/培育。"""
+    """Normalize an action label to the English canonical form."""
     s = (action or "").strip().lower()
-    if "拒绝" in s or "reject" in s:
-        return "拒绝"
-    if "条件" in s or "conditional" in s:
-        return "条件通过"
-    if "培育" in s:
-        return "培育"
-    return "营销"
+    for canonical, aliases in _ACTION_ALIASES.items():
+        if s in [a.lower() for a in aliases]:
+            return canonical
+    return s
 
 
 def verify_agent_skill(
@@ -41,10 +48,10 @@ def verify_agent_skill(
 
     report = run_agent_skill(skill_dir, db_path)
 
-    # 解析 agent-skill 最终推荐：取最后一个 phase（决策建议）的结果
+    # 解析 agent-skill 最终推荐：取最后一个 decision phase 的结果
     decision_phase = None
     for phase in reversed(report.get("phase_results", [])):
-        if phase.get("phase") == "决策建议":
+        if normalize_step_phase(phase.get("phase")) == "decision":
             decision_phase = phase
             break
 
@@ -100,7 +107,7 @@ def build_revision_suggestions(mismatches: list[dict], ir: dict) -> list[dict]:
     entry_id = ""
     if ir:
         for e in ir.get("entries", []):
-            if e.get("step_phase") == "决策建议":
+            if normalize_step_phase(e.get("step_phase")) == "decision":
                 entry_id = e.get("entry_id", "")
                 break
     for m in mismatches:

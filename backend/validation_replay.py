@@ -84,16 +84,21 @@ def compare_predictions(predictions: list[dict], cases: list[dict]) -> dict:
     }
 
 
+_ACTION_ALIASES = {
+    "approve": ["approve", "通过", "同意", "yes"],
+    "reject": ["reject", "拒绝", "驳回", "否决", "no"],
+    "conditional": ["conditional", "条件通过", "条件", "附条件", "有条件"],
+}
+
+
 def _normalize_label(label: str | None) -> str:
+    """Normalize a decision label to English canonical form."""
     s = (label or "").strip().lower()
     if not s:
         return ""
-    if any(k in s for k in ("通过", "approve", "yes", "同意")):
-        return "通过"
-    if any(k in s for k in ("拒绝", "reject", "no", "否决")):
-        return "拒绝"
-    if any(k in s for k in ("条件", "conditional", "有条件", "附条件")):
-        return "条件通过"
+    for canonical, aliases in _ACTION_ALIASES.items():
+        if any(alias.lower() in s for alias in aliases):
+            return canonical
     return s
 
 
