@@ -1,0 +1,130 @@
+scenario_name: default-knowledge-extraction
+display_name: Generic Knowledge Extraction Structure
+domain: Generic
+version: "v1.1"
+auto_generate_id: true
+
+scenario:
+  business_boundary: ""
+  target_users: []
+  decision_types: []
+
+categories:
+  - Decision Rule
+  - Operation Flow
+  - Anti-pattern
+
+fields:
+  - name: stage
+    type: text
+    required: false
+    fill_rule: Business process stage or step name
+    example: Customer onboarding
+  - name: interview_direction
+    type: text
+    required: false
+    fill_rule: Focus of expert interview
+    example: Risk identification criteria
+  - name: method
+    type: long_text
+    required: true
+    fill_rule: Executable method, rule or operational key point
+    example: Verify both credit report and cash flow
+  - name: knowledge_type
+    type: enum
+    required: false
+    fill_rule: Align with categories
+    example: Decision Rule
+    enum_values:
+      - Decision Rule
+      - Operation Flow
+      - Anti-pattern
+  - name: reference
+    type: text
+    required: false
+    fill_rule: Policy / manual reference
+    example: Credit Management Policy Chapter 3
+  - name: condition
+    type: long_text
+    required: false
+    fill_rule: When this knowledge applies
+    example: New customer first credit grant
+  - name: logic
+    type: long_text
+    required: false
+    fill_rule: Decision chain and branches
+    example: Rating A and stable cash flow then approve
+  - name: anti_pattern
+    type: long_text
+    required: false
+    fill_rule: Common mistakes and pitfalls
+    example: Only look at collateral, ignore cash flow
+  - name: experience_judgment
+    type: long_text
+    required: false
+    fill_rule: Expert experiential judgment and rationale
+    example: Chip design firms are light-asset; do not only look at collateral
+  - name: boundary
+    type: long_text
+    required: false
+    fill_rule: Situations where this rule does not apply
+    example: Chip firms whose founders are from CAS or top universities may have relaxed tenure requirements
+  - name: exception
+    type: long_text
+    required: false
+    fill_rule: Scenarios that have been broken in practice
+    example: In 2024, Company X had a controller change but stable business
+  - name: source_doc
+    type: text
+    required: false
+    fill_rule: Source document or policy name
+    example: Technology Enterprise Inclusive Loan Operation Guide
+  - name: source_location
+    type: text
+    required: false
+    fill_rule: Specific location in the source
+    example: Chapter 2 3.1.2
+  - name: confidence
+    type: enum
+    required: false
+    fill_rule: Knowledge confidence
+    example: medium
+    enum_values: [high, medium, low]
+  - name: contributor
+    type: text
+    required: false
+    fill_rule: Expert name or ID who contributed this knowledge
+    example: Zhang San
+  - name: evidence_count
+    type: integer
+    required: false
+    fill_rule: Number of cases supporting this knowledge
+    example: 3
+  - name: breakthrough_count
+    type: integer
+    required: false
+    fill_rule: Number of times the rule has been broken in practice
+    example: 1
+
+interview:
+  methods:
+    - case_retrospection
+    - contrast_probe
+    - extreme_hypothesis
+  min_sessions: 3
+  session_duration_minutes: 60
+  required_experts: 2
+
+quality:
+  target_per_pipeline: 30
+  library_target: 800
+  min_confidence_level: medium
+  source_annotation_rate: 0.60
+  anti_pattern_ratio: 0.10
+  skill_score_threshold: 75
+  replay_hit_threshold: 0.8
+
+compilation:
+  output_format: SKILL.md
+  include_anti_patterns_section: true
+  include_usage_examples: true

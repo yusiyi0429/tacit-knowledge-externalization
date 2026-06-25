@@ -54,7 +54,17 @@ PROJECT_DIR = SCRIPT_DIR.parent
 SAMPLES_DIR = PROJECT_DIR / "data" / "samples"
 CONFIG_DIR = PROJECT_DIR / "config"
 FRONTEND_DIR = PROJECT_DIR / "frontend"
-SCHEMA_PATH = CONFIG_DIR / "scenario-schema.yaml"
+
+
+def get_schema_path(locale: str = "zh-CN") -> Path:
+    suffix = "" if locale == "zh-CN" else f".{locale}"
+    path = CONFIG_DIR / f"scenario-schema{suffix}.yaml"
+    if path.exists():
+        return path
+    return CONFIG_DIR / "scenario-schema.yaml"
+
+
+SCHEMA_PATH = get_schema_path()
 LLM_CONFIG_PATH = CONFIG_DIR / "llm-config.yaml"
 LLM_CONFIG_LOCAL_PATH = CONFIG_DIR / "llm-config.local.yaml"
 
