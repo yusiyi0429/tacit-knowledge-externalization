@@ -6,6 +6,7 @@ from typing import Any
 
 DEFAULT_LANG = os.environ.get("DEFAULT_LANG", "zh-CN")
 SUPPORTED_LANGS = {"zh-CN", "en"}
+FORCED_LANG = os.environ.get("FORCED_LANG")
 
 _MESSAGES: dict[str, dict[str, str]] = {
     "zh-CN": {
@@ -273,10 +274,16 @@ def resolve_locale(
 ) -> str:
     """Resolve the best-supported language from the provided candidates.
 
-    Priority order: query_lang > pipeline_locale > header_lang > DEFAULT_LANG.
+    If the ``FORCED_LANG`` environment variable is set to a supported language,
+    it always takes precedence.
+
+    Priority order: FORCED_LANG > query_lang > pipeline_locale > header_lang > DEFAULT_LANG.
     Candidates are normalized to lowercase before matching. Any prefix starting
     with "en" maps to "en", and any prefix starting with "zh" maps to "zh-CN".
     """
+    forced = os.environ.get("FORCED_LANG")
+    if forced in SUPPORTED_LANGS:
+        return forced
     for candidate in (query_lang, pipeline_locale, header_lang):
         if candidate:
             normalized = candidate.split(",")[0].strip().lower()

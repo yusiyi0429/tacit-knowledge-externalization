@@ -77,3 +77,8 @@ def test_resolve_locale_case_insensitive():
 
 def test_resolve_locale_zh_variant_header():
     assert resolve_locale(header_lang="zh-TW,en;q=0.9") == "zh-CN"
+
+
+def test_forced_lang_overrides_all(monkeypatch):
+    monkeypatch.setenv("FORCED_LANG", "en")
+    assert resolve_locale(query_lang="zh-CN", pipeline_locale="zh-CN", header_lang="zh-CN") == "en"
