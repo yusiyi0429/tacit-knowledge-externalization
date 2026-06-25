@@ -1,0 +1,17 @@
+# SME Inclusive Loan Marketing Guide
+
+## Customer Filter
+Target customers must:
+- Be registered for at least 2 years.
+- Have annual revenue above 5 million.
+- No overdue loans in the past 12 months.
+
+## Data Match
+Match customer profile with:
+- Credit bureau report
+- Cash flow statement
+- Tax records
+
+## Decision Recommendation
+If rating is A and cash flow is stable, recommend the inclusive loan product.
+If rating is below B or cash flow is volatile, decline or request collateral.

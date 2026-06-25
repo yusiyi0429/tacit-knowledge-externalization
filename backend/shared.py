@@ -52,6 +52,16 @@ from i18n import resolve_locale, t
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent
 SAMPLES_DIR = PROJECT_DIR / "data" / "samples"
+
+
+def get_samples_dir(locale: str = "zh-CN") -> Path:
+    lang_folder = "zh" if locale == "zh-CN" else locale
+    path = SAMPLES_DIR / lang_folder
+    if path.exists():
+        return path
+    return SAMPLES_DIR
+
+
 CONFIG_DIR = PROJECT_DIR / "config"
 FRONTEND_DIR = PROJECT_DIR / "frontend"
 
