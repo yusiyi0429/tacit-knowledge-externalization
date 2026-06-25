@@ -360,11 +360,11 @@ def generate_report(records: list, config: dict, scores: dict, total_score: floa
     if evidence_stats:
         lines.append(report_label("report_quality_tacitness", locale))
         lines.append("")
-        lines.append(f"- **隐性度（tacit_ratio）**：{tacit_ratio * 100:.1f}%（有专家经验判断/适用边界/例外情形的条目占比）")
-        lines.append(f"- **案例衍生占比**：{case_ratio * 100:.1f}%（来自案例复盘或已被案例支撑的条目占比）")
+        lines.append(f"- **{report_label('report_quality_tacit_ratio_label', locale)}**：{tacit_ratio * 100:.1f}%{report_label('report_quality_tacit_ratio_desc', locale)}")
+        lines.append(f"- **{report_label('report_quality_case_ratio_label', locale)}**：{case_ratio * 100:.1f}%{report_label('report_quality_case_ratio_desc', locale)}")
         if evidence_stats:
-            lines.append(f"- **平均证据数**：{evidence_stats['avg_evidence']}（每条知识被多少案例支撑）")
-            lines.append(f"- **被突破条目**：{evidence_stats['items_with_breaks']}/{evidence_stats['total_items']}（专家实践中曾被突破的规则数）")
+            lines.append(f"- **{report_label('report_quality_avg_evidence_label', locale)}**：{evidence_stats['avg_evidence']}{report_label('report_quality_avg_evidence_desc', locale)}")
+            lines.append(f"- **{report_label('report_quality_breaks_label', locale)}**：{evidence_stats['items_with_breaks']}/{evidence_stats['total_items']}{report_label('report_quality_breaks_desc', locale)}")
         lines.append("")
 
     # 改进建议

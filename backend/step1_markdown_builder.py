@@ -34,16 +34,16 @@ def generate_markdown_skeleton(
         "",
         report_label("report_scenario_description", locale),
         "",
-        scenario_content or "（待补充）",
+        scenario_content or report_label("step1_scenario_todo", locale),
         "",
         report_label("report_knowledge_columns", locale),
         "",
-        "、".join(knowledge_columns) if knowledge_columns else "（无）",
+        "、".join(knowledge_columns) if knowledge_columns else report_label("step1_no_knowledge_columns", locale),
         "",
     ]
 
     for i, sub in enumerate(subs, start=1):
-        sub_name = sub.get("name", "") or f"子场景{i}"
+        sub_name = sub.get("name", "") or report_label("step1_sub_scenario_default", locale).format(index=i)
         sub_content = sub.get("content", "")
         lines.append(report_label("report_sub_scenario", locale).format(sub_name=sub_name))
         if sub_content:

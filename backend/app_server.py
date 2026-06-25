@@ -1165,7 +1165,7 @@ def api_rollback_pipeline(pipeline_id, step):
         header_lang=request.headers.get("Accept-Language"),
     )
     if step < 1 or step > 5:
-        return jsonify({"status": "error", "error": "步骤号必须在 1-5 之间"})
+        return jsonify({"status": "error", "error": t("invalid_step", locale)})
 
     with _pipelines_lock:
         pipelines = load_pipelines()

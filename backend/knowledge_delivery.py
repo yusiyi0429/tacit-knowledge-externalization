@@ -490,7 +490,7 @@ def generate_cot_markdown(
         if condition:
             lines.append(f"- {report_label('report_trigger_condition', locale)}：{condition}")
         else:
-            lines.append(f"- {report_label('report_trigger_condition', locale)}：（未显式填写，按业务默认场景处理）")
+            lines.append(f"- {report_label('report_trigger_condition', locale)}：{report_label('cot_default_trigger', locale)}")
         if sub:
             lines.append(f"- {report_label('report_sub_scenario_context', locale)}：{sub}")
         lines.append("")
