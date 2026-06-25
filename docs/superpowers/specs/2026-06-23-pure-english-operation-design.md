@@ -1,6 +1,6 @@
 # Pure English Operation Design (全流程英文化方案)
 
-**Date:** 2026-06-23  
+**Date:** 2026-06-23
 **Scope:** Make the tacit-knowledge platform runnable end-to-end in English for foreign customers, while preserving the existing Chinese experience as a second locale.
 
 ## 1. Goals

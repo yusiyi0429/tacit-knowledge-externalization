@@ -1508,7 +1508,7 @@ fi
 
 - [ ] **Step 3: Configure Luckysheet locale in `excel-luckysheet.js`**
 
-Locate the `luckysheet.create` call and add `lang: App.I18n.getLang() === 'en' ? 'en' : 'zh'`: 
+Locate the `luckysheet.create` call and add `lang: App.I18n.getLang() === 'en' ? 'en' : 'zh'`:
 
 ```js
 const lang = App.I18n.getLang() === 'en' ? 'en' : 'zh';
