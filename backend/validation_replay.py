@@ -97,7 +97,7 @@ def _normalize_label(label: str | None) -> str:
     if not s:
         return ""
     for canonical, aliases in _ACTION_ALIASES.items():
-        if any(alias.lower() in s for alias in aliases):
+        if s in [a.lower() for a in aliases]:
             return canonical
     return s
 
