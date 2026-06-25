@@ -446,6 +446,6 @@ def verification_report_to_markdown(report: dict, locale: str = "zh-CN") -> str:
             lines.append(f"### {report_label('report_case', locale)} {m.get('case_id', '?')}")
             lines.append(f"- **{report_label('report_actual_conclusion', locale)}**：{diff.get('actual_prediction', '')}")
             lines.append(f"- **{report_label('report_expected_conclusion', locale)}**：{diff.get('expected_prediction', '')}")
-            lines.append(f"- {diff.get('actual_reasoning', '')[:200]}")
+            lines.append(f"- {report_label('report_reasoning_process', locale)}：{diff.get('actual_reasoning', '')[:200]}")
             lines.append("")
     return "\n".join(lines)
