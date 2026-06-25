@@ -1,0 +1,116 @@
+You are a bank credit-knowledge engineer. Based on the following SKILL.md, generate three deliverables at once: QA pairs, Chain-of-Thought, and an Agent-Skill executable structure.
+
+## Input SKILL.md
+{{skill_md}}
+
+## Deliverable 1: QA Pairs (JSON array)
+
+Convert each knowledge rule in the SKILL.md into question-answer pairs for RAG retrieval and Step 5 validation.
+
+Format:
+```json
+[
+  {
+    "q": "In [scenario], [specific question]?",
+    "a": "[accurate answer citing the original rule]",
+    "rule_id": "corresponding rule name in SKILL.md",
+    "phase": "Customer Filter|Data Match|Attribution|Decision Recommendation",
+    "sql": "[corresponding SQL reference statement]"
+  }
+]
+```
+
+Requirements:
+- Generate at least 1 QA pair per rule
+- Questions should be specific and verifiable, not generic
+- Answers must cite key parts of the original rule
+- Rules that include SQL must also include the SQL in the QA pair
+
+## Deliverable 2: Chain-of-Thought (Markdown)
+
+Generate a step-by-step reasoning chain for the entire decision flow for Agent execution reference.
+
+Format:
+```markdown
+# Chain-of-Thought: {{scenario_name}}
+
+## Step 1: Customer Filter
+[Reasoning: based on which conditions to filter, why filter this way, expected number of customers filtered out]
+
+## Step 2: Data Match
+[Reasoning: how to match customer data, which dimensions to match, how to handle match failures]
+
+## Step 3: Attribution
+[Reasoning: how to determine customer category, what is the classification logic, how to handle boundary cases]
+
+## Step 4: Decision Recommendation
+[Reasoning: what recommendations to give for different attributions, priority of recommendations, exception handling]
+```
+
+Requirements:
+- Write 3-5 sentences of reasoning for each step
+- Reasoning must be based on the rules in SKILL.md
+- Mark key decision points and judgment conditions
+
+## Deliverable 3: Agent-Skill Executable Structure (JSON)
+
+Generate the executable structure of the Agent-Skill, including SQL and parameters for each rule.
+
+Format:
+```json
+{
+  "ir_version": "2.0",
+  "skill_meta": {
+    "scenario_name": "{{scenario_name}}",
+    "domain": "{{domain}}",
+    "status": "aligned"
+  },
+  "anchors": {
+    "scenario": "{{scenario_name}}",
+    "scenario_desc": "{{scenario_desc}}"
+  },
+  "entries": [
+    {
+      "entry_id": "KN-001",
+      "sub_scenario": "sub-scenario name",
+      "step_phase": "Customer Filter",
+      "fields": {
+        "method": "business action description",
+        "condition": "data source or policy reference",
+        "logic": "original rule reference",
+        "anti_pattern": "exception scenarios (optional)",
+        "output": "key output of this step",
+        "data_logic": {
+          "sql": "SELECT ...",
+          "tables": ["table1", "table2"],
+          "fields": ["field1", "field2"],
+          "confidence": "high|medium|low"
+        }
+      }
+    }
+  ]
+}
+```
+
+Requirements:
+- Extract the SQL for each rule from SKILL.md and fill it into data_logic.sql
+- entry_id increments as KN-001, KN-002, ...
+- Keep step_phase consistent with the four phases in SKILL.md
+- confidence is judged based on SQL completeness and executability
+
+## Output Requirements
+
+**Output all three deliverables at once** using the following delimiters:
+
+```
+===QA_PAIRS===
+[JSON array]
+
+===CHAIN_OF_THOUGHT===
+[Markdown]
+
+===AGENT_SKILL===
+[JSON]
+```
+
+No extra explanatory text. Each delimiter occupies its own line.

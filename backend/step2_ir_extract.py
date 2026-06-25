@@ -111,10 +111,11 @@ def fill_sql_for_entries(
     entries: list[dict],
     table_schema: str,
     model_name: str,
+    prompt_template: str = _DEFAULT_SQL_PROMPT,
 ) -> list[dict]:
     """为 entries 列表逐条生成 SQL。"""
     for entry in entries:
-        data_logic = generate_sql_for_entry(entry, table_schema, model_name)
+        data_logic = generate_sql_for_entry(entry, table_schema, model_name, prompt_template=prompt_template)
         entry.setdefault("fields", {})["data_logic"] = data_logic
     return entries
 

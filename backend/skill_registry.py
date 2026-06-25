@@ -1,5 +1,9 @@
 """Skill registry — extracted from app_server.py."""
 
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+
 SKILL_REGISTRY = {
     "knowledge-extraction": {
         "id": "knowledge-extraction",
@@ -136,3 +140,18 @@ def get_skill_registry(lang: str = "zh-CN") -> dict:
                 entry[key] = value
         result[sid] = entry
     return result
+
+
+def get_prompt_template_path(template_name: str, locale: str = "zh-CN") -> Path:
+    """Resolve a locale-aware prompt template path.
+
+    For ``zh-CN`` (default) the original ``template_name`` is used unchanged.
+    For other locales the function first tries ``{stem}.{locale}.txt`` and
+    falls back to the original file when the localized version does not exist.
+    """
+    base = Path(template_name).stem
+    suffix = "" if locale == "zh-CN" else f".{locale}"
+    path = SCRIPT_DIR / "prompts" / f"{base}{suffix}.txt"
+    if path.exists():
+        return path
+    return SCRIPT_DIR / "prompts" / template_name

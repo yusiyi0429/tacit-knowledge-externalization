@@ -1,0 +1,26 @@
+You are a bank credit-knowledge engineer. Based on the scenario anchoring information and knowledge source documents below, generate 4 fixed-phase knowledge entries for each sub-scenario.
+
+Scenario name: {{scenario_name}}
+Scenario description: {{scenario_desc}}
+Sub-scenarios:
+{{sub_scenarios}}
+
+Knowledge source documents:
+{{source_text}}
+
+Requirements:
+1. Each sub-scenario must contain exactly the following 4 step_phases:
+   - Customer Filter
+   - Data Match
+   - Attribution
+   - Decision Recommendation
+2. Each entry must contain the fields:
+   - sub_scenario: sub-scenario name
+   - step_phase: one of the four phases
+   - method: business action description of this step
+   - condition: data source or policy basis
+   - logic: original business rule text
+   - anti_pattern: exception scenarios (optional)
+   - output: key output of this step
+3. Do not generate data_logic.sql; leave it empty.
+4. Output as a JSON array, where each element corresponds to one knowledge entry.

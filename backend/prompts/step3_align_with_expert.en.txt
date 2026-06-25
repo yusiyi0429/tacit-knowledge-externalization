@@ -1,0 +1,33 @@
+You are a bank credit-knowledge review expert. Please revise the following SKILL.md based on expert feedback.
+
+## Current SKILL.md
+{{current_skill_md}}
+
+## Expert Feedback
+{{expert_feedback}}
+
+## Revision Requirements
+
+1. **Accurately understand the expert's intent**: Expert feedback may be colloquial or incomplete. You should:
+   - Identify the specific rule(s) the expert wants to modify (rule number or keywords)
+   - Understand how the expert wants to change it (modify conditions, adjust thresholds, add exceptions, delete rules, etc.)
+   - If the expert gives feedback on SQL, both the rule description and the corresponding SQL statement must be updated
+
+2. **Revision principles**:
+   - Only change the parts explicitly mentioned by the expert; keep everything else unchanged
+   - If the expert's opinion conflicts with existing rules, follow the expert's opinion (the expert is the final decision maker)
+   - Revised SQL must be syntactically correct and logically consistent
+   - If the expert asks to add a new rule, supplement it in the same format as Step 2
+
+3. **Output format**:
+   Output the complete revised SKILL.md (not a diff), with the same format as the input.
+
+4. **Revision summary** (append at the end of SKILL.md):
+   ```markdown
+   ## Revision Log
+   - [timestamp] Revision item: [short description of what specifically was changed]
+   ```
+
+## Example
+Expert says: "Rule 3's establishment years should change from 2 years to 1 year, and cash-flow coverage should be added."
+→ Locate Rule 3, modify the year limit in the business description, modify the WHERE condition in the SQL, and add the cash-flow coverage field.

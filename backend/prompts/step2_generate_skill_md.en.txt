@@ -1,0 +1,59 @@
+You are a bank credit-knowledge engineer. Please generate a complete Agent SKILL.md document based on the scenario skeleton and knowledge documents below.
+
+## Scenario Skeleton
+Scenario name: {{scenario_name}}
+Scenario description: {{scenario_desc}}
+Sub-scenarios:
+{{sub_scenarios}}
+
+Template knowledge column definitions:
+{{knowledge_columns}}
+
+## Knowledge Source Documents
+{{source_text}}
+
+## Output Requirements
+
+Generate a complete SKILL.md following this structure:
+
+```markdown
+# {{scenario_name}}
+
+## Execution Instructions
+This Skill is used for [scenario description]. Execute progressively through four phases: [Customer Filter → Data Match → Attribution → Decision Recommendation].
+
+## Knowledge Rules
+
+### Phase 1: Customer Filter
+[Extract customer-filtering rules from the knowledge documents. Each rule contains:]
+- **Rule 1**: [rule name]
+  - Business description: [one-sentence explanation of what this rule does]
+  - Data source: [where the data comes from, e.g., CRM, core banking system, credit report]
+  - Rule logic: [specific filtering conditions, expressed clearly in business language]
+  - SQL reference:
+    ```sql
+    SELECT [field list] FROM [table name] WHERE [conditions]
+    ```
+  - Output: [what this filtering step produces]
+
+[Include 2-4 rules per phase, covering all key filtering conditions mentioned in the knowledge documents]
+
+### Phase 2: Data Match
+[Same structure; focus on how to match customer data across multiple dimensions]
+
+### Phase 3: Attribution
+[Same structure; focus on how to determine which category a customer belongs to (intentional/unintentional, eligible/ineligible, etc.)]
+
+### Phase 4: Decision Recommendation
+[Same structure; focus on concrete marketing/approval/cultivation recommendations for each attribution result]
+
+## Appendix: Glossary
+[Extract professional terms from the documents and explain them]
+```
+
+## Important Requirements
+1. SQL must use standard SQLite syntax and only SELECT statements are allowed.
+2. Rules must originate from the knowledge documents; do not invent rules.
+3. Each rule must have at least one SQL reference example.
+4. Total number of rules should be between 8 and 20.
+5. The output must be complete Markdown; do not use ellipses or "omitted".

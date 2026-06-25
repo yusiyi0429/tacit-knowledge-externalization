@@ -1630,7 +1630,12 @@ def api_step4_build_skill():
         skill_md = md_path.read_text(encoding="utf-8")
 
         # Render Step4 prompt
-        prompt_path = PROMPT_DIR / "step4_build_deliverables.txt"
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            pipeline_locale=pipeline["step_data"].get("locale"),
+        )
+        prompt_path = get_prompt_template_path("step4_build_deliverables.txt", locale=locale)
         prompt_tpl = prompt_path.read_text(encoding="utf-8")
         prompt = prompt_tpl.replace("{{skill_md}}", skill_md[:12000])
         scenario_name = step1_form.get("scenario_name", pipeline.get("scenario", ""))
@@ -2855,7 +2860,7 @@ def api_excel_save():
 
 
 # ─── Skill Registry ───────────────────────────────────────────────
-from skill_registry import SKILL_REGISTRY, get_skill_registry
+from skill_registry import SKILL_REGISTRY, get_prompt_template_path, get_skill_registry
 @app.route("/api/skills", methods=["GET"])
 def api_skills_list():
     """返回所有已注册 Skill 的简要信息（按当前 locale 本地化）"""
@@ -5664,7 +5669,12 @@ def api_step3_revision_with_expert():
         current_skill_md = md_path.read_text(encoding="utf-8")
 
         # Render Step3 prompt
-        prompt_path = PROMPT_DIR / "step3_align_with_expert.txt"
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            pipeline_locale=pipeline["step_data"].get("locale"),
+        )
+        prompt_path = get_prompt_template_path("step3_align_with_expert.txt", locale=locale)
         prompt_tpl = prompt_path.read_text(encoding="utf-8")
         prompt = prompt_tpl.replace("{{current_skill_md}}", current_skill_md)
         prompt = prompt.replace("{{expert_feedback}}", expert_feedback)
@@ -6392,8 +6402,15 @@ def api_step2_extract_rules():
         if not source_text:
             return jsonify({"status": "error", "error": "缺少知识来源文本或文件"})
 
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            pipeline_locale=pipeline["step_data"].get("locale"),
+        )
+        rules_prompt_path = str(get_prompt_template_path("step2a_rules_extract.txt", locale=locale))
+
         from step2_ir_extract import extract_rules_from_doc
-        entries = extract_rules_from_doc(scenario_meta, source_text, model_name)
+        entries = extract_rules_from_doc(scenario_meta, source_text, model_name, prompt_template=rules_prompt_path)
         if not entries:
             return jsonify({"status": "error", "error": "未能从来源文档萃取出任何规则条目，请检查文档内容或模型输出"})
 
@@ -6470,7 +6487,14 @@ def api_step2_extract_sql():
         entries = ir.get("entries", [])
         table_schema = get_db_schema_text() or "暂无表结构说明"
 
-        entries = fill_sql_for_entries(entries, table_schema, model_name)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            pipeline_locale=pipeline["step_data"].get("locale"),
+        )
+        sql_prompt_path = str(get_prompt_template_path("step2b_sql_generate.txt", locale=locale))
+
+        entries = fill_sql_for_entries(entries, table_schema, model_name, prompt_template=sql_prompt_path)
         ir["entries"] = entries
         for entry in entries:
             sql = entry.get("fields", {}).get("data_logic", {}).get("sql", "")
@@ -7010,7 +7034,12 @@ def api_step2_extract_skill_md():
         col_text = ", ".join(cols) if cols else "步骤, 具体方法, 知识引用, 规则引用, 专业术语, 关键输出"
 
         # Render prompt
-        prompt_path = PROMPT_DIR / "step2_generate_skill_md.txt"
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            pipeline_locale=pipeline["step_data"].get("locale"),
+        )
+        prompt_path = get_prompt_template_path("step2_generate_skill_md.txt", locale=locale)
         prompt_tpl = prompt_path.read_text(encoding="utf-8")
         ctx = {
             "scenario_name": step1_form.get("scenario_name", pipeline.get("scenario", "")),
