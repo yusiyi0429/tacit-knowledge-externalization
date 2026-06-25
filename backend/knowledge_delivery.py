@@ -26,6 +26,7 @@ from excel_to_skill import (
     read_excel_knowledge,
     validate_records,
 )
+from i18n_render import report_label
 from pipeline_artifacts import get_pipeline_dir
 
 
@@ -57,6 +58,7 @@ def _write_references(
     pipeline_context: dict,
     source_docs: list[str],
     ir_path: str | None,
+    locale: str = "zh-CN",
 ) -> dict:
     """填充 references/ 目录，返回写入的文件映射。"""
     os.makedirs(references_dir, exist_ok=True)
@@ -97,19 +99,31 @@ def _write_references(
             written["cases_json"] = str(cases_json)
 
             cases_md = Path(references_dir) / "cases.md"
-            lines = ["# 验证用例", ""]
+            lines = [report_label("report_validation_cases", locale), ""]
             for c in cases:
                 lines.append(f"## {c.get('case_uid', '')}")
-                lines.append(f"- 场景：{c.get('domain', '')} / {c.get('scenario', '')}")
-                lines.append(f"- 描述：{c.get('description', '')}")
+                lines.append(
+                    f"- {report_label('report_case_scenario', locale)}："
+                    f"{c.get('domain', '')} / {c.get('scenario', '')}"
+                )
+                lines.append(
+                    f"- {report_label('report_case_description', locale)}："
+                    f"{c.get('description', '')}"
+                )
                 facts = c.get("facts") or {}
                 if facts:
-                    lines.append("- 事实：")
+                    lines.append(f"- {report_label('report_case_facts', locale)}：")
                     for k, v in facts.items():
                         lines.append(f"  - {k}: {v}")
-                lines.append(f"- 专家结论：{c.get('expert_conclusion', '')}")
+                lines.append(
+                    f"- {report_label('report_case_conclusion', locale)}："
+                    f"{c.get('expert_conclusion', '')}"
+                )
                 if c.get("expert_reasoning"):
-                    lines.append(f"- 推理：{c.get('expert_reasoning')}")
+                    lines.append(
+                        f"- {report_label('report_case_reasoning', locale)}："
+                        f"{c.get('expert_reasoning')}"
+                    )
                 lines.append("")
             cases_md.write_text("\n".join(lines), encoding="utf-8")
             written["cases_md"] = str(cases_md)
@@ -425,6 +439,7 @@ def generate_cot_markdown(
     config: dict,
     scenario_name: str,
     version_info: dict,
+    locale: str = "zh-CN",
 ) -> str:
     """程序化生成思维链文档（非 LLM 二次发挥）。"""
     anchor = version_info.get("scenario_anchor") or {}
@@ -435,12 +450,12 @@ def generate_cot_markdown(
         or scenario_name
     )
     lines = [
-        f"# {display_name} · 思维链知识库",
+        report_label("report_cot_title", locale).format(display_name=display_name),
         "",
-        "> 由知识对齐稿确定性转化。每条知识拆为：情境识别 → 推理步骤 → 结论与校验。",
+        report_label("report_cot_intro", locale),
         "",
-        f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"- 条目数：**{len(records)}**",
+        f"- {report_label('report_generated_at', locale)}：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        f"- {report_label('report_item_count', locale)}：**{len(records)}**",
         "",
         "---",
         "",
@@ -450,7 +465,7 @@ def generate_cot_markdown(
         rec = _normalize_record(raw)
         title = _item_title(rec)
         item_id = _item_key(rec, i)
-        category = str(rec.get("知识分类", "")).strip() or "未分类"
+        category = str(rec.get("知识分类", "")).strip() or report_label("report_uncategorized", locale)
         sub = str(rec.get("子场景", "")).strip()
         condition = str(rec.get("适用条件", "")).strip()
         logic = str(rec.get("判断逻辑", "")).strip()
@@ -462,55 +477,55 @@ def generate_cot_markdown(
 
         lines.append(f"## {item_id} · {title}")
         lines.append("")
-        meta = [f"分类：{category}"]
+        meta = [f"{report_label('report_category_label', locale)}：{category}"]
         if sub:
-            meta.append(f"子场景：{sub}")
+            meta.append(f"{report_label('report_sub_scenario_label', locale)}：{sub}")
         if confidence:
-            meta.append(f"置信度：{confidence}")
+            meta.append(f"{report_label('report_confidence_label', locale)}：{confidence}")
         lines.append("- " + " | ".join(meta))
         lines.append("")
 
-        lines.append("### 1. 情境识别")
+        lines.append(report_label("report_cot_situation", locale))
         lines.append("")
         if condition:
-            lines.append(f"- 触发条件：{condition}")
+            lines.append(f"- {report_label('report_trigger_condition', locale)}：{condition}")
         else:
-            lines.append("- 触发条件：（未显式填写，按业务默认场景处理）")
+            lines.append(f"- {report_label('report_trigger_condition', locale)}：{report_label('cot_default_trigger', locale)}")
         if sub:
-            lines.append(f"- 子场景上下文：{sub}")
+            lines.append(f"- {report_label('report_sub_scenario_context', locale)}：{sub}")
         lines.append("")
 
-        lines.append("### 2. 推理步骤")
+        lines.append(report_label("report_cot_reasoning", locale))
         lines.append("")
         step_no = 1
         if condition:
-            lines.append(f"{step_no}. 核对是否满足适用条件：{condition}")
+            lines.append(f"{step_no}. {report_label('report_check_condition', locale)}：{condition}")
             step_no += 1
         if logic:
-            lines.append(f"{step_no}. 应用判断逻辑：{logic}")
+            lines.append(f"{step_no}. {report_label('report_apply_logic', locale)}：{logic}")
             step_no += 1
         else:
-            lines.append(f"{step_no}. 结合知识描述形成执行方案：{_collect_answer(rec)[:200]}")
+            lines.append(f"{step_no}. {report_label('report_formulate_plan', locale)}：{_collect_answer(rec)[:200]}")
             step_no += 1
-        lines.append(f"{step_no}. 对照来源与专家署名，确认可发布性。")
+        lines.append(f"{step_no}. {report_label('report_confirm_publishability', locale)}。")
         lines.append("")
 
-        lines.append("### 3. 结论与校验")
+        lines.append(report_label("report_cot_conclusion", locale))
         lines.append("")
         lines.append(_collect_answer(rec))
         lines.append("")
         if anti:
-            lines.append(f"**风险校验**：{anti}")
+            lines.append(report_label("report_cot_risk_check", locale) + anti)
             lines.append("")
         if exp or boundary or exception:
-            lines.append("### 4. 专家经验校正")
+            lines.append(report_label("report_cot_expert_correction", locale))
             lines.append("")
             if exp:
-                lines.append(f"- 经验判断：{exp}")
+                lines.append(f"- {report_label('report_experience_judgment', locale)}：{exp}")
             if boundary:
-                lines.append(f"- 适用边界：{boundary}")
+                lines.append(f"- {report_label('report_applicable_boundary', locale)}：{boundary}")
             if exception:
-                lines.append(f"- 例外情形：{exception}")
+                lines.append(f"- {report_label('report_exception_case', locale)}：{exception}")
             lines.append("")
         lines.append("---")
         lines.append("")
@@ -518,7 +533,7 @@ def generate_cot_markdown(
     return "\n".join(lines)
 
 
-def generate_qa_pairs(records: list, scenario_name: str) -> list[dict]:
+def generate_qa_pairs(records: list, scenario_name: str, locale: str = "zh-CN") -> list[dict]:
     """生成 QA 对列表。"""
     pairs = []
     for i, raw in enumerate(records):
@@ -528,7 +543,7 @@ def generate_qa_pairs(records: list, scenario_name: str) -> list[dict]:
             "id": item_id,
             "question": _build_question(rec, scenario_name),
             "answer": _collect_answer(rec),
-            "category": str(rec.get("知识分类", "")).strip() or "未分类",
+            "category": str(rec.get("知识分类", "")).strip() or report_label("report_uncategorized", locale),
             "sub_scenario": str(rec.get("子场景", "")).strip(),
             "confidence": str(rec.get("置信度", "")).strip(),
             "source_document": str(rec.get("来源文档", "")).strip(),
@@ -570,11 +585,11 @@ def generate_qa_pairs(records: list, scenario_name: str) -> list[dict]:
     return pairs
 
 
-def generate_qa_markdown(qa_pairs: list, scenario_name: str) -> str:
+def generate_qa_markdown(qa_pairs: list, scenario_name: str, locale: str = "zh-CN") -> str:
     lines = [
-        f"# {scenario_name} · QA 对",
+        report_label("report_qa_title", locale).format(scenario_name=scenario_name),
         "",
-        f"共 **{len(qa_pairs)}** 组问答，可用于检索增强、评测集或微调样本。",
+        report_label("report_qa_intro", locale).format(count=len(qa_pairs)),
         "",
         "---",
         "",
@@ -582,17 +597,17 @@ def generate_qa_markdown(qa_pairs: list, scenario_name: str) -> str:
     for qa in qa_pairs:
         lines.append(f"## Q{qa['id']}")
         lines.append("")
-        lines.append(f"**问**：{qa['question']}")
+        lines.append(report_label("report_qa_question", locale) + qa['question'])
         lines.append("")
-        lines.append(f"**答**：{qa['answer']}")
+        lines.append(report_label("report_qa_answer", locale) + qa['answer'])
         lines.append("")
         meta = []
         if qa.get("category"):
-            meta.append(f"分类={qa['category']}")
+            meta.append(f"{report_label('report_qa_category', locale)}={qa['category']}")
         if qa.get("sub_scenario"):
-            meta.append(f"子场景={qa['sub_scenario']}")
+            meta.append(f"{report_label('report_qa_sub_scenario', locale)}={qa['sub_scenario']}")
         if qa.get("type"):
-            meta.append(f"类型={qa['type']}")
+            meta.append(f"{report_label('report_qa_type', locale)}={qa['type']}")
         if meta:
             lines.append(f"*{' · '.join(meta)}*")
             lines.append("")
@@ -607,6 +622,7 @@ def generate_openclaw_skill_md(
     config: dict,
     scenario_name: str,
     version_info: dict,
+    locale: str = "zh-CN",
 ) -> tuple[str, dict]:
     """生成 agentskills.io 标准 SKILL.md + OpenClaw/Hermes 兼容 manifest。
 
@@ -636,9 +652,14 @@ def generate_openclaw_skill_md(
 
             fm_lines = ["---"]
             fm_lines.append(f"name: {skill_slug}")
-            desc_parts = [f"{display_name} 专家经验 Skill，含 {len(records)} 条确认知识。"]
-            if trigger_kw:
-                desc_parts.append(f"触发场景：{'、'.join(trigger_kw)}。")
+            if locale.startswith("en"):
+                desc_parts = [f"{display_name} expert-experience Skill with {len(records)} confirmed knowledge items."]
+                if trigger_kw:
+                    desc_parts.append(f"Trigger scenarios: {', '.join(trigger_kw)}.")
+            else:
+                desc_parts = [f"{display_name} 专家经验 Skill，含 {len(records)} 条确认知识。"]
+                if trigger_kw:
+                    desc_parts.append(f"触发场景：{'、'.join(trigger_kw)}。")
             fm_lines.append(f"description: {''.join(desc_parts)}")
             if app_version:
                 fm_lines.append(f"version: {app_version}")
@@ -668,7 +689,11 @@ def generate_openclaw_skill_md(
         "schema": "agentskills.io/manifest/v1",
         "name": skill_slug,
         "display_name": display_name,
-        "description": f"{display_name} 专家经验 Skill（{len(records)} 条知识）",
+        "description": (
+            f"{display_name} expert-experience Skill ({len(records)} knowledge items)"
+            if locale.startswith("en")
+            else f"{display_name} 专家经验 Skill（{len(records)} 条知识）"
+        ),
         "version": app_version,
         "entry": "SKILL.md",
         "generator": "tacit-knowledge-pipeline",
@@ -718,6 +743,7 @@ def _build_skill_directory(
     pipeline_context: dict | None = None,
     source_docs: list[str] | None = None,
     ir_path: str | None = None,
+    locale: str = "zh-CN",
 ) -> dict:
     """创建 agentskills.io 标准 Skill 目录结构，并填充 references/scripts/assets。
 
@@ -753,7 +779,8 @@ def _build_skill_directory(
     assets_dir = os.path.join(skill_dir, "assets")
 
     reference_files = _write_references(
-        references_dir, records, qa_pairs, version_info, pipeline_context, source_docs, ir_path
+        references_dir, records, qa_pairs, version_info, pipeline_context, source_docs, ir_path,
+        locale=locale,
     )
     script_files = _write_scripts(scripts_dir, skill_slug)
     asset_files = _write_assets(assets_dir, pipeline_context, output_dir)
@@ -785,6 +812,7 @@ def excel_to_delivery_bundle(
     output_dir: str,
     pipeline_context: dict | None = None,
     formats=None,
+    locale: str = "zh-CN",
 ) -> dict:
     """Excel 入口：读取工作簿后委托 records_to_delivery_bundle（过渡期兼容路径）。"""
     records, version_info = read_excel_knowledge(excel_path, pipeline_context)
@@ -805,6 +833,7 @@ def excel_to_delivery_bundle(
         source_name=os.path.splitext(os.path.basename(excel_path))[0],
         pipeline_context=pipeline_context,
         source_docs=[excel_path] if isinstance(excel_path, (str, os.PathLike)) else [],
+        locale=locale,
     )
 
 
@@ -819,6 +848,7 @@ def records_to_delivery_bundle(
     pipeline_context: dict | None = None,
     source_docs: list[str] | None = None,
     ir_path: str | None = None,
+    locale: str = "zh-CN",
 ) -> dict:
     """records 主入口：一次生成思维链 / QA / Skill(OpenClaw) 三类交付物。
 
@@ -846,19 +876,19 @@ def records_to_delivery_bundle(
     qa_pairs: list = []
 
     if "cot" in fmt:
-        cot_content = generate_cot_markdown(records, config, scenario_name, version_info)
+        cot_content = generate_cot_markdown(records, config, scenario_name, version_info, locale=locale)
         cot_path = os.path.join(output_dir, "chain_of_thought.md")
         with open(cot_path, "w", encoding="utf-8") as f:
             f.write(cot_content)
         artifacts["cot"] = {
-            "label": "思维链",
+            "label": report_label("report_cot_artifact_label", locale),
             "file_name": "chain_of_thought.md",
             "path": cot_path,
             "count": len(records),
         }
 
     if "qa" in fmt:
-        qa_pairs = generate_qa_pairs(records, scenario_name)
+        qa_pairs = generate_qa_pairs(records, scenario_name, locale=locale)
         qa_json_path = os.path.join(output_dir, "qa_pairs.json")
         with open(qa_json_path, "w", encoding="utf-8") as f:
             json.dump(
@@ -874,9 +904,9 @@ def records_to_delivery_bundle(
             )
         qa_md_path = os.path.join(output_dir, "qa_pairs.md")
         with open(qa_md_path, "w", encoding="utf-8") as f:
-            f.write(generate_qa_markdown(qa_pairs, scenario_name))
+            f.write(generate_qa_markdown(qa_pairs, scenario_name, locale=locale))
         artifacts["qa"] = {
-            "label": "QA 对",
+            "label": report_label("report_qa_artifact_label", locale),
             "file_name": "qa_pairs.json",
             "markdown_file_name": "qa_pairs.md",
             "path": qa_json_path,
@@ -886,7 +916,7 @@ def records_to_delivery_bundle(
 
     if "skill" in fmt:
         skill_content, openclaw_manifest = generate_openclaw_skill_md(
-            records, groups, config, scenario_name, version_info
+            records, groups, config, scenario_name, version_info, locale=locale
         )
         skill_slug = openclaw_manifest.get("name", "knowledge-skill")
 
@@ -902,6 +932,7 @@ def records_to_delivery_bundle(
             pipeline_context=pipeline_context or {},
             source_docs=source_docs,
             ir_path=ir_path,
+            locale=locale,
         )
         skill_path = dir_info["skill_path"]
 
@@ -914,7 +945,7 @@ def records_to_delivery_bundle(
             json.dump(openclaw_manifest, f, ensure_ascii=False, indent=2)
 
         artifacts["skill"] = {
-            "label": "Skill (OpenClaw / Hermes)",
+            "label": report_label("report_skill_artifact_label", locale),
             "file_name": "SKILL.md",
             "manifest_file_name": "manifest.json",
             "path": skill_path,

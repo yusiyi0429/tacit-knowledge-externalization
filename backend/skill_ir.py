@@ -29,9 +29,25 @@ from pipeline_artifacts import workspace_path_for
 IR_VERSION = "1.0"
 IR_VERSION_V2 = "2.0"
 
-VALID_STEP_PHASES = ("客户筛选", "客户数据匹配", "原因归因", "决策建议")
+VALID_STEP_PHASES = ("customer_filter", "data_match", "attribution", "decision")
+
+_STEP_PHASE_ALIASES = {
+    "customer_filter": ["customer_filter", "客户筛选"],
+    "data_match": ["data_match", "客户数据匹配"],
+    "attribution": ["attribution", "原因归因"],
+    "decision": ["decision", "决策建议"],
+}
 
 _VALID_CONFIDENCE = ("high", "medium", "low")
+
+
+def normalize_step_phase(phase: str) -> str:
+    """Normalize a step phase label to the English canonical form."""
+    p = (phase or "").strip().lower().replace(" ", "_")
+    for canonical, aliases in _STEP_PHASE_ALIASES.items():
+        if p in [a.lower().replace(" ", "_") for a in aliases]:
+            return canonical
+    return p
 
 # IR 状态生命周期
 STATUS_DRAFT = "draft"
@@ -211,7 +227,7 @@ def new_draft_v2(
         normalized_entries.append({
             "entry_id": entry_id,
             "sub_scenario": _norm(entry.get("sub_scenario")),
-            "step_phase": _norm(entry.get("step_phase")),
+            "step_phase": normalize_step_phase(entry.get("step_phase")),
             "fields": {
                 "knowledge_desc": _norm(fields.get("knowledge_desc")),
                 "knowledge_ref": _norm(fields.get("knowledge_ref")),
@@ -580,7 +596,7 @@ def validate_ir_v2(ir: dict) -> list[str]:
             errors.append(f"entry_id 重复: {eid}")
         else:
             seen_ids.add(eid)
-        phase = _norm(entry.get("step_phase"))
+        phase = normalize_step_phase(entry.get("step_phase"))
         if phase not in VALID_STEP_PHASES:
             errors.append(f"{prefix}: invalid step_phase {phase!r}")
         fields = entry.get("fields") or {}

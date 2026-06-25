@@ -9,6 +9,8 @@ rules, and assessment report templates.
 import json
 from pathlib import Path
 
+from i18n_render import report_label
+
 GOLDEN_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "golden" / "golden_test.db"
 
 
@@ -52,10 +54,16 @@ def build_skill_generation_prompt(
     knowledge_items: list[dict],
     golden_schema: str,
     existing_skill_template: str = "",
+    locale: str = "zh-CN",
 ) -> str:
     """Build the LLM prompt for generating an executable Agent SKILL.md."""
 
     items_json = json.dumps(knowledge_items[:15], ensure_ascii=False, indent=2)
+    language_requirement = (
+        "全文使用英文撰写，SQL 保留英文。"
+        if locale.startswith("en")
+        else "全文使用中文撰写，SQL 保留英文。"
+    )
 
     return f"""你是一位 Agent 技能设计师。请根据以下输入，生成一份可部署到 Hermes / OpenClaw Agent 平台的 SKILL.md 文件。
 
@@ -71,7 +79,7 @@ def build_skill_generation_prompt(
 
 ## 生成的 SKILL.md 必须包含以下章节
 
-### 1. 元数据 (frontmatter)
+{report_label('report_skill_frontmatter', locale)}
 ```yaml
 name: {{slug}}
 description: {{一句话描述触发条件与能力}}
@@ -83,13 +91,13 @@ metadata:
   database: data/golden/golden_test.db
 ```
 
-### 2. 触发规则 (TRIGGER)
+{report_label('report_skill_trigger', locale)}
 明确什么类型的输入文档/事件会激活此 Skill：
 - 文档类型（如：贷款申请、案例复盘、贷后检查报告）
 - 关键信号词（如场景和知识列中出现的术语）
 - 排除条件
 
-### 3. 知识匹配引擎 (MATCHING)
+{report_label('report_skill_matching', locale)}
 对每条 golden_items 中的知识，定义匹配方式：
 ```sql
 -- 示例：按环节和关键词匹配
@@ -99,28 +107,28 @@ WHERE 环节 = '贷前尽调'
 ```
 至少给出 3~5 条可直接执行的 SQL 查询，引用 golden_items 和 golden_documents 的真实列名。
 
-### 4. 决策链 (DECISION_FLOW)
+{report_label('report_skill_decision_flow', locale)}
 按环节组织决策步骤，每步包含：
 - 输入条件
 - 匹配的知识条目引用
 - 输出判断/建议
 - 下一跳步骤
 
-### 5. 评估输出模板 (OUTPUT)
+{report_label('report_skill_output', locale)}
 定义 Agent 评估报告的标准格式（JSON 或 Markdown），包含：
 - 匹配到的知识条目列表（知识编号、置信度、匹配依据）
 - 风险信号汇总（来自反模式/例外情形）
 - 建议动作（审批/拒绝/补充尽调/降额/追加担保）
 - 缺失信息提示（哪些字段在输入中未提供但判断所需）
 
-### 6. 使用示例 (EXAMPLE)
+{report_label('report_skill_example', locale)}
 给出一个简短的输入→处理→输出示例，让 Agent 理解执行流程。
 
-## 要求
+{report_label('report_skill_requirements', locale)}
 1. 所有 SQL 查询必须引用 golden DB 的真实表名和列名
 2. 决策链须覆盖知识条目中出现的所有「环节」值
 3. 输出格式须包含「匹配知识」「置信度」「建议动作」三个核心字段
-4. 全文使用中文撰写，SQL 保留英文
+4. {language_requirement}
 5. 生成的 SKILL.md 可直接保存为文件并加载到 Agent 平台
 
 仅输出完整的 SKILL.md 文件内容，不要任何前后说明。"""

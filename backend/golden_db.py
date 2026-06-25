@@ -26,6 +26,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+try:
+    from field_aliases import resolve_header
+except Exception:  # pragma: no cover - field_aliases may not be importable in some contexts
+    resolve_header = None
+
 # ---------------------------------------------------------------------------
 # 路径
 # ---------------------------------------------------------------------------
@@ -376,6 +381,98 @@ SEED_ITEMS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Golden case field aliases (bilingual — supports English golden DB files)
+# ---------------------------------------------------------------------------
+
+_GOLDEN_CASE_FIELD_ALIASES = {
+    "case_id": ["case_id", "案例编号", "id"],
+    "customer_id": ["customer_id", "客户编号", "customer"],
+    "step_phase": ["step_phase", "步骤阶段", "环节", "stage", "phase"],
+    "customer_features": ["customer_features", "客户特征", "features", "input"],
+    "expected_action": [
+        "expected_action", "action", "结论", "期望动作", "预期动作", "decision",
+    ],
+    "knowledge_desc": [
+        "knowledge_desc", "知识描述", "具体方法", "知识内容", "描述",
+        "description", "method",
+    ],
+    "logic": ["logic", "判断逻辑", "判断规则", "逻辑", "judgment_logic"],
+    "confidence": ["confidence", "置信度", "可信度"],
+}
+
+
+def _resolve_case_field(raw_field: str) -> str:
+    """Map a raw case field name to a canonical English field name."""
+    if not raw_field:
+        return raw_field
+    raw = str(raw_field).strip()
+
+    # Leverage the project-wide alias resolver for overlapping knowledge fields.
+    if resolve_header is not None:
+        resolved = resolve_header(raw)
+        if resolved and resolved != raw:
+            if resolved == "knowledge_desc":
+                return "knowledge_desc"
+            if resolved == "judgment_logic":
+                return "logic"
+            if resolved == "confidence":
+                return "confidence"
+            if resolved == "stage":
+                return "step_phase"
+
+    for canonical, aliases in _GOLDEN_CASE_FIELD_ALIASES.items():
+        if raw in aliases:
+            return canonical
+        if raw.lower() in [a.lower() for a in aliases]:
+            return canonical
+    return raw
+
+
+def _normalize_case(case: dict) -> dict:
+    """Normalize field names of a single golden case to canonical English keys."""
+    normalized: dict[str, Any] = {}
+    for key, value in case.items():
+        canonical = _resolve_case_field(key)
+        normalized[canonical] = value
+    return normalized
+
+
+def load_golden_cases(json_path: str | Path) -> list[dict]:
+    """Load golden cases from a JSON file.
+
+    Supports the following top-level shapes:
+      - {"cases": [...]}
+      - {"items": [...]}
+      - {"records": [...]}
+      - {"data": [...]}
+      - [...]
+
+    Field names are normalized to canonical English keys while unknown fields
+    are preserved as-is.
+    """
+    path = Path(json_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Golden cases file not found: {path}")
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+
+    if isinstance(data, dict):
+        cases: list[dict] = []
+        for key in ("cases", "items", "records", "data", "knowledge_items"):
+            if key in data and isinstance(data[key], list):
+                cases = data[key]
+                break
+        else:
+            cases = [data]
+    elif isinstance(data, list):
+        cases = data
+    else:
+        cases = []
+
+    return [_normalize_case(c) for c in cases if isinstance(c, dict)]
+
+
+# ---------------------------------------------------------------------------
 # 数据库核心操作
 # ---------------------------------------------------------------------------
 
@@ -573,19 +670,42 @@ def _item_similarity(golden: dict, pipeline: dict) -> float:
     score = 0.0
     for field, weight in _MATCH_FIELDS.items():
         gv = golden.get(field, "")
-        pv = pipeline.get(field, pipeline.get(_field_alias(field), ""))
+        pv = _pipeline_value(pipeline, field)
         score += weight * _field_similarity(field, gv, pv)
     return score
 
 
-def _field_alias(field: str) -> str:
-    """pipeline 输出可能使用不同的字段名。"""
+def _field_aliases(field: str) -> list[str]:
+    """Return possible aliases used in pipeline output for a golden DB field.
+
+    Supports both legacy Chinese keys and canonical English keys so that
+    English pipeline output can be verified against the Chinese-schema DB.
+    """
     aliases = {
-        "具体方法": "知识描述",
-        "反模式踩坑提示": "反模式/踩坑提示",
-        "来源文档": "来源",
+        "具体方法": ["知识描述", "knowledge_desc", "description", "method", "具体方案"],
+        "知识类型": ["knowledge_type", "type", "Knowledge Type"],
+        "环节": ["stage", "step_phase", "步骤阶段", "Stage"],
+        "适用条件": ["applicable_condition", "condition", "trigger", "Condition"],
+        "判断逻辑": ["logic", "judgment_logic", "rule", "rules", "Logic"],
+        "反模式踩坑提示": ["反模式", "踩坑提示", "anti_pattern", "pitfall", "caveat", "Anti-pattern"],
+        "经验判断": ["expert_judgment", "expert_opinion", "experience_judgment", "Experience Judgment"],
+        "适用边界": ["applicable_boundary", "boundary", "Boundary"],
+        "例外情形": ["exception_case", "exception", "Exception"],
+        "来源文档": ["来源", "source_doc", "source", "source_document", "Source Doc"],
+        "置信度": ["confidence", "credibility", "Confidence"],
+        "贡献专家": ["contributor", "contributing_expert", "Contributor"],
     }
-    return aliases.get(field, field)
+    return aliases.get(field, [field])
+
+
+def _pipeline_value(item: dict, field: str) -> Any:
+    """Fetch a value from a pipeline item, trying field and its known aliases."""
+    if field in item:
+        return item[field]
+    for alias in _field_aliases(field):
+        if alias in item:
+            return item[alias]
+    return ""
 
 
 def _best_match(golden: dict, pipeline_items: list[dict], used_indices: set[int],
@@ -672,9 +792,11 @@ def verify(pipeline_output: list[dict],
         field_diffs = {}
         item_field_scores = {}
         for field in _COMPARE_FIELDS:
-            gv = str(gi.get(field, "") or "").strip()
-            pv = str(pi.get(field, pi.get(_field_alias(field), "")) or "").strip()
-            fs = _field_similarity(field, gi.get(field, ""), pi.get(field, pi.get(_field_alias(field), "")))
+            gv_raw = gi.get(field, "")
+            pv_raw = _pipeline_value(pi, field)
+            gv = str(gv_raw or "").strip()
+            pv = str(pv_raw or "").strip()
+            fs = _field_similarity(field, gv_raw, pv_raw)
             item_field_scores[field] = round(fs, 2)
             if fs < 1.0 and (gv or pv):
                 field_diffs[field] = {"golden": gv[:200], "pipeline": pv[:200], "similarity": round(fs, 2)}
@@ -695,7 +817,7 @@ def verify(pipeline_output: list[dict],
     ]
     extra_items = [
         {"pipeline_index": i,
-         "method": pipeline_items[i].get("具体方法", pipeline_items[i].get("知识描述", ""))[:80]}
+         "method": str(_pipeline_value(pipeline_items[i], "具体方法"))[:80]}
         for i in range(pipeline_total) if i not in used_pipeline
     ]
 

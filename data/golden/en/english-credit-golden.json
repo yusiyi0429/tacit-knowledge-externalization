@@ -1,0 +1,64 @@
+{
+  "scenario": "SME inclusive loan marketing",
+  "cases": [
+    {
+      "case_id": "EN-001",
+      "customer_id": "C001",
+      "step_phase": "customer_filter",
+      "customer_features": {
+        "register_years": 3,
+        "annual_revenue": 8000000,
+        "overdue_loans_12m": 0,
+        "tech_label": "high_tech"
+      },
+      "expected_action": "approve",
+      "knowledge_desc": "Target customers must be registered for at least 2 years with no overdue loans and hold a technology label.",
+      "logic": "register_years >= 2 AND overdue_loans_12m == 0 AND tech_label IS NOT NULL => approve",
+      "confidence": "high"
+    },
+    {
+      "case_id": "EN-002",
+      "customer_id": "C002",
+      "step_phase": "data_match",
+      "customer_features": {
+        "register_years": 1,
+        "annual_revenue": 5000000,
+        "overdue_loans_12m": 0,
+        "tax_records_clean": true
+      },
+      "expected_action": "reject",
+      "knowledge_desc": "Data matching rejects customers that fail hard eligibility thresholds such as minimum operating years.",
+      "logic": "register_years < 2 => reject",
+      "confidence": "high"
+    },
+    {
+      "case_id": "EN-003",
+      "customer_id": "C003",
+      "step_phase": "attribution",
+      "customer_features": {
+        "deposit_balance": 5000000,
+        "has_loan_history": false,
+        "financing_intent_score": 0.2
+      },
+      "expected_action": "no_financing_need",
+      "knowledge_desc": "If the customer holds large deposits and has no borrowing history, attribute as having no financing demand.",
+      "logic": "deposit_balance > 1000000 AND has_loan_history == false => no_financing_need",
+      "confidence": "medium"
+    },
+    {
+      "case_id": "EN-004",
+      "customer_id": "C004",
+      "step_phase": "decision",
+      "customer_features": {
+        "rating": "B",
+        "cash_flow_stable": false,
+        "vc_backed": true,
+        "cash_cushion_months": 18
+      },
+      "expected_action": "conditional_approve",
+      "knowledge_desc": "If rating is below B or cash flow is volatile, decline unless the venture is strongly VC-backed with a cash cushion.",
+      "logic": "rating < B OR cash_flow_stable == false => reject UNLESS vc_backed == true AND cash_cushion_months >= 12 => conditional_approve",
+      "confidence": "medium"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+You are a bank data engineer. Please translate the following business rule into an executable SQL query in SQLite.
+
+Target database description:
+- The database is SQLite, with the following table structure:
+{{table_schema}}
+
+Knowledge entry to translate:
+Sub-scenario: {{sub_scenario}}
+Phase: {{step_phase}}
+Business description: {{knowledge_desc}}
+Knowledge reference (data source): {{knowledge_ref}}
+Rule reference: {{rule_ref}}
+Expected output: {{output}}
+
+Requirements:
+1. SQL must only use SELECT statements; INSERT/UPDATE/DELETE/DROP are not allowed.
+2. If the rule involves multiple conditions, express them with AND/OR.
+3. If the rule cannot be precisely translated into SQL, provide the closest pseudo-SQL and explain in a comment.
+4. Output JSON: {"sql": "...", "tables": [...], "fields": [...], "confidence": "high|medium|low"}

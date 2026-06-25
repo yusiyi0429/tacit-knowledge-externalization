@@ -8,12 +8,14 @@ import shutil
 import zipfile
 from pathlib import Path
 
+from i18n_render import report_label
 from knowledge_delivery import generate_cot_markdown, generate_qa_pairs, generate_qa_markdown
 
 
 def build_agent_skill_bundle(
     ir: dict,
     output_dir: str,
+    locale: str = "zh-CN",
 ) -> dict:
     """构建 agent-skill 交付包：SKILL.md + execute.py + manifest + IR 快照。"""
     scenario_name = ir.get("anchors", {}).get("scenario", "未命名场景")
@@ -22,14 +24,18 @@ def build_agent_skill_bundle(
     skill_dir.mkdir(parents=True, exist_ok=True)
 
     # SKILL.md
-    skill_md = _render_agent_skill_md(ir)
+    skill_md = _render_agent_skill_md(ir, locale=locale)
     (skill_dir / "SKILL.md").write_text(skill_md, encoding="utf-8")
 
     # manifest.json
     manifest = {
         "name": skill_slug,
         "version": "1.0.0",
-        "description": f"{scenario_name} 圈客 agent-skill",
+        "description": (
+            f"{scenario_name} agent-skill"
+            if locale.startswith("en")
+            else f"{scenario_name} 圈客 agent-skill"
+        ),
         "entry": "scripts/execute.py",
         "ir_version": ir.get("ir_version"),
     }
@@ -56,11 +62,11 @@ def build_agent_skill_bundle(
 
     # CoT & QA
     records = _ir_to_records(ir)
-    cot_md = generate_cot_markdown(records, {}, scenario_name, {})
+    cot_md = generate_cot_markdown(records, {}, scenario_name, {}, locale=locale)
     cot_path = Path(output_dir) / "chain_of_thought.md"
     cot_path.write_text(cot_md, encoding="utf-8")
 
-    qa_pairs = generate_qa_pairs(records, scenario_name)
+    qa_pairs = generate_qa_pairs(records, scenario_name, locale=locale)
     qa_json_path = Path(output_dir) / "qa_pairs.json"
     qa_json_path.write_text(json.dumps({
         "schema": "tacit-knowledge.qa/v1",
@@ -69,7 +75,7 @@ def build_agent_skill_bundle(
         "items": qa_pairs,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     qa_md_path = Path(output_dir) / "qa_pairs.md"
-    qa_md_path.write_text(generate_qa_markdown(qa_pairs, scenario_name), encoding="utf-8")
+    qa_md_path.write_text(generate_qa_markdown(qa_pairs, scenario_name, locale=locale), encoding="utf-8")
 
     return {
         "skill_dir": str(skill_dir),
@@ -82,17 +88,17 @@ def build_agent_skill_bundle(
     }
 
 
-def _render_agent_skill_md(ir: dict) -> str:
+def _render_agent_skill_md(ir: dict, locale: str = "zh-CN") -> str:
     lines = [
         f"# {ir.get('anchors', {}).get('scenario', 'Agent Skill')}",
         "",
-        "## 执行说明",
+        report_label("report_skill_execution", locale),
         "",
         "```bash",
         "python scripts/execute.py --db path/to/knowledge_base.db --output report.json",
         "```",
         "",
-        "## 知识规则",
+        report_label("report_skill_rules", locale),
         "",
     ]
     for entry in ir.get("entries", []):

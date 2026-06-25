@@ -31,6 +31,9 @@ from llm_client import (
 )
 import openpyxl
 
+from i18n import t
+from shared import get_current_locale
+
 PROMPT_DIR = Path(__file__).parent / "prompts"
 
 from pipeline_artifacts import (
@@ -754,14 +757,18 @@ def vendor_static(filename):
 @app.route("/downloads/<path:filename>")
 def downloads(filename):
     base = basename_only(filename)
-    if not is_download_allowed(base):
-        return jsonify({"status": "error", "error": "不允许下载该文件"}), 403
-
     pipeline_id = request.args.get("pipeline_id", "") or request.form.get("pipeline_id", "")
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
+    if not is_download_allowed(base):
+        return jsonify({"status": "error", "error": t("download_not_allowed", locale)}), 403
+
     from pipeline_artifacts import locate_workspace_file
     path = locate_workspace_file(WORKSPACE, base, pipeline_id=pipeline_id or None)
     if not path:
-        return jsonify({"status": "error", "error": "文件不存在"}), 404
+        return jsonify({"status": "error", "error": t("file_not_found", locale)}), 404
     return send_from_directory(str(path.parent), path.name, as_attachment=True)
 
 
@@ -988,8 +995,14 @@ def api_create_pipeline():
     scenario = (data.get("scenario") or "").strip()
     domain = (data.get("domain") or "").strip()
 
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+        body_locale=data.get("locale"),
+    )
     if not name:
-        return jsonify({"status": "error", "error": "流水线名称不能为空"})
+        message = t("pipeline_name_required", locale)
+        return jsonify({"status": "error", "error": message, "message": message}), 400
 
     now = datetime.datetime.now().isoformat()
     pipeline_id = uuid.uuid4().hex[:12]
@@ -1009,7 +1022,9 @@ def api_create_pipeline():
             "4": "pending",
             "5": "pending",
         },
-        "step_data": {},
+        "step_data": {
+            "locale": locale,
+        },
         "created_at": now,
         "updated_at": now,
     }
@@ -1030,7 +1045,11 @@ def api_get_pipeline(pipeline_id):
     for p in pipelines:
         if p["id"] == pipeline_id:
             return jsonify({"status": "ok", "pipeline": p})
-    return jsonify({"status": "error", "error": "流水线不存在"})
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
+    return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
 
 @app.route("/api/pipelines/<pipeline_id>", methods=["PUT"])
@@ -1040,13 +1059,19 @@ def api_update_pipeline(pipeline_id):
 
     with _pipelines_lock:
         pipelines = load_pipelines()
-        target = None
-        for p in pipelines:
-            if p["id"] == pipeline_id:
-                target = p
-                break
+        target = next((p for p in pipelines if p["id"] == pipeline_id), None)
         if not target:
-            return jsonify({"status": "error", "error": "流水线不存在"})
+            locale = get_current_locale(
+                query_lang=request.args.get("lang"),
+                header_lang=request.headers.get("Accept-Language"),
+            )
+            return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
+
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            body_locale=data.get("locale"),
+        )
 
         if "current_step" in data:
             target["current_step"] = max(target.get("current_step", 1), data["current_step"])
@@ -1062,6 +1087,7 @@ def api_update_pipeline(pipeline_id):
             if err:
                 return jsonify({"status": "error", "error": err})
             target["step_data"].update(patch)
+        target.setdefault("step_data", {})["locale"] = locale
         if "name" in data:
             old_name = target.get("name", "")
             new_name = data["name"]
@@ -1086,6 +1112,10 @@ def api_update_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>", methods=["DELETE"])
 def api_delete_pipeline(pipeline_id):
     """Delete a pipeline."""
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     removed_pipeline = None
     with _pipelines_lock:
         pipelines = load_pipelines()
@@ -1093,7 +1123,7 @@ def api_delete_pipeline(pipeline_id):
         removed_pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         pipelines = [p for p in pipelines if p["id"] != pipeline_id]
         if len(pipelines) == before:
-            return jsonify({"status": "error", "error": "流水线不存在"})
+            return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
         save_pipelines(pipelines)
 
     if removed_pipeline:
@@ -1110,11 +1140,15 @@ def api_delete_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>/clear", methods=["POST"])
 def api_clear_pipeline(pipeline_id):
     """Clear a pipeline's step data and reset all steps to pending."""
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     with _pipelines_lock:
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         if not pipeline:
-            return jsonify({"status": "error", "error": "流水线不存在"})
+            return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
         pipeline["step_data"] = {}
         pipeline["step_status"] = {str(i): "pending" for i in range(1, 6)}
         pipeline["current_step"] = 1
@@ -1126,14 +1160,18 @@ def api_clear_pipeline(pipeline_id):
 @app.route("/api/pipelines/<pipeline_id>/rollback/<int:step>", methods=["POST"])
 def api_rollback_pipeline(pipeline_id, step):
     """Roll back a pipeline to a previous step; reset downstream step status and outputs."""
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     if step < 1 or step > 5:
-        return jsonify({"status": "error", "error": "步骤号必须在 1-5 之间"})
+        return jsonify({"status": "error", "error": t("invalid_step", locale)})
 
     with _pipelines_lock:
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         if not pipeline:
-            return jsonify({"status": "error", "error": "流水线不存在"})
+            return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
         for s in range(step, 6):
             pipeline["step_status"][str(s)] = "pending"
@@ -1325,6 +1363,13 @@ def api_step1_generate():
     primary_download_name = output_name
     primary_download_url = "/downloads/" + output_name
 
+    pipeline_step1 = _get_pipeline(pipeline_id) if pipeline_id else None
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+        pipeline_locale=(pipeline_step1.get("step_data") or {}).get("locale") if pipeline_step1 else None,
+    )
+
     try:
         if template_path and os.path.exists(template_path):
             fill_result = fill_scenario_skeleton(
@@ -1359,6 +1404,7 @@ def api_step1_generate():
                 scenario_content,
                 sub_scenarios,
                 knowledge_columns,
+                locale=locale,
             )
             fill_result = generate_skeleton_from_schema(
                 SCHEMA_PATH,
@@ -1488,7 +1534,11 @@ def api_step2_prev_output():
                 break
 
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     step_data = pipeline.get("step_data", {})
     step1_file = step_data.get("step1_output_file", "")
@@ -1563,14 +1613,22 @@ def api_step4_build_skill():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
         sd = pipeline.get("step_data") or {}
         step1_form = sd.get("step1_form_data") or {}
         md_file = sd.get("step3_skill_md_file") or sd.get("step3_aligned_file") or sd.get("step2_skill_md_file") or sd.get("step2_draft_file")
         if not md_file:
-            return jsonify({"status": "error", "error": "未找到 SKILL.md（请先完成 Step2/Step3）"})
+            return jsonify({"status": "error", "error": t("skill_md_not_found", get_current_locale(
+                query_lang=request.args.get("lang"),
+                header_lang=request.headers.get("Accept-Language"),
+                pipeline_locale=pipeline["step_data"].get("locale"),
+            ))})
 
         from pipeline_artifacts import locate_workspace_file
         md_path = locate_workspace_file(WORKSPACE, md_file, pipeline_id=pipeline_id)
@@ -1580,7 +1638,12 @@ def api_step4_build_skill():
         skill_md = md_path.read_text(encoding="utf-8")
 
         # Render Step4 prompt
-        prompt_path = PROMPT_DIR / "step4_build_deliverables.txt"
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            pipeline_locale=pipeline["step_data"].get("locale"),
+        )
+        prompt_path = get_prompt_template_path("step4_build_deliverables.txt", locale=locale)
         prompt_tpl = prompt_path.read_text(encoding="utf-8")
         prompt = prompt_tpl.replace("{{skill_md}}", skill_md[:12000])
         scenario_name = step1_form.get("scenario_name", pipeline.get("scenario", ""))
@@ -1814,6 +1877,12 @@ def api_step4_compile():
     formats_raw = request.form.get("formats", "").strip()
     formats = [f.strip() for f in formats_raw.split(",") if f.strip()] if formats_raw else None
 
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+        pipeline_locale=pipeline.get("step_data", {}).get("locale") if pipeline else None,
+    )
+
     published_version = 0
     try:
         if ir_path:
@@ -1825,6 +1894,7 @@ def api_step4_compile():
             result = build_agent_skill_bundle(
                 ir,
                 output_dir,
+                locale=locale,
             )
             result["status"] = "ok"
             result["input_kind"] = "ir"
@@ -1833,7 +1903,8 @@ def api_step4_compile():
             result["knowledge_count"] = len(ir.get("entries", []))
         else:
             result = excel_to_delivery_bundle(
-                input_path, config_path, output_dir, pipeline_ctx or None, formats=formats
+                input_path, config_path, output_dir, pipeline_ctx or None, formats=formats,
+                locale=locale,
             )
             artifacts = result.get("artifacts") or {}
             skill_zip_path = (artifacts.get("skill") or {}).get("zip_path")
@@ -1924,7 +1995,7 @@ def api_step4_compile():
             if SCHEMA_PATH.exists():
                 from excel_to_skill import load_scenario_config
                 config = load_scenario_config(str(SCHEMA_PATH))
-            q = quality_report_from_records(_ir2rec(_load_ir(ir_path)), config)
+            q = quality_report_from_records(_ir2rec(_load_ir(ir_path)), config, locale=locale)
             if q.get("status") == "ok":
                 quality_score = q.get("total_score")
                 threshold = float((config.get("quality") or {}).get("skill_score_threshold", 75))
@@ -1969,12 +2040,16 @@ def api_step4_generate_executable_skill():
     if not pipeline_id:
         return jsonify({"status": "error", "error": "缺少 pipeline_id"})
 
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     # Resolve pipeline and golden DB
     with _pipelines_lock:
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         if not pipeline:
-            return jsonify({"status": "error", "error": "流水线不存在"})
+            return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
         pipeline = dict(pipeline)
         pipeline["step_data"] = dict(pipeline.get("step_data", {}))
 
@@ -2018,11 +2093,18 @@ def api_step4_generate_executable_skill():
     if not model_cfg:
         return jsonify({"status": "error", "error": "无可用 LLM 模型"})
 
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+        pipeline_locale=pipeline.get("step_data", {}).get("locale"),
+    )
+
     prompt = build_skill_generation_prompt(
         scenario_name=pipeline.get("scenario", "") or pipeline.get("name", ""),
         scenario_description=sd.get("step1_form_data", {}).get("scenario_content", "") or "",
         knowledge_items=knowledge_items,
         golden_schema=golden_schema,
+        locale=locale,
     )
 
     try:
@@ -2070,11 +2152,15 @@ def api_step4_generate_executable_skill():
 
 def _read_step3_knowledge_items(pipeline_id: str) -> tuple[list[dict], dict]:
     """Shared helper: resolve pipeline, read step3 IR/Excel, return (items, pipeline_dict)."""
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
     with _pipelines_lock:
         pipelines = load_pipelines()
         pipeline = next((p for p in pipelines if p["id"] == pipeline_id), None)
         if not pipeline:
-            raise ValueError("流水线不存在")
+            raise ValueError(t("pipeline_not_found", locale))
         pipeline = dict(pipeline)
         pipeline["step_data"] = dict(pipeline.get("step_data", {}))
 
@@ -2293,6 +2379,12 @@ def api_step4_quality():
                 if resolved:
                     input_path = str(resolved)
 
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+        pipeline_locale=pipeline.get("step_data", {}).get("locale") if pipeline else None,
+    )
+
     # IR 路径：进程内规则评分（无子进程）
     if ir_path:
         try:
@@ -2303,7 +2395,7 @@ def api_step4_quality():
             if SCHEMA_PATH.exists():
                 from excel_to_skill import load_scenario_config
                 config = load_scenario_config(str(SCHEMA_PATH))
-            q = quality_report_from_records(ir_to_records(load_ir(ir_path)), config)
+            q = quality_report_from_records(ir_to_records(load_ir(ir_path)), config, locale=locale)
             if q.get("status") != "ok":
                 return jsonify(q)
             report_name = f"quality_report_{uuid.uuid4().hex[:8]}.md"
@@ -2797,20 +2889,15 @@ def api_excel_save():
 
 
 # ─── Skill Registry ───────────────────────────────────────────────
-from skill_registry import SKILL_REGISTRY
+from skill_registry import SKILL_REGISTRY, get_prompt_template_path, get_skill_registry
 @app.route("/api/skills", methods=["GET"])
 def api_skills_list():
-    """返回所有已注册 Skill 的简要信息"""
-    skills = []
-    for sid, info in SKILL_REGISTRY.items():
-        skills.append({
-            "id": sid,
-            "name": info["name"],
-            "version": info["version"],
-            "description": info["description"],
-            "enabled": info["enabled"],
-        })
-    return jsonify({"status": "ok", "skills": skills})
+    """返回所有已注册 Skill 的简要信息（按当前 locale 本地化）"""
+    locale = get_current_locale(
+        query_lang=request.args.get("lang"),
+        header_lang=request.headers.get("Accept-Language"),
+    )
+    return jsonify({"status": "ok", "skills": get_skill_registry(locale)})
 
 
 @app.route("/api/skills/<path:skill_id>", methods=["GET"])
@@ -5380,7 +5467,11 @@ def api_step3_align_ir():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
 
@@ -5453,7 +5544,11 @@ def api_step3_confirm_as_is():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
 
@@ -5583,7 +5678,11 @@ def api_step3_revision_with_expert():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
         sd = pipeline.get("step_data") or {}
@@ -5599,7 +5698,12 @@ def api_step3_revision_with_expert():
         current_skill_md = md_path.read_text(encoding="utf-8")
 
         # Render Step3 prompt
-        prompt_path = PROMPT_DIR / "step3_align_with_expert.txt"
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            pipeline_locale=pipeline["step_data"].get("locale"),
+        )
+        prompt_path = get_prompt_template_path("step3_align_with_expert.txt", locale=locale)
         prompt_tpl = prompt_path.read_text(encoding="utf-8")
         prompt = prompt_tpl.replace("{{current_skill_md}}", current_skill_md)
         prompt = prompt.replace("{{expert_feedback}}", expert_feedback)
@@ -5750,7 +5854,11 @@ def api_step5_replay():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
     skill_zip = sd.get("step4_skill_zip_file") or sd.get("step4_skill_dir_zip_file", "")
@@ -5852,7 +5960,11 @@ def api_step5_feedback():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
         sd = pipeline.get("step_data") or {}
@@ -5950,7 +6062,11 @@ def api_step5_finalize():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     sd = pipeline.get("step_data") or {}
     zip_file = sd.get("step4_skill_zip_file", "")
@@ -6282,7 +6398,11 @@ def api_step2_extract_rules():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     if not model_name:
         return jsonify({"status": "error", "error": "缺少 model 参数"})
@@ -6311,8 +6431,15 @@ def api_step2_extract_rules():
         if not source_text:
             return jsonify({"status": "error", "error": "缺少知识来源文本或文件"})
 
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            pipeline_locale=pipeline["step_data"].get("locale"),
+        )
+        rules_prompt_path = str(get_prompt_template_path("step2a_rules_extract.txt", locale=locale))
+
         from step2_ir_extract import extract_rules_from_doc
-        entries = extract_rules_from_doc(scenario_meta, source_text, model_name)
+        entries = extract_rules_from_doc(scenario_meta, source_text, model_name, prompt_template=rules_prompt_path)
         if not entries:
             return jsonify({"status": "error", "error": "未能从来源文档萃取出任何规则条目，请检查文档内容或模型输出"})
 
@@ -6359,7 +6486,11 @@ def api_step2_extract_sql():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     if not model_name:
         return jsonify({"status": "error", "error": "缺少 model 参数"})
@@ -6385,7 +6516,14 @@ def api_step2_extract_sql():
         entries = ir.get("entries", [])
         table_schema = get_db_schema_text() or "暂无表结构说明"
 
-        entries = fill_sql_for_entries(entries, table_schema, model_name)
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            pipeline_locale=pipeline["step_data"].get("locale"),
+        )
+        sql_prompt_path = str(get_prompt_template_path("step2b_sql_generate.txt", locale=locale))
+
+        entries = fill_sql_for_entries(entries, table_schema, model_name, prompt_template=sql_prompt_path)
         ir["entries"] = entries
         for entry in entries:
             sql = entry.get("fields", {}).get("data_logic", {}).get("sql", "")
@@ -6895,7 +7033,11 @@ def api_step2_extract_skill_md():
 
     pipeline = _get_pipeline(pipeline_id)
     if not pipeline:
-        return jsonify({"status": "error", "error": "流水线不存在"})
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+        )
+        return jsonify({"status": "error", "error": t("pipeline_not_found", locale)})
 
     try:
         sd = pipeline.get("step_data") or {}
@@ -6921,7 +7063,12 @@ def api_step2_extract_skill_md():
         col_text = ", ".join(cols) if cols else "步骤, 具体方法, 知识引用, 规则引用, 专业术语, 关键输出"
 
         # Render prompt
-        prompt_path = PROMPT_DIR / "step2_generate_skill_md.txt"
+        locale = get_current_locale(
+            query_lang=request.args.get("lang"),
+            header_lang=request.headers.get("Accept-Language"),
+            pipeline_locale=pipeline["step_data"].get("locale"),
+        )
+        prompt_path = get_prompt_template_path("step2_generate_skill_md.txt", locale=locale)
         prompt_tpl = prompt_path.read_text(encoding="utf-8")
         ctx = {
             "scenario_name": step1_form.get("scenario_name", pipeline.get("scenario", "")),

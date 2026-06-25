@@ -42,7 +42,7 @@
       el.src = src;
       el.async = false;
       el.onload = () => resolve();
-      el.onerror = () => reject(new Error('无法加载: ' + src));
+      el.onerror = () => reject(new Error(App.I18n.t('excel_load_failed', '无法加载: ') + src));
       document.body.appendChild(el);
     });
   }
@@ -74,7 +74,7 @@
     _loadPromise = (async () => {
       const missing = [];
       for (const p of LUCKYSHEET_SCRIPTS) {
-        if (statusEl) setLoadingMessage(statusEl, '检查组件资源…');
+        if (statusEl) setLoadingMessage(statusEl, App.I18n.t('excel_checking_resources', '检查组件资源…'));
         if (!(await probeAsset(p))) {
           missing.push(p);
         }
@@ -84,25 +84,25 @@
         return {
           ok: false,
           missing,
-          hint: '静态资源 404：请重启后端（需含 /vendor/ 路由），并确认 frontend/vendor 目录存在。',
+          hint: App.I18n.t('excel_resource_missing', '静态资源 404：请重启后端（需含 /vendor/ 路由），并确认 frontend/vendor 目录存在。'),
         };
       }
 
       try {
-        if (statusEl) setLoadingMessage(statusEl, '加载表格组件 (1/2)…');
+        if (statusEl) setLoadingMessage(statusEl, App.I18n.t('excel_loading_component_1', '加载表格组件 (1/2)…'));
         await loadScriptTag(assetUrl(LUCKYSHEET_SCRIPTS[0]));
-        if (statusEl) setLoadingMessage(statusEl, '加载表格组件 (2/2)…');
+        if (statusEl) setLoadingMessage(statusEl, App.I18n.t('excel_loading_component_2', '加载表格组件 (2/2)…'));
         await loadScriptTag(assetUrl(LUCKYSHEET_SCRIPTS[1]));
       } catch (e) {
         _loadPromise = null;
-        return { ok: false, error: e.message, hint: '脚本执行失败，请查看 F12 Console。' };
+        return { ok: false, error: e.message, hint: App.I18n.t('excel_load_script_failed', '脚本执行失败，请查看 F12 Console。') };
       }
 
       if (!isLuckysheetReady()) {
         _loadPromise = null;
         return {
           ok: false,
-          hint: '组件未就绪，请勿单独加载 jquery.min.js，仅需 plugin.js + luckysheet.umd.js。',
+          hint: App.I18n.t('excel_not_ready_hint', '组件未就绪，请勿单独加载 jquery.min.js，仅需 plugin.js + luckysheet.umd.js。'),
         };
       }
       return { ok: true };
@@ -126,7 +126,7 @@
   }
 
   function renderLoadError(containerEl, status) {
-    let html = '<div class="excel-editor-loading"><strong>表格编辑器未加载</strong><ul style="text-align:left;margin:12px auto;max-width:520px;">';
+    let html = '<div class="excel-editor-loading"><strong>' + App.I18n.t('excel_not_loaded', '表格编辑器未加载') + '</strong><ul style="text-align:left;margin:12px auto;max-width:520px;">';
     if (status.missing && status.missing.length) {
       html += '<li>以下资源不可访问（应为 HTTP 200）：<br><code>' + status.missing.join('</code><br><code>') + '</code></li>';
     }
@@ -364,9 +364,10 @@
 
   function createLuckysheetInstance(sheetHost, containerEl, luckysheetData, names, host) {
     return waitForContainerReady(sheetHost).then(function () {
+      const lang = App.I18n.getLang() === 'en' ? 'en' : 'zh';
       global.luckysheet.create({
         container: CONTAINER_ID,
-        lang: 'zh',
+        lang: lang,
         data: luckysheetData,
         showinfobar: false,
         showsheetbar: names.length > 1,
@@ -408,7 +409,7 @@
       var toggle = host.querySelector('#excel-guide-toggle');
       if (toggle) {
         toggle.setAttribute('aria-expanded', 'true');
-        toggle.textContent = '操作引导 ▴';
+        toggle.textContent = App.I18n.t('excel_guide', '操作引导') + ' ' + App.I18n.t('excel_guide_expand', '▴');
       }
     });
   }
@@ -438,7 +439,7 @@
 
   function runAction(action) {
     if (typeof global.luckysheet === 'undefined') {
-      return { ok: false, msg: '表格组件未加载。请确认 frontend/vendor 已部署，或执行 node scripts/copy-frontend-vendor.js 后重新构建镜像。' };
+      return { ok: false, msg: App.I18n.t('excel_component_not_loaded', '表格组件未加载。请确认 frontend/vendor 已部署，或执行 node scripts/copy-frontend-vendor.js 后重新构建镜像。') };
     }
     const { r0, r1, c0, c1 } = getSelectionRange();
     const rowSpan = Math.max(1, r1 - r0 + 1);
@@ -447,7 +448,7 @@
       switch (action) {
         case 'merge':
           if (rowSpan === 1 && colSpan === 1) {
-            return { ok: false, msg: '请先拖动选中多个单元格，再点击「合并单元格」。' };
+            return { ok: false, msg: App.I18n.t('excel_select_multiple_cells', '请先拖动选中多个单元格，再点击「合并单元格」。') };
           }
           global.luckysheet.setRangeMerge('all');
           break;
@@ -456,22 +457,22 @@
           break;
         case 'insertRow':
           if (global.luckysheet.insertRow) global.luckysheet.insertRow(r0, 1);
-          else return { ok: false, msg: '当前版本不支持插入行' };
+          else return { ok: false, msg: App.I18n.t('excel_unsupported_insert_row', '当前版本不支持插入行') };
           break;
         case 'deleteRow':
           if (global.luckysheet.deleteRow) global.luckysheet.deleteRow(r0, rowSpan);
-          else return { ok: false, msg: '当前版本不支持删除行' };
+          else return { ok: false, msg: App.I18n.t('excel_unsupported_delete_row', '当前版本不支持删除行') };
           break;
         case 'insertCol':
           if (global.luckysheet.insertColumn) global.luckysheet.insertColumn(c0, 1);
-          else return { ok: false, msg: '当前版本不支持插入列' };
+          else return { ok: false, msg: App.I18n.t('excel_unsupported_insert_col', '当前版本不支持插入列') };
           break;
         case 'deleteCol':
           if (global.luckysheet.deleteColumn) global.luckysheet.deleteColumn(c0, colSpan);
-          else return { ok: false, msg: '当前版本不支持删除列' };
+          else return { ok: false, msg: App.I18n.t('excel_unsupported_delete_col', '当前版本不支持删除列') };
           break;
         default:
-          return { ok: false, msg: '未知操作' };
+          return { ok: false, msg: App.I18n.t('excel_unknown_action', '未知操作') };
       }
       notifyModified();
       return { ok: true };
@@ -501,7 +502,7 @@
         const open = panel.hidden;
         panel.hidden = !open;
         toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        toggle.textContent = open ? '操作引导 ▴' : '操作引导 ▾';
+        toggle.textContent = open ? App.I18n.t('excel_guide', '操作引导') + ' ' + App.I18n.t('excel_guide_expand', '▴') : App.I18n.t('excel_guide', '操作引导') + ' ' + App.I18n.t('excel_guide_collapse', '▾');
       });
     }
   }
@@ -513,24 +514,24 @@
     const open = panel.hidden;
     panel.hidden = !open;
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    toggle.textContent = open ? '操作引导 ▴' : '操作引导 ▾';
+    toggle.textContent = open ? App.I18n.t('excel_guide', '操作引导') + ' ' + App.I18n.t('excel_guide_expand', '▴') : App.I18n.t('excel_guide', '操作引导') + ' ' + App.I18n.t('excel_guide_collapse', '▾');
   };
 
   async function mount(containerEl, sheets, activeSheetName) {
-    setLoadingMessage(containerEl, '正在加载表格组件…');
+    setLoadingMessage(containerEl, App.I18n.t('excel_loading_component', '正在加载表格组件…'));
     const loadStatus = await ensureLuckysheetLoaded(containerEl);
     if (!loadStatus.ok) {
       renderLoadError(containerEl, loadStatus);
       return false;
     }
 
-    setLoadingMessage(containerEl, '正在渲染表格…');
+    setLoadingMessage(containerEl, App.I18n.t('excel_rendering', '正在渲染表格…'));
     destroy();
 
     const normalized = normalizeSheetsFromApi(sheets);
     const names = Object.keys(normalized);
     if (!names.length) {
-      containerEl.innerHTML = '<div class="excel-editor-loading">无工作表数据</div>';
+      containerEl.innerHTML = '<div class="excel-editor-loading">' + App.I18n.t('excel_no_sheets', '无工作表数据') + '</div>';
       return false;
     }
 
@@ -560,7 +561,7 @@
       await createLuckysheetInstance(sheetHost, containerEl, luckysheetData, names, host);
     } catch (e) {
       console.error('Luckysheet init failed:', e);
-      containerEl.innerHTML = '<div class="excel-editor-loading">表格编辑器初始化失败：' + (e.message || e) + '</div>';
+      containerEl.innerHTML = '<div class="excel-editor-loading">' + App.I18n.t('excel_editor_init_failed', '表格编辑器初始化失败：') + (e.message || e) + '</div>';
       return false;
     }
 

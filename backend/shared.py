@@ -46,14 +46,35 @@ from interview_session import (
     execute_interview_session, collect_interview_answers,
     build_interview_prompt, INTERVIEW_METHODS,
 )
+from i18n import resolve_locale, t
 
 # ─── Path Resolution ──────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent
 SAMPLES_DIR = PROJECT_DIR / "data" / "samples"
+
+
+def get_samples_dir(locale: str = "zh-CN") -> Path:
+    lang_folder = "zh" if locale == "zh-CN" else locale
+    path = SAMPLES_DIR / lang_folder
+    if path.exists():
+        return path
+    return SAMPLES_DIR
+
+
 CONFIG_DIR = PROJECT_DIR / "config"
 FRONTEND_DIR = PROJECT_DIR / "frontend"
-SCHEMA_PATH = CONFIG_DIR / "scenario-schema.yaml"
+
+
+def get_schema_path(locale: str = "zh-CN") -> Path:
+    suffix = "" if locale == "zh-CN" else f".{locale}"
+    path = CONFIG_DIR / f"scenario-schema{suffix}.yaml"
+    if path.exists():
+        return path
+    return CONFIG_DIR / "scenario-schema.yaml"
+
+
+SCHEMA_PATH = get_schema_path()
 LLM_CONFIG_PATH = CONFIG_DIR / "llm-config.yaml"
 LLM_CONFIG_LOCAL_PATH = CONFIG_DIR / "llm-config.local.yaml"
 
@@ -276,6 +297,24 @@ def _maybe_generate_markdown_artifact(pipeline_id: str, excel_name: str, *, md_p
         return md_name, f"/downloads/{md_name}"
     except Exception:
         return "", ""
+
+
+def get_current_locale(
+    *,
+    query_lang: str | None = None,
+    header_lang: str | None = None,
+    pipeline_locale: str | None = None,
+    body_locale: str | None = None,
+) -> str:
+    """Resolve locale from request context.
+
+    Resolution order: query_lang -> pipeline_locale -> body_locale -> header_lang -> DEFAULT_LANG.
+    """
+    return resolve_locale(
+        query_lang=query_lang,
+        header_lang=header_lang,
+        pipeline_locale=pipeline_locale or body_locale,
+    )
 
 
 # ─── JSON Parsing (6-layer fallback) ───────────────────────────────
@@ -600,9 +639,30 @@ def _extract_item_content(item: dict, target_columns: list | None = None) -> str
     return _pick_text(item, keys)
 
 
+_CONFIDENCE_ALIASES = {
+    "high": ["high", "高", "极高"],
+    "medium": ["medium", "中"],
+    "low": ["low", "低", "极低"],
+}
+
+
+def normalize_confidence(value: str) -> str:
+    """Normalize a confidence label to English canonical (high/medium/low)."""
+    v = (value or "").strip().lower()
+    for canonical, aliases in _CONFIDENCE_ALIASES.items():
+        if v in [a.lower() for a in aliases]:
+            return canonical
+    return "medium"
+
+
+def confidence_rank(value: str) -> int:
+    """Return numeric rank for a confidence value (high=3, medium=2, low=1)."""
+    return {"high": 3, "medium": 2, "low": 1}.get(normalize_confidence(value), 2)
+
+
 def _extract_item_confidence_rank(item: dict) -> int:
-    conf = str(item.get("置信度", "")).strip()
-    return {"高": 3, "中": 2, "低": 1, "极高": 4, "极低": 0}.get(conf, 2)
+    conf = _pick_text(item, ("confidence", "置信度"))
+    return confidence_rank(conf)
 
 
 def _extract_item_richness(item: dict) -> int:
