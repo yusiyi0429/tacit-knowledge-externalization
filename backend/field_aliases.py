@@ -107,3 +107,10 @@ def iter_knowledge_columns(header_map: dict) -> dict:
         if canonical and canonical not in result:
             result[canonical] = (h, col)
     return result
+
+
+# Ensure all English display names are also accepted as aliases
+for canonical, labels in DISPLAY_NAMES.items():
+    display = labels.get("en")
+    if display and canonical in FIELD_ALIASES and display not in FIELD_ALIASES[canonical]:
+        FIELD_ALIASES[canonical].append(display)

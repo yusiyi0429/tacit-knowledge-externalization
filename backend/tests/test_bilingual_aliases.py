@@ -1,4 +1,4 @@
-from field_aliases import resolve_header
+from field_aliases import FIELD_ALIASES, DISPLAY_NAMES, resolve_header
 
 
 def test_resolve_header_english():
@@ -20,3 +20,10 @@ def test_resolve_header_knowledge_id():
 
 def test_resolve_header_unknown():
     assert resolve_header("未知列") == "未知列"
+
+
+def test_all_english_display_names_resolve():
+    for canonical, labels in DISPLAY_NAMES.items():
+        display = labels.get("en")
+        if display and canonical in FIELD_ALIASES:
+            assert resolve_header(display) == canonical, f"{display!r} did not resolve to {canonical}"
