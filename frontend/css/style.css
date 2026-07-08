@@ -256,8 +256,14 @@ a { color: var(--red); text-decoration: none; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
 .nav-brand {
+  display: flex; align-items: center; gap: 10px;
   font-size: 16px; font-weight: 700; color: var(--red);
   letter-spacing: 0.5px; white-space: nowrap; margin-right: 32px;
+}
+.nav-logo {
+  width: 26px; height: 26px;
+  color: var(--red);
+  flex-shrink: 0;
 }
 /* Auto-save indicator */
 .auto-save-indicator {
