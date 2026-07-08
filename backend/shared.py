@@ -69,9 +69,9 @@ CUSTOM_MODELS_PATH = WORKSPACE / "custom_models.json"
 PRESET_OVERRIDES_PATH = WORKSPACE / "preset_overrides.json"
 PIPELINES_PATH = WORKSPACE / "pipelines.json"
 
-# Thread-safe state
-_models_lock = threading.Lock()
-_pipelines_lock = threading.Lock()
+# Thread-safe state (RLock allows nested acquisition by the same thread)
+_models_lock = threading.RLock()
+_pipelines_lock = threading.RLock()
 
 AUTH_EXEMPT_PATHS = frozenset({"/api/health", "/api/version", "/api/auth/config"})
 
@@ -133,6 +133,11 @@ def shared_agent_debug_log(run_id, level, source, message, data=None):
     """Agent debug logging."""
     extra = json.dumps(data or {}, ensure_ascii=False, default=str)
     _logger.info("[agent:%s][%s] %s | %s", run_id, level, source, f"{message} {extra}")
+
+
+# Backward-compatible aliases used by refactored service modules
+_debug_log = shared_debug_log
+_agent_debug_log = shared_agent_debug_log
 
 
 # ─── Auth Helpers ──────────────────────────────────────────────────
@@ -510,6 +515,18 @@ def save_custom_models(custom_list):
         CUSTOM_MODELS_PATH.write_text(json.dumps(clean, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def load_custom_models():
+    """Load custom models list from JSON."""
+    custom = []
+    if CUSTOM_MODELS_PATH.exists():
+        try:
+            with open(str(CUSTOM_MODELS_PATH), "r", encoding="utf-8") as f:
+                custom = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            custom = []
+    return custom if isinstance(custom, list) else []
+
+
 def get_model_by_name(name):
     n = (name or "").strip().lower()
     for m in load_llm_config():
@@ -567,16 +584,33 @@ def _trim_excel_rows(rows, max_rows=200, max_cols=40):
 
 # ─── Extract Helpers ───────────────────────────────────────────────
 def _align_item_keys_to_template(item: dict, target_columns: list[str]) -> dict:
-    if not target_columns:
+    """Map LLM keys (e.g. 具体方法) to template composite keys (环节-具体方法)."""
+    if not isinstance(item, dict) or not target_columns:
         return item
-    row = {k: item.get(k, "") for k in target_columns}
-    return row
+    out = dict(item)
+    for col in target_columns:
+        if col in out and str(out.get(col) or "").strip():
+            continue
+        parts = [p.strip() for p in col.replace("：", ":").split("-") if p.strip()]
+        suffix = parts[-1] if parts else col
+        for k, v in item.items():
+            if v is None or isinstance(v, (dict, list)):
+                continue
+            kn = str(k).replace(" ", "")
+            if kn == col.replace(" ", "") or kn == suffix.replace(" ", "") or suffix in str(k):
+                out[col] = v
+                break
+    return out
 
 
 def _normalize_extracted_items(items: list, target_columns: list[str]) -> list:
-    if not target_columns:
-        return items
-    return [_align_item_keys_to_template(it, target_columns) for it in items]
+    normalized = []
+    for raw in items or []:
+        if isinstance(raw, dict):
+            normalized.append(_align_item_keys_to_template(raw, target_columns))
+        elif isinstance(raw, (str, int, float, bool)):
+            normalized.append({"content": str(raw)})
+    return normalized
 
 
 def _pick_text(item: dict, keys: tuple[str, ...]) -> str:

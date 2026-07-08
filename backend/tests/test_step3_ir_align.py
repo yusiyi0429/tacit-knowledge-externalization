@@ -54,11 +54,12 @@ def app_client(tmp_path, monkeypatch):
     monkeypatch.setenv("WORKSPACE_DIR", str(tmp_path))
     import app_server
     import skill_ir
+    import shared
 
-    monkeypatch.setattr(app_server, "WORKSPACE", tmp_path)
-    monkeypatch.setattr(app_server, "PIPELINES_PATH", tmp_path / "pipelines.json")
-    monkeypatch.setattr(app_server, "CUSTOM_MODELS_PATH", tmp_path / "custom_models.json")
-    monkeypatch.setattr(app_server, "PRESET_OVERRIDES_PATH", tmp_path / "preset_overrides.json")
+    monkeypatch.setattr(shared, "WORKSPACE", tmp_path)
+    monkeypatch.setattr(shared, "PIPELINES_PATH", tmp_path / "pipelines.json")
+    monkeypatch.setattr(shared, "CUSTOM_MODELS_PATH", tmp_path / "custom_models.json")
+    monkeypatch.setattr(shared, "PRESET_OVERRIDES_PATH", tmp_path / "preset_overrides.json")
     tmp_path.mkdir(parents=True, exist_ok=True)
     return app_server.app.test_client()
 
