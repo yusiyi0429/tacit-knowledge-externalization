@@ -1136,16 +1136,17 @@ function switchPanel(step) {
   const navSteps = document.getElementById('nav-steps');
   const brandEl = document.getElementById('nav-brand');
 
+  const brandTextEl = document.getElementById('nav-brand-text');
   if (step === 0) {
     // Overview mode: hide step nav
     navSteps.classList.remove('visible');
-    brandEl.textContent = '隐性知识显性化 · 五步法';
+    if (brandTextEl) brandTextEl.textContent = App.I18n.t('nav_brand', '隐性知识显性化 · 五步法');
     loadPipelineOverview();
   } else {
     // Pipeline mode: show step nav with progress
     navSteps.classList.add('visible');
     if (currentPipeline) {
-      brandEl.textContent = currentPipeline.name;
+      if (brandTextEl) brandTextEl.textContent = currentPipeline.name;
       updateStepProgress();
       // Restore form data for this step
       const stepDataKey = 'step' + step + '_form_data';
