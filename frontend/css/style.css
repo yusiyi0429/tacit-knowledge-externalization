@@ -450,30 +450,31 @@ a { color: var(--red); text-decoration: none; }
 /* Banner */
 .overview-banner {
   background: linear-gradient(135deg, #ffffff 0%, #f7f8fa 100%);
-  border-radius: 12px; padding: 32px 40px; margin-bottom: 32px;
+  border-radius: 16px; padding: 48px 56px; margin-bottom: 40px;
   color: var(--text); position: relative; overflow: hidden;
   border: 1px solid var(--border); box-shadow: var(--shadow);
 }
 .overview-banner::before {
-  content: ''; position: absolute; right: -60px; top: -60px;
-  width: 240px; height: 240px; border-radius: 50%;
+  content: ''; position: absolute; right: -80px; top: -80px;
+  width: 280px; height: 280px; border-radius: 50%;
   background: rgba(199,0,11,0.03);
 }
 .overview-banner::after {
-  content: ''; position: absolute; right: 40px; bottom: -40px;
-  width: 160px; height: 160px; border-radius: 50%;
+  content: ''; position: absolute; right: 60px; bottom: -60px;
+  width: 200px; height: 200px; border-radius: 50%;
   background: rgba(199,0,11,0.02);
 }
 .overview-banner-inner {
-  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 32px;
   position: relative; z-index: 1;
 }
 .overview-banner-text { flex: 1; }
 .overview-banner-title {
-  font-size: 22px; font-weight: 700; margin-bottom: 8px; letter-spacing: 0.5px;
+  font-size: 30px; font-weight: 700; margin-bottom: 12px; letter-spacing: 0;
+  line-height: 1.3;
 }
 .overview-banner-desc {
-  font-size: 14px; color: var(--text-secondary); line-height: 1.6; max-width: 520px;
+  font-size: 15px; color: var(--text-secondary); line-height: 1.7; max-width: 560px;
 }
 /* LEGACY COMPAT: deprecated, migrate to .btn in Tasks 3-11 */
 .overview-banner-action {
@@ -493,15 +494,17 @@ a { color: var(--red); text-decoration: none; }
 
 /* Steps Roadmap — horizontal timeline */
 .overview-roadmap {
-  margin-bottom: 32px;
+  margin-bottom: 40px;
+  background: #fff; border-radius: 16px; padding: 32px;
+  border: 1px solid var(--border); box-shadow: var(--shadow);
 }
 .roadmap-header {
-  display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
+  display: flex; align-items: center; gap: 16px; margin-bottom: 28px;
 }
-.roadmap-header-line { flex: 1; height: 1px; background: var(--border); }
+.roadmap-header-line { flex: 1; height: 1px; background: var(--border-light); }
 .roadmap-header-text {
-  font-size: 13px; font-weight: 600; color: var(--text-muted);
-  letter-spacing: 2px; text-transform: uppercase; white-space: nowrap;
+  font-size: 14px; font-weight: 700; color: var(--text);
+  letter-spacing: 1px; white-space: nowrap;
 }
 .roadmap-cards {
   display: flex; align-items: flex-start; gap: 0;
@@ -511,67 +514,75 @@ a { color: var(--red); text-decoration: none; }
   position: relative;
 }
 .roadmap-step-track {
-  display: flex; align-items: center; width: 100%; margin-bottom: 14px;
+  display: flex; align-items: center; width: 100%; margin-bottom: 18px;
 }
 .roadmap-step-node {
-  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; color: #fff; position: relative; z-index: 2;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-  transition: transform 0.25s, box-shadow 0.25s;
+  font-size: 18px; color: var(--red); position: relative; z-index: 2;
+  background: #fff; border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: all 0.25s;
 }
 .roadmap-step:hover .roadmap-step-node {
-  transform: scale(1.1); box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  transform: scale(1.08);
+  background: linear-gradient(135deg, #e84233, #c7000b);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(199,0,11,0.2);
 }
-.roadmap-step[data-step="01"] .roadmap-step-node { background: linear-gradient(135deg, #e84233, #c7000b); }
-.roadmap-step[data-step="02"] .roadmap-step-node { background: linear-gradient(135deg, #e84233, #c7000b); }
-.roadmap-step[data-step="03"] .roadmap-step-node { background: linear-gradient(135deg, #e84233, #c7000b); }
-.roadmap-step[data-step="04"] .roadmap-step-node { background: linear-gradient(135deg, #e84233, #c7000b); }
-.roadmap-step[data-step="05"] .roadmap-step-node { background: linear-gradient(135deg, #e84233, #c7000b); }
+.roadmap-step[data-step="01"] .roadmap-step-node,
+.roadmap-step[data-step="02"] .roadmap-step-node,
+.roadmap-step[data-step="03"] .roadmap-step-node,
+.roadmap-step[data-step="04"] .roadmap-step-node,
+.roadmap-step[data-step="05"] .roadmap-step-node {
+  background: #fff;
+}
 
 .roadmap-step-connector {
-  flex: 1; height: 2px; background: var(--border);
+  flex: 1; height: 1px; background: var(--border);
   position: relative; top: 0;
 }
 .roadmap-step-connector::after {
-  content: ''; position: absolute; right: -3px; top: -3px;
-  width: 8px; height: 8px; border-right: 2px solid var(--border);
-  border-top: 2px solid var(--border); transform: rotate(45deg);
+  content: ''; position: absolute; right: -3px; top: -3.5px;
+  width: 7px; height: 7px; border-right: 1px solid var(--border);
+  border-top: 1px solid var(--border); transform: rotate(45deg);
 }
 
 .roadmap-step-body {
-  text-align: center; padding: 0 6px;
+  text-align: center; padding: 0 8px;
 }
 .roadmap-step-num {
-  font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
-  letter-spacing: 1.5px; margin-bottom: 4px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+  letter-spacing: 1px; margin-bottom: 6px;
 }
 .roadmap-step-title {
-  font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px;
+  font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 8px;
 }
 .roadmap-step-desc {
-  font-size: 12px; color: var(--text-secondary); line-height: 1.6;
-  max-width: 150px; margin: 0 auto;
+  font-size: 12px; color: var(--text-secondary); line-height: 1.7;
+  max-width: 160px; margin: 0 auto;
 }
 
 /* Pipeline History Section */
 .overview-history-header {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  margin-bottom: 16px; padding: 0 4px 12px;
+  border-bottom: 1px solid var(--border-light);
 }
 .overview-history-title {
-  font-size: 14px; font-weight: 600; color: var(--text-secondary);
+  font-size: 16px; font-weight: 700; color: var(--text);
 }
 .overview-history-count {
-  font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);
+  font-size: 13px; color: var(--text-muted); font-family: var(--font-mono);
 }
 
 /* Pipeline List */
-.pipeline-list { display: flex; flex-direction: column; gap: 10px; }
+.pipeline-list { display: flex; flex-direction: column; gap: 12px; }
 .pipeline-item {
-  background: #fff; border-radius: 10px; padding: 16px 20px;
+  background: #fff; border-radius: 12px; padding: 20px 24px;
   box-shadow: var(--shadow); cursor: pointer; transition: all 0.25s;
-  position: relative;
+  position: relative; border: 1px solid var(--border);
 }
 .pipeline-item.in-progress {
   border-left: 4px solid var(--warning);
@@ -579,7 +590,7 @@ a { color: var(--red); text-decoration: none; }
 .pipeline-item.completed {
   border-left: 4px solid var(--success);
 }
-.pipeline-item:hover { box-shadow: var(--shadow-hover); transform: translateY(-1px); }
+.pipeline-item:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); border-color: var(--border-light); }
 .pipeline-item-top {
   display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
 }
@@ -641,22 +652,26 @@ a { color: var(--red); text-decoration: none; }
 
 /* Pipeline Search & Pagination */
 .pipeline-search-bar {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 .pipeline-search-input {
   width: 100%;
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 10px 14px;
+  font-size: 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
   color: var(--text);
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .pipeline-search-input:focus {
   border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(199,0,11,0.08);
+}
+.pipeline-search-input::placeholder {
+  color: var(--text-muted);
 }
 .pagination {
   display: flex;
