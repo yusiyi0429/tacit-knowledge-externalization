@@ -45,8 +45,10 @@ async function loadPipelineOverview() {
 
     // Banner
     html += '<div class="overview-banner">';
+    html += '<div class="overview-banner-accent"></div>';
     html += '<div class="overview-banner-inner">';
     html += '<div class="overview-banner-text">';
+    html += '<div class="overview-banner-label">Tacit Knowledge Platform</div>';
     html += '<div class="overview-banner-title">隐性知识显性化 · 五步法萃取流水线</div>';
     html += '<div class="overview-banner-desc">将领域专家的隐性经验系统性显性化为 AI 可加载的结构化知识，通过五步法流水线，从场景定义到智能转化，层层递进、步步可追溯。</div>';
     html += '</div>';
@@ -55,15 +57,16 @@ async function loadPipelineOverview() {
     html += '<span class="btn__text">新建流水线</span>';
     html += '</button>';
     html += '</div>';
+    html += '<div class="overview-banner-decoration"></div>';
     html += '</div>';
 
     // Steps Roadmap - vertical layout with timeline
     const stepCards = [
-      { num: '01', title: '场景锚定', desc: '定义知识模板骨架，确定领域边界与字段规范，生成场景配置文件', icon: '&#9776;' },
-      { num: '02', title: '知识萃取', desc: '从已有文档中提取知识条目，AI 辅助生成待审稿', icon: '&#9997;' },
-      { num: '03', title: '知识对齐', desc: '融合修订与确认，完成专家意见对齐并生成最终可发布稿', icon: '&#10003;' },
-      { num: '04', title: '智能转化', desc: '生成思维链、QA 对、OpenClaw Skill 三类交付物', icon: '&#9881;' },
-      { num: '05', title: '验证回放', desc: '用 SKILL 终版判历史案例，分歧回流第3步形成闭环', icon: '&#9851;' },
+      { num: '01', title: '场景锚定', desc: '定义知识模板骨架，确定领域边界与字段规范，生成场景配置文件', icon: 'target' },
+      { num: '02', title: '知识萃取', desc: '从已有文档中提取知识条目，AI 辅助生成待审稿', icon: 'file-search' },
+      { num: '03', title: '知识对齐', desc: '融合修订与确认，完成专家意见对齐并生成最终可发布稿', icon: 'check-check' },
+      { num: '04', title: '智能转化', desc: '生成思维链、QA 对、OpenClaw Skill 三类交付物', icon: 'cpu' },
+      { num: '05', title: '验证回放', desc: '用 SKILL 终版判历史案例，分歧回流第3步形成闭环', icon: 'refresh-ccw' },
     ];
     html += '<div class="overview-roadmap">';
     html += '<div class="roadmap-header"><span class="roadmap-header-line"></span><span class="roadmap-header-text">五步法流程概览</span><span class="roadmap-header-line"></span></div>';
@@ -71,7 +74,7 @@ async function loadPipelineOverview() {
     stepCards.forEach((s, i) => {
       html += '<div class="roadmap-step" data-step="' + s.num + '">';
       html += '<div class="roadmap-step-track">';
-      html += '<div class="roadmap-step-node">' + s.icon + '</div>';
+      html += '<div class="roadmap-step-node"><i data-lucide="' + s.icon + '" width="22" height="22"></i></div>';
       if (i < stepCards.length - 1) html += '<div class="roadmap-step-connector"></div>';
       html += '</div>';
       html += '<div class="roadmap-step-body">';

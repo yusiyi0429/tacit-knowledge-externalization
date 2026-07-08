@@ -449,33 +449,48 @@ a { color: var(--red); text-decoration: none; }
 
 /* Banner */
 .overview-banner {
-  background: linear-gradient(135deg, #ffffff 0%, #f7f8fa 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #fbfbfb 100%);
   border-radius: 20px; padding: 56px 64px; margin-bottom: 40px;
   color: var(--text); position: relative; overflow: hidden;
-  border: 1px solid var(--border); border-top: 3px solid var(--red);
+  border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
-.overview-banner::before {
-  content: ''; position: absolute; right: -80px; top: -80px;
-  width: 320px; height: 320px; border-radius: 50%;
-  background: rgba(29,33,41,0.03);
+.overview-banner-accent {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+  background: linear-gradient(180deg, #e84233 0%, #c7000b 100%);
+  border-radius: 20px 0 0 20px;
 }
-.overview-banner::after {
-  content: ''; position: absolute; right: 80px; bottom: -80px;
-  width: 240px; height: 240px; border-radius: 50%;
-  background: rgba(29,33,41,0.02);
+.overview-banner-decoration {
+  position: absolute; right: 80px; top: 50%;
+  transform: translateY(-50%);
+  width: 220px; height: 220px; border-radius: 50%;
+  border: 1px solid rgba(199,0,11,0.12); z-index: 0;
+}
+.overview-banner-decoration::before {
+  content: ''; position: absolute; left: 40px; top: 40px; right: 40px; bottom: 40px;
+  border-radius: 50%; border: 1px solid rgba(199,0,11,0.18);
+}
+.overview-banner-decoration::after {
+  content: ''; position: absolute; left: 90px; top: 90px;
+  width: 40px; height: 40px; border-radius: 50%; background: rgba(199,0,11,0.1);
 }
 .overview-banner-inner {
   display: flex; align-items: center; justify-content: space-between; gap: 32px;
   position: relative; z-index: 1;
 }
 .overview-banner-text { flex: 1; }
+.overview-banner-label {
+  display: inline-block; font-size: 12px; font-weight: 700;
+  color: var(--red); text-transform: uppercase; letter-spacing: 1.5px;
+  margin-bottom: 12px; padding: 4px 10px;
+  background: rgba(199,0,11,0.06); border-radius: 4px;
+}
 .overview-banner-title {
-  font-size: 32px; font-weight: 700; margin-bottom: 14px; letter-spacing: -0.2px;
-  line-height: 1.25;
+  font-size: 34px; font-weight: 800; margin-bottom: 16px;
+  letter-spacing: -0.5px; line-height: 1.2; color: var(--text);
 }
 .overview-banner-desc {
-  font-size: 15px; color: var(--text-secondary); line-height: 1.7; max-width: 600px;
+  font-size: 15px; color: var(--text-secondary); line-height: 1.7; max-width: 620px;
 }
 /* LEGACY COMPAT: deprecated, migrate to .btn in Tasks 3-11 */
 .overview-banner-action {
@@ -518,19 +533,22 @@ a { color: var(--red); text-decoration: none; }
   display: flex; align-items: center; width: 100%; margin-bottom: 18px;
 }
 .roadmap-step-node {
-  width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+  width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; color: var(--red); position: relative; z-index: 2;
+  color: var(--red); position: relative; z-index: 2;
   background: #fff; border: 2px solid rgba(199,0,11,0.25);
   box-shadow: 0 2px 8px rgba(199,0,11,0.06);
   transition: all 0.25s;
 }
+.roadmap-step-node svg {
+  width: 22px; height: 22px; stroke-width: 2px;
+}
 .roadmap-step:hover .roadmap-step-node {
   transform: scale(1.08);
-  background: linear-gradient(135deg, #e84233, #c7000b);
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(199,0,11,0.2);
+  background: #fff2f2;
+  border-color: var(--red);
+  color: var(--red);
+  box-shadow: 0 4px 16px rgba(199,0,11,0.14);
 }
 .roadmap-step[data-step="01"] .roadmap-step-node,
 .roadmap-step[data-step="02"] .roadmap-step-node,
