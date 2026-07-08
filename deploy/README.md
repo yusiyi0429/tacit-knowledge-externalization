@@ -5,14 +5,17 @@
 ```
 deploy/
 ├── README.md                                  # 本文件（部署说明）
-├── docker-compose.yml                         # 容器编排
-├── tacit-knowledge-externalization-*.tar      # ARM64 离线镜像
-├── tacit-knowledge-externalization-*.manifest.json  # 镜像清单
+├── docker-compose.yml                         # 容器编排（支持 amd64/arm64）
+├── tacit-knowledge-externalization-*.tar      # 离线镜像（构建后生成）
+├── tacit-knowledge-externalization-*.manifest.json  # 镜像清单（构建后生成）
 ├── docker/
 │   └── Dockerfile                             # 镜像构建文件（构建用）
 ├── config/
-│   └── llm-config.yaml                        # LLM 配置（编辑内网地址）
+│   ├── llm-config.yaml                        # LLM 配置（编辑内网地址）
+│   └── llm-config.local.yaml.example          # 本地密钥配置示例
 ├── scripts/
+│   ├── build-docker.sh                        # 统一构建入口（推荐）
+│   ├── build-docker-amd64.sh                  # AMD64/X86_64 构建脚本
 │   └── build-docker-arm64.sh                  # ARM64 构建脚本
 └── .dockerignore                              # Docker 构建忽略规则
 ```
@@ -21,8 +24,10 @@ deploy/
 
 ### 1. 环境准备
 
-- ARM64 服务器（鲲鹏 / 飞腾 / 树莓派等）
 - Docker ≥ 24.0 + Docker Compose v2
+- 目标机器架构：
+  - **x86_64 / AMD64** 服务器
+  - **ARM64** 服务器（鲲鹏 / 飞腾 / 树莓派等）
 
 ### 2. 上传 `deploy/` 目录到服务器
 
@@ -30,10 +35,19 @@ deploy/
 
 ### 3. 加载镜像
 
+根据目标机器架构选择对应的 tar 包：
+
 ```bash
 cd deploy
+
+# x86_64 / AMD64
+docker load -i tacit-knowledge-externalization-amd64.tar
+
+# 或 ARM64
 docker load -i tacit-knowledge-externalization-arm64.tar
 ```
+
+> 如果同时上传了两个架构的 tar，只需加载与服务器架构匹配的一个即可。
 
 ### 4. 创建持久化数据目录
 
@@ -51,18 +65,44 @@ api_base: http://内网网关IP:端口/v1
 api_key: your-api-key
 ```
 
-### 6. 启动服务
+### 6. 核对 docker-compose.yml 中的镜像与架构
+
+```bash
+# 查看已加载的镜像 tag
+docker images | grep tacit-knowledge-externalization
+```
+
+修改 `docker-compose.yml` 中的 `image` 和 `platform`，使其与加载的镜像一致：
+
+```yaml
+services:
+  tacit-knowledge-externalization:
+    image: tacit-knowledge-externalization:3.0.1-amd64
+    platform: linux/amd64
+```
+
+或设置为环境变量运行：
+
+```bash
+# AMD64
+TK_IMAGE=tacit-knowledge-externalization:3.0.1-amd64 TK_PLATFORM=linux/amd64 docker compose up -d
+
+# ARM64
+TK_IMAGE=tacit-knowledge-externalization:3.0.1-arm64 TK_PLATFORM=linux/arm64 docker compose up -d
+```
+
+### 7. 启动服务
 
 ```bash
 docker compose up -d
 ```
 
-### 7. 验证
+### 8. 验证
 
 ```bash
 curl http://localhost:5000/api/health
 # 期望响应：
-# {"app_name":"tacit-knowledge-externalization","app_version":"3.0.0","status":"ok",...}
+# {"app_name":"tacit-knowledge-externalization","app_version":"3.0.1","status":"ok",...}
 ```
 
 浏览器访问 `http://服务器IP:5000`
@@ -98,7 +138,7 @@ docker cp 旧容器名:/app/logs ./logs
 docker stop 旧容器名 && docker rm 旧容器名
 
 # 加载新镜像并启动
-docker load -i tacit-knowledge-externalization-arm64.tar
+docker load -i tacit-knowledge-externalization-amd64.tar
 docker compose up -d
 ```
 
@@ -142,7 +182,9 @@ curl http://localhost:5000/api/version
 
 ```bash
 # Linux/macOS
-bash deploy/scripts/build-docker-arm64.sh
+bash deploy/scripts/build-docker.sh amd64    # x86_64
+bash deploy/scripts/build-docker.sh arm64    # ARM64
+bash deploy/scripts/build-docker.sh all      # 两个架构
 ```
 
 构建产物（tar + manifest）自动输出到 `deploy/` 目录。

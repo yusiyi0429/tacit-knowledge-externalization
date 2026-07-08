@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 构建 linux/arm64 镜像并导出离线 tar（Linux/macOS）
+# 构建 linux/amd64 镜像并导出离线 tar（Linux/macOS）
 # 脚本位于 deploy/scripts/，构建上下文为项目根目录
 set -euo pipefail
 
@@ -9,8 +9,8 @@ DEPLOY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
 IMAGE_NAME="tacit-knowledge-externalization"
-PLATFORM="linux/arm64"
-PLATFORM_SLUG="arm64"
+PLATFORM="linux/amd64"
+PLATFORM_SLUG="amd64"
 DATE_TAG="$(date +%Y%m%d-%H%M)"
 UTC_NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -22,10 +22,10 @@ fi
 
 VERSION_TAG="${APP_VERSION}-${PLATFORM_SLUG}-${DATE_TAG}"
 TAR_FILE="${DEPLOY_DIR}/${IMAGE_NAME}-${VERSION_TAG}.tar"
-TAR_LATEST="${DEPLOY_DIR}/tacit-knowledge-externalization-arm64.tar"
+TAR_LATEST="${DEPLOY_DIR}/tacit-knowledge-externalization-amd64.tar"
 MANIFEST="${DEPLOY_DIR}/${IMAGE_NAME}-${VERSION_TAG}.manifest.json"
 
-echo "=== ARM64 镜像构建 ==="
+echo "=== AMD64 镜像构建 ==="
 echo "APP_VERSION=$APP_VERSION"
 echo "IMAGE_TAG=$VERSION_TAG"
 
@@ -35,13 +35,13 @@ docker buildx build --platform "$PLATFORM" \
   --build-arg "BUILD_DATE=$UTC_NOW" \
   --build-arg "APP_PLATFORM=$PLATFORM" \
   -t "${IMAGE_NAME}:${VERSION_TAG}" \
-  -t "${IMAGE_NAME}:${APP_VERSION}-arm64" \
+  -t "${IMAGE_NAME}:${APP_VERSION}-amd64" \
   -f docker/Dockerfile \
   --load "$ROOT"
 
 docker save -o "$TAR_FILE" \
   "${IMAGE_NAME}:${VERSION_TAG}" \
-  "${IMAGE_NAME}:${APP_VERSION}-arm64"
+  "${IMAGE_NAME}:${APP_VERSION}-amd64"
 cp -f "$TAR_FILE" "$TAR_LATEST"
 
 cat > "$MANIFEST" <<EOF

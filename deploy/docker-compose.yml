@@ -1,13 +1,15 @@
 # 内网部署：先 docker load -i tacit-knowledge-externalization-*.tar
 # 将 image 改为 manifest 中的 compose_image_line（含版本 tag）
+# 根据目标机器架构选择 platform: linux/amd64 或 linux/arm64
 # name：目录为中文时 Compose 无法自动推导项目名，会报 project name must not be empty
 name: tacit-knowledge
 
 services:
   tacit-knowledge-externalization:
-    image: tacit-knowledge-externalization:3.0.1-arm64
+    # 根据实际加载的镜像和机器架构修改下面两行
+    image: ${TK_IMAGE:-tacit-knowledge-externalization:3.0.1-amd64}
+    platform: ${TK_PLATFORM:-linux/amd64}
     container_name: tacit-knowledge-externalization
-    platform: linux/arm64
     ports:
       - "5000:5000"
     volumes:
