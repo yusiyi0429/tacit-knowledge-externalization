@@ -251,17 +251,17 @@ a { color: var(--red); text-decoration: none; }
 
 /* ===== Top Navigation ===== */
 .app-nav {
-  display: flex; align-items: center; height: 56px; padding: 0 24px;
+  display: flex; align-items: center; height: 64px; padding: 0 32px;
   background: #fff; border-bottom: 1px solid var(--border); flex-shrink: 0;
   box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
 .nav-brand {
   display: flex; align-items: center; gap: 10px;
-  font-size: 16px; font-weight: 700; color: var(--red);
-  letter-spacing: 0.5px; white-space: nowrap; margin-right: 32px;
+  font-size: 17px; font-weight: 700; color: var(--text);
+  letter-spacing: 0; white-space: nowrap; margin-right: 32px;
 }
 .nav-logo {
-  height: 26px;
+  height: 30px;
   width: auto;
   object-fit: contain;
   flex-shrink: 0;
@@ -439,30 +439,30 @@ a { color: var(--red); text-decoration: none; }
 .skill-loading { text-align: center; padding: 30px; color: var(--text-muted); font-size: 13px; }
 
 /* ===== Content Area ===== */
-.app-content { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.app-content { flex: 1; overflow-y: auto; padding: 28px 32px; }
 .panel { display: none; max-width: 1280px; margin: 0 auto; animation: fadeIn 0.3s; }
 .panel.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 /* ===== Pipeline Overview ===== */
-.pipeline-overview { max-width: 1080px; margin: 0 auto; }
+.pipeline-overview { max-width: 1200px; margin: 0 auto; }
 
 /* Banner */
 .overview-banner {
   background: linear-gradient(135deg, #ffffff 0%, #f7f8fa 100%);
-  border-radius: 16px; padding: 48px 56px; margin-bottom: 40px;
+  border-radius: 20px; padding: 56px 64px; margin-bottom: 40px;
   color: var(--text); position: relative; overflow: hidden;
   border: 1px solid var(--border); box-shadow: var(--shadow);
 }
 .overview-banner::before {
   content: ''; position: absolute; right: -80px; top: -80px;
-  width: 280px; height: 280px; border-radius: 50%;
-  background: rgba(199,0,11,0.03);
+  width: 320px; height: 320px; border-radius: 50%;
+  background: rgba(29,33,41,0.03);
 }
 .overview-banner::after {
-  content: ''; position: absolute; right: 60px; bottom: -60px;
-  width: 200px; height: 200px; border-radius: 50%;
-  background: rgba(199,0,11,0.02);
+  content: ''; position: absolute; right: 80px; bottom: -80px;
+  width: 240px; height: 240px; border-radius: 50%;
+  background: rgba(29,33,41,0.02);
 }
 .overview-banner-inner {
   display: flex; align-items: center; justify-content: space-between; gap: 32px;
@@ -470,11 +470,11 @@ a { color: var(--red); text-decoration: none; }
 }
 .overview-banner-text { flex: 1; }
 .overview-banner-title {
-  font-size: 30px; font-weight: 700; margin-bottom: 12px; letter-spacing: 0;
-  line-height: 1.3;
+  font-size: 32px; font-weight: 700; margin-bottom: 14px; letter-spacing: -0.2px;
+  line-height: 1.25;
 }
 .overview-banner-desc {
-  font-size: 15px; color: var(--text-secondary); line-height: 1.7; max-width: 560px;
+  font-size: 15px; color: var(--text-secondary); line-height: 1.7; max-width: 600px;
 }
 /* LEGACY COMPAT: deprecated, migrate to .btn in Tasks 3-11 */
 .overview-banner-action {
@@ -503,8 +503,8 @@ a { color: var(--red); text-decoration: none; }
 }
 .roadmap-header-line { flex: 1; height: 1px; background: var(--border-light); }
 .roadmap-header-text {
-  font-size: 14px; font-weight: 700; color: var(--text);
-  letter-spacing: 1px; white-space: nowrap;
+  font-size: 14px; font-weight: 600; color: var(--text-secondary);
+  letter-spacing: 0.5px; white-space: nowrap;
 }
 .roadmap-cards {
   display: flex; align-items: flex-start; gap: 0;
@@ -565,9 +565,13 @@ a { color: var(--red); text-decoration: none; }
 }
 
 /* Pipeline History Section */
+.overview-history {
+  background: #fff; border-radius: 16px; padding: 28px 32px;
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
 .overview-history-header {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 16px; padding: 0 4px 12px;
+  margin-bottom: 20px; padding: 0 0 16px;
   border-bottom: 1px solid var(--border-light);
 }
 .overview-history-title {
@@ -585,10 +589,10 @@ a { color: var(--red); text-decoration: none; }
   position: relative; border: 1px solid var(--border);
 }
 .pipeline-item.in-progress {
-  border-left: 4px solid var(--warning);
+  border-left: 3px solid var(--warning);
 }
 .pipeline-item.completed {
-  border-left: 4px solid var(--success);
+  border-left: 3px solid var(--success);
 }
 .pipeline-item:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); border-color: var(--border-light); }
 .pipeline-item-top {

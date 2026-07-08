@@ -3942,6 +3942,7 @@ async function loadPipelineOverview() {
     html += '</div>';
 
     // Pipeline History
+    html += '<div class="overview-history">';
     html += '<div class="overview-history-header">';
     html += '<div class="overview-history-title">历史流水线</div>';
     html += '<div class="overview-history-count">共 ' + sorted.length + ' 条</div>';
@@ -3974,6 +3975,7 @@ async function loadPipelineOverview() {
       html += '</div>';
     }
 
+    html += '</div>'; // close overview-history
     html += '</div>';
     container.innerHTML = html;
     refreshIcons();
