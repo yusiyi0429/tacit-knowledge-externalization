@@ -751,6 +751,11 @@ def vendor_static(filename):
     """Luckysheet / jQuery 等离线静态资源（内网部署）"""
     return send_from_directory(str(FRONTEND_DIR / "vendor"), filename)
 
+@app.route("/images/<path:filename>")
+def images_static(filename):
+    """Frontend image assets"""
+    return send_from_directory(str(FRONTEND_DIR / "images"), filename)
+
 @app.route("/downloads/<path:filename>")
 def downloads(filename):
     base = basename_only(filename)
