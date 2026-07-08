@@ -27,7 +27,10 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
 <div class="app">
   <!-- Top Navigation -->
   <nav class="app-nav">
-    <div class="nav-brand" id="nav-brand" data-i18n="nav_brand">隐性知识显性化 · 五步法</div>
+    <div class="nav-brand" id="nav-brand">
+      <img class="nav-logo" src="/images/huawei_blossom.png" alt="Huawei" aria-hidden="true">
+      <span id="nav-brand-text" data-i18n="nav_brand">隐性知识显性化 · 五步法</span>
+    </div>
     <div class="nav-steps" id="nav-steps">
       <button class="btn btn--ghost btn--sm" onclick="goBackToOverview()" title="返回总览" data-i18n-title="nav_back">
         <span class="btn__icon btn__icon--left" data-lucide="chevron-left"></span>
@@ -906,13 +909,15 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
   fetch('/api/health', { signal: AbortSignal.timeout(3000) })
     .then(function(r) {
       if (r.ok) {
-        el.innerHTML = '<span class="status-dot online"></span>' + App.I18n.t('server_online');
+        el.innerHTML = '<span class="status-dot online"></span><span data-i18n="server_online">' + App.I18n.t('server_online') + '</span>';
+        App.I18n.translateDocument();
         return;
       }
       throw new Error();
     })
     .catch(function() {
-      el.innerHTML = '<span class="status-dot offline"></span>' + App.I18n.t('server_offline');
+      el.innerHTML = '<span class="status-dot offline"></span><span data-i18n="server_offline">' + App.I18n.t('server_offline') + '</span>';
+      App.I18n.translateDocument();
       setTimeout(checkWithRetry, 30000);
     });
 })();
