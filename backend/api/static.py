@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, make_response, request, jsonify, send_from_directory
 
 from pipeline_artifacts import basename_only, is_download_allowed, locate_workspace_file
 from shared import FRONTEND_DIR
@@ -15,14 +15,23 @@ def index():
     return send_from_directory(str(FRONTEND_DIR), "index.html")
 
 
+def _send_no_cache(directory: Path, filename: str):
+    """返回静态文件并禁用浏览器缓存，避免前端迭代时被旧版本脚本阻塞."""
+    response = make_response(send_from_directory(str(directory), filename))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
 @bp.route("/css/<path:filename>")
 def css(filename):
-    return send_from_directory(str(FRONTEND_DIR / "css"), filename)
+    return _send_no_cache(FRONTEND_DIR / "css", filename)
 
 
 @bp.route("/js/<path:filename>")
 def js(filename):
-    return send_from_directory(str(FRONTEND_DIR / "js"), filename)
+    return _send_no_cache(FRONTEND_DIR / "js", filename)
 
 
 @bp.route("/vendor/<path:filename>")

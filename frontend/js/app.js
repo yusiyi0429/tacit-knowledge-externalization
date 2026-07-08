@@ -1627,6 +1627,13 @@ window.saveMarkdownContent = function () { App.Step4.saveMarkdownContent(); };
 window.downloadMarkdownContent = function () { App.Step4.downloadMarkdownContent(); };
 window.copyMarkdownContent = function () { App.Step4.copyMarkdownContent(); };
 
+window.getCurrentPipelineId = function () {
+  if (!currentPipeline || !currentPipeline.id) {
+    console.error('No current pipeline available');
+    return null;
+  }
+  return currentPipeline.id;
+};
 window.step5RunReplay = function () { App.Step5.step5RunReplay(); };
 window.step5RunFeedback = function () { App.Step5.step5RunFeedback(); };
 window.step5GoldenVerify = function () { App.Step5.step5GoldenVerify(); };

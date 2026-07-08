@@ -16,6 +16,14 @@
 /* ===== Step5: 验证回放与回流 ===== */
 var _s5LastSuggestions = [];
 
+function getCurrentPipelineId() {
+  if (!currentPipeline || !currentPipeline.id) {
+    console.error('No current pipeline available');
+    return null;
+  }
+  return currentPipeline.id;
+}
+
 function step5OnCaseSourceChange() {
   // No-op: deprecated in favor of test_customers-based verification
   return;
