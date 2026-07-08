@@ -261,7 +261,8 @@ a { color: var(--red); text-decoration: none; }
   letter-spacing: 0.5px; white-space: nowrap; margin-right: 32px;
 }
 .nav-logo {
-  width: 30px; height: 26px;
+  height: 26px;
+  width: auto;
   object-fit: contain;
   flex-shrink: 0;
 }
