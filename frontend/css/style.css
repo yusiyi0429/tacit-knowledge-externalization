@@ -455,11 +455,6 @@ a { color: var(--red); text-decoration: none; }
   border: 1px solid var(--border);
   box-shadow: 0 4px 24px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.04);
 }
-.overview-banner-accent {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
-  background: linear-gradient(180deg, #e84233 0%, #c7000b 100%);
-  border-radius: 20px 0 0 20px;
-}
 .overview-banner-visual {
   position: absolute; right: -70px; top: 50%;
   transform: translateY(-50%);

@@ -45,7 +45,6 @@ async function loadPipelineOverview() {
 
     // Banner
     html += '<div class="overview-banner">';
-    html += '<div class="overview-banner-accent"></div>';
     html += '<div class="overview-banner-inner">';
     html += '<div class="overview-banner-text">';
     html += '<div class="overview-banner-label">Tacit Knowledge Platform</div>';
