@@ -1634,9 +1634,64 @@ const SKILL_META = {
   'skill-generator': { icon: '🤖', iconCls: 'icon-teal', step: 4 },
 };
 
+const SKILL_CONTENT_EN = {
+  'knowledge-extraction': {
+    name: 'Knowledge Extraction',
+    description: 'Generate the initial Agent SKILL.md draft from the scenario skeleton and knowledge documents via LLM.',
+    detailed_description: 'Knowledge Extraction is the core entry point of the tacit-knowledge pipeline. It receives the scenario skeleton produced in Step 1 (business domain, customer profile, marketing goals) and expert-provided knowledge documents (policies, case reviews, training materials), then uses an LLM to distill a structured Agent SKILL.md.\n\nSKILL.md contains role definition, core workflow, decision rules, data access logic, and serves as the input for subsequent steps.',
+    business_value: 'Transform expert experience scattered across documents, policies, and cases into machine-executable Agent Skills, significantly reducing the manual cost of knowledge沉淀. One extraction covers a complete business scenario and can be iterated through the pipeline.',
+    usage_guide: '1. Ensure Step 1 Scenario Anchoring is complete and the skeleton is generated.\n2. Prepare knowledge documents (.txt / .docx / .pdf, or paste text directly).\n3. Select Markdown pipeline mode in the UI.\n4. Choose a model and click Run Knowledge Extraction.\n5. Wait for the LLM to generate the SKILL.md draft, then preview and confirm.',
+    input_example: 'Scenario: marketing potential of public-fund inclusive customers\nKnowledge document: a .txt file containing customer screening rules, data tags, and decision suggestions.',
+    output_example: 'A SKILL.md file containing: role definition (you are a public-fund account manager), core workflow, data table references, and decision rules.',
+    applicable_scenarios: ['Public-fund customer potential mining', 'Inclusive loan product recommendation', 'Customer segmentation and precision marketing', 'New customer admission assessment'],
+    capabilities: ['Scenario skeleton parsing', 'Knowledge document understanding', 'Rule and logic extraction', 'Agent SKILL.md generation'],
+    supported_formats: ['.txt', '.docx', '.pdf', 'Plain-text paste'],
+    output_styles: ['Structured SKILL.md', 'With role / workflow / rules / data'],
+    triggers: ['After Step 1 Scenario Anchoring is complete', 'When user uploads documents and selects Knowledge Extraction'],
+    limitations: ['Output quality depends on input document quality', 'LLM-generated draft needs expert confirmation in Step 3', 'Deep parsing of image/table documents is not supported']
+  },
+  'knowledge-revision': {
+    name: 'Knowledge Alignment',
+    description: 'Revise and align SKILL.md based on expert natural-language feedback via LLM.',
+    detailed_description: 'Knowledge Alignment is the expert-in-the-loop revision stage. It takes the SKILL.md draft produced in Step 2 and combines it with expert natural-language feedback (e.g., "add a founded-year check to customer screening", "fix the limit calculation according to policy XX"). The LLM performs semantic-level revision and produces a new SKILL.md.\n\nMulti-round revision is supported: each round of feedback generates an independent revision version without overwriting history, and experts can preview differences in the UI.',
+    business_value: 'Bridges the gap between LLM drafts and actual expert experience. Through natural-language interaction instead of manual editing, tacit judgments ("how to handle normal cases", "what are the boundary conditions") are quickly incorporated into the knowledge system to ensure outputs match business reality.',
+    usage_guide: '1. Review the SKILL.md draft generated in Step 2.\n2. Describe the required changes in natural language in the Expert Feedback box.\n3. Choose a model and click Send & Smart Revise.\n4. Preview the revised SKILL.md; provide further feedback if needed.\n5. After confirmation, proceed to Step 4.',
+    input_example: 'Expert feedback: "For customer screening, tech enterprises must also be checked for valid patents; those without patents should not be prioritized even if they have qualification tags. For limit calculation, add a rule: if the customer has an on-track credit loan from another bank, the limit can be moderately increased."',
+    output_example: 'A revised SKILL.md that: 1) adds a "valid patent" branch to customer screening rules; 2) adds an uplift rule for "on-track credit loan from another bank"; 3) keeps the logic consistent.',
+    applicable_scenarios: ['LLM draft needs expert review', 'Business rules or policies change', 'Multi-round iterative optimization'],
+    capabilities: ['Natural-language feedback understanding', 'SKILL.md semantic revision', 'Multi-round revision versioning', 'Revision log and diff tracking'],
+    supported_formats: ['Full SKILL.md revision'],
+    output_styles: ['Revised SKILL.md', 'With revision metadata'],
+    triggers: ['After Step 2 Knowledge Extraction', 'Expert submits feedback in Step 3 UI'],
+    limitations: ['Focus each feedback on one topic to avoid quality loss', 'Revision scope is limited by LLM context window', 'Automatic logic verification is not guaranteed; expert confirmation is required']
+  },
+  'skill-generator': {
+    name: 'Skill Generator',
+    description: 'Generate QA pairs, chain-of-thought, and a pending Agent-Skill package from the finalized SKILL.md.',
+    detailed_description: 'Skill Generator is the delivery stage of the pipeline. It transforms the expert-confirmed SKILL.md into a directly distributable Agent Skill package.\n\nOutputs include three parts: 1) QA pairs for accuracy evaluation; 2) Chain-of-Thought (step-by-step reasoning for core decisions); 3) Agent-Skill executable package (zip with SKILL.md, manifest.json, execution scripts, conforming to agentskills.io standards).\n\nThe generated Agent-Skill can be validated in Step 5 with P/R/F1 metrics before final release.',
+    business_value: 'One-click packaging from human knowledge to distributable, executable Agent Skills. QA pairs can be used for regression testing, CoT helps new users understand model reasoning, and the zip can be distributed to frontline account managers.',
+    usage_guide: '1. Ensure Step 3 Knowledge Alignment is complete and SKILL.md is confirmed.\n2. In the Step 4 UI select Build Skill.\n3. Wait for the LLM to generate the three deliverables: QA pairs, CoT, and Agent-Skill zip.\n4. Preview the QA pairs and chain-of-thought.\n5. Proceed to Step 5 for validation replay.',
+    input_example: 'Input: the Step-3 expert-confirmed SKILL.md for public-fund inclusive customer potential marketing (including customer screening rules, limit calculation logic, product recommendation strategy, etc.).',
+    output_example: 'Three files: 1) qa_*.json — about 10-20 QA pairs covering admission judgment, product recommendation, rejection reasons, etc.; 2) cot_*.md — step-by-step reasoning from customer information to marketing recommendation; 3) SKILL_VERIFY_*.zip — deployable Agent Skill package.',
+    applicable_scenarios: ['After SKILL.md is finalized', 'QA validation dataset needed', 'Chain-of-thought explanation needed'],
+    capabilities: ['SKILL.md parsing and restructuring', 'QA validation set generation', 'Chain-of-thought generation', 'Agent-Skill zip packaging'],
+    supported_formats: ['SKILL.md → QA JSON + CoT Markdown + Skill zip'],
+    output_styles: ['Structured QA pairs', 'Markdown chain-of-thought', 'agentskills.io standard zip'],
+    triggers: ['After Step 3 Knowledge Alignment is confirmed'],
+    limitations: ['QA coverage depends on SKILL.md completeness', 'CoT is LLM-derived and may have reasoning blind spots', 'Zip must pass Step 5 P/R/F1 validation before release']
+  }
+};
+
+const MODEL_DESC_EN = {
+  'DeepSeek-V4-Flash': 'DeepSeek V4 Flash official API, supports thinking + reasoning_effort.',
+  'CCB-ainlplm-示例': 'CCB internal ainlplm gateway (called with Access_Key_Id / Tx-Code / Sec-Node-No).',
+  'Minimax-M2.7': 'Minimax M2.7 with strong long-text capability, suitable for document analysis.',
+  'Qwen3.5-35B': 'Qwen 3.5 35B with balanced capability, suitable for dialogue and generation.'
+};
+
 async function loadSkills() {
   const body = document.getElementById('skill-panel-body');
-  body.innerHTML = '<div class="skill-loading">加载中...</div>';
+  body.innerHTML = '<div class="skill-loading">' + t('loading', '加载中...') + '</div>';
   try {
     const resp = await fetch(API_BASE + '/api/skills');
     const data = await resp.json();
@@ -1644,29 +1699,33 @@ async function loadSkills() {
       allSkills = data.skills || [];
       renderSkills(body);
     } else {
-      body.innerHTML = '<div class="skill-error">加载失败</div>';
+      body.innerHTML = '<div class="skill-error">' + t('load_failed', '加载失败') + '</div>';
     }
   } catch (e) {
-    body.innerHTML = '<div class="skill-error">网络错误</div>';
+    body.innerHTML = '<div class="skill-error">' + t('network_error', '网络错误') + '</div>';
   }
 }
 
 function renderSkills(container) {
+  const lang = App.I18n.getLang();
   if (allSkills.length === 0) {
-    container.innerHTML = '<div class="skill-empty">暂无已注册的 Skill</div>';
+    container.innerHTML = '<div class="skill-empty">' + t('skill_no_registered', '暂无已注册的 Skill') + '</div>';
     return;
   }
-  let html = '<div class="skill-section"><div class="skill-section-header"><span>已注册技能</span><span style="font-weight:400;color:#aaa">' + allSkills.length + ' 个</span></div>';
+  let html = '<div class="skill-section"><div class="skill-section-header"><span>' + t('skill_registered', '已注册技能') + '</span><span style="font-weight:400;color:#aaa">' + allSkills.length + '</span></div>';
   for (const skill of allSkills) {
     const enabled = skill.enabled !== false;
     const meta = SKILL_META[skill.id] || { icon: '⚡', iconCls: 'icon-blue' };
+    const en = lang === 'en' ? SKILL_CONTENT_EN[skill.id] : null;
+    const name = en && en.name ? en.name : escapeHtml(skill.name);
+    const brief = enabled ? t('skill_enabled', '已启用') : t('skill_disabled', '已禁用');
     html += `
       <div class="skill-card ${enabled ? '' : 'skill-card-disabled'}" id="skill-item-${skill.id}" data-skill-id="${skill.id}">
         <div class="skill-card-row" onclick="toggleSkillDetail('${skill.id}')">
           <div class="skill-card-icon ${meta.iconCls}">${meta.icon}</div>
           <div class="skill-card-info">
-            <div class="skill-card-name">${escapeHtml(skill.name)}</div>
-            <div class="skill-card-brief">${enabled ? '已启用' : '已禁用'}</div>
+            <div class="skill-card-name">${name}</div>
+            <div class="skill-card-brief">${brief}</div>
           </div>
           <div class="skill-card-controls">
             <div class="skill-toggle ${enabled ? 'on' : ''}" onclick="event.stopPropagation(); toggleSkill('${skill.id}', ${!enabled})">
@@ -1676,7 +1735,7 @@ function renderSkills(container) {
           </div>
         </div>
         <div class="skill-card-detail hidden" id="skill-detail-${skill.id}">
-          <div class="skill-loading">加载详情...</div>
+          <div class="skill-loading">${t('skill_loading_detail', '加载详情...')}</div>
         </div>
       </div>
     `;
@@ -1705,15 +1764,19 @@ async function toggleSkillDetail(skillId) {
       if (data.status === 'ok') {
         renderSkillDetail(detail, data.skill);
       } else {
-        detail.innerHTML = '<div class="skill-error">加载失败</div>';
+        detail.innerHTML = '<div class="skill-error">' + t('skill_load_failed', '加载失败') + '</div>';
       }
     } catch (e) {
-      detail.innerHTML = '<div class="skill-error">网络错误</div>';
+      detail.innerHTML = '<div class="skill-error">' + t('skill_network_error', '网络错误') + '</div>';
     }
   }
 }
 
 function renderSkillDetail(container, s) {
+  const lang = App.I18n.getLang();
+  const en = lang === 'en' && SKILL_CONTENT_EN[s.id] ? SKILL_CONTENT_EN[s.id] : null;
+  const skill = en ? Object.assign({}, s, en) : s;
+
   const tagGroup = (label, items, cls) => {
     if (!items || !items.length) return '';
     return '<div class="skill-detail-group"><div class="skill-detail-label">' + label + '</div><div class="skill-detail-tags">' + items.map(function(i) { return '<span class="skill-tag ' + (cls || '') + '">' + escapeHtml(i) + '</span>'; }).join('') + '</div></div>';
@@ -1733,56 +1796,56 @@ function renderSkillDetail(container, s) {
   let html = '';
 
   // 详细描述
-  if (s.detailed_description) {
-    html += section('📖 详细说明', '<p>' + formatText(s.detailed_description) + '</p>');
+  if (skill.detailed_description) {
+    html += section(t('skill_detail_detailed_description', '📖 详细说明'), '<p>' + formatText(skill.detailed_description) + '</p>');
   }
 
   // 业务价值
-  if (s.business_value) {
-    html += section('💡 业务价值', '<p>' + formatText(s.business_value) + '</p>');
+  if (skill.business_value) {
+    html += section(t('skill_detail_business_value', '💡 业务价值'), '<p>' + formatText(skill.business_value) + '</p>');
   }
 
   // 使用指南
-  if (s.usage_guide) {
-    html += section('📋 使用步骤', '<p>' + formatText(s.usage_guide) + '</p>');
+  if (skill.usage_guide) {
+    html += section(t('skill_detail_usage_guide', '📋 使用步骤'), '<p>' + formatText(skill.usage_guide) + '</p>');
   }
 
   // 输入输出示例
-  if (s.input_example || s.output_example) {
+  if (skill.input_example || skill.output_example) {
     let ioHtml = '';
-    if (s.input_example) {
-      ioHtml += '<div class="skill-io-item"><div class="skill-io-label skill-io-label-in">📥 输入示例</div><div class="skill-io-content">' + escapeHtml(s.input_example) + '</div></div>';
+    if (skill.input_example) {
+      ioHtml += '<div class="skill-io-item"><div class="skill-io-label skill-io-label-in">' + t('skill_detail_input_example', '📥 输入示例') + '</div><div class="skill-io-content">' + escapeHtml(skill.input_example) + '</div></div>';
     }
-    if (s.output_example) {
-      ioHtml += '<div class="skill-io-item"><div class="skill-io-label skill-io-label-out">📤 输出示例</div><div class="skill-io-content">' + formatText(s.output_example) + '</div></div>';
+    if (skill.output_example) {
+      ioHtml += '<div class="skill-io-item"><div class="skill-io-label skill-io-label-out">' + t('skill_detail_output_example', '📤 输出示例') + '</div><div class="skill-io-content">' + formatText(skill.output_example) + '</div></div>';
     }
-    html += section('🔧 输入 / 输出', ioHtml);
+    html += section(t('skill_detail_input_output', '🔧 输入 / 输出'), ioHtml);
   }
 
   // 适用场景
-  html += listSection('✅ 适用场景', s.applicable_scenarios);
+  html += listSection(t('skill_detail_applicable_scenarios', '✅ 适用场景'), skill.applicable_scenarios);
 
   // 能力标签
-  html += tagGroup('🏷️ 核心能力', s.capabilities, 'capability');
-  html += tagGroup('📂 支持格式', s.supported_formats, '');
-  html += tagGroup('🎨 输出风格', s.output_styles, '');
+  html += tagGroup(t('skill_detail_capabilities', '🏷️ 核心能力'), skill.capabilities, 'capability');
+  html += tagGroup(t('skill_detail_supported_formats', '📂 支持格式'), skill.supported_formats, '');
+  html += tagGroup(t('skill_detail_output_styles', '🎨 输出风格'), skill.output_styles, '');
 
   // 触发条件
-  html += tagGroup('🔍 触发条件', s.triggers, '');
+  html += tagGroup(t('skill_detail_triggers', '🔍 触发条件'), skill.triggers, '');
 
   // 局限性
-  html += listSection('⚠️ 局限性', s.limitations);
+  html += listSection(t('skill_detail_limitations', '⚠️ 局限性'), skill.limitations);
 
   // 文件限制 + 版本
   var metaHtml = '';
-  if (s.max_file_size_mb) {
-    metaHtml += '<div class="skill-detail-meta-item">📦 最大文件：<strong>' + s.max_file_size_mb + ' MB</strong></div>';
+  if (skill.max_file_size_mb) {
+    metaHtml += '<div class="skill-detail-meta-item">' + t('skill_detail_max_file', '📦 最大文件') + '：<strong>' + skill.max_file_size_mb + ' MB</strong></div>';
   }
-  if (s.version) {
-    metaHtml += '<div class="skill-detail-meta-item">🔖 版本：<strong>' + escapeHtml(s.version) + '</strong></div>';
+  if (skill.version) {
+    metaHtml += '<div class="skill-detail-meta-item">' + t('skill_detail_version', '🔖 版本') + '：<strong>' + escapeHtml(skill.version) + '</strong></div>';
   }
-  if (s.related_step) {
-    metaHtml += '<div class="skill-detail-meta-item">📌 关联步骤：<strong>Step ' + s.related_step + '</strong></div>';
+  if (skill.related_step) {
+    metaHtml += '<div class="skill-detail-meta-item">' + t('skill_detail_related_step', '📌 关联步骤') + '：<strong>Step ' + skill.related_step + '</strong></div>';
   }
   if (metaHtml) {
     html += '<div class="skill-detail-meta">' + metaHtml + '</div>';
@@ -1802,10 +1865,10 @@ async function toggleSkill(skillId, enable) {
     if (data.status === 'ok') {
       await loadSkills();
     } else {
-      alert('操作失败: ' + (data.error || '未知错误'));
+      alert(t('operation_failed', '操作失败') + ': ' + (data.error || t('unknown_error', '未知错误')));
     }
   } catch (e) {
-    alert('网络错误');
+    alert(t('skill_network_error', '网络错误'));
   }
 }
 
@@ -1824,8 +1887,8 @@ function showAddModelForm() {
   const titleEl = document.getElementById('model-form-title');
   const saveBtn = document.getElementById('model-form-save-btn');
   const saveBtnText = saveBtn ? saveBtn.querySelector('.btn__text') : null;
-  if (titleEl) titleEl.textContent = '添加自定义模型';
-  if (saveBtnText) saveBtnText.textContent = '添加';
+  if (titleEl) titleEl.textContent = t('add_model_title', '添加自定义模型');
+  if (saveBtnText) saveBtnText.textContent = t('add', '添加');
   document.getElementById('new-model-name').readOnly = false;
   ['new-model-name','new-model-model','new-model-url','new-model-apikey','new-model-desc','new-model-tx-code','new-model-sec-node'].forEach(id => {
     const el = document.getElementById(id);
@@ -1849,15 +1912,15 @@ async function editModel(name) {
     const resp = await fetch(API_BASE + '/api/llm/models/' + encodeURIComponent(name));
     const data = await resp.json();
     if (data.status !== 'ok' || !data.model) {
-      alert(data.error || '加载模型失败');
+      alert(data.error || t('load_model_failed', '加载模型失败'));
       return;
     }
     const m = data.model;
     editingModelName = name;
-    document.getElementById('model-form-title').textContent = m.is_preset ? '编辑预设模型' : '编辑自定义模型';
+    document.getElementById('model-form-title').textContent = m.is_preset ? t('edit_preset_model', '编辑预设模型') : t('edit_custom_model', '编辑自定义模型');
     const editSaveBtn = document.getElementById('model-form-save-btn');
     const editSaveBtnText = editSaveBtn ? editSaveBtn.querySelector('.btn__text') : null;
-    if (editSaveBtnText) editSaveBtnText.textContent = '保存';
+    if (editSaveBtnText) editSaveBtnText.textContent = t('save', '保存');
     document.getElementById('new-model-name').value = m.name || '';
     document.getElementById('new-model-name').readOnly = true;
     document.getElementById('new-model-model').value = m.model || '';
@@ -1875,7 +1938,7 @@ async function editModel(name) {
     toggleCcbModelFields();
     document.getElementById('add-model-form').classList.remove('hidden');
   } catch (e) {
-    alert('加载模型失败: ' + e.message);
+    alert(t('load_model_failed', '加载模型失败') + ': ' + e.message);
   }
 }
 
@@ -1895,29 +1958,33 @@ async function loadModels() {
 
 function renderModelList() {
   const container = document.getElementById('model-list');
+  const lang = App.I18n.getLang();
   if (!allModels.length) {
-    container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:12px">暂无模型配置</div>';
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:12px">' + t('model_no_config', '暂无模型配置') + '</div>';
     return;
   }
   let html = '';
   allModels.forEach((m, idx) => {
     const cls = m.is_preset ? 'preset' : 'custom';
-    const badge = m.is_preset ? '<span style="font-size:10px;padding:1px 5px;background:var(--red);color:#fff;border-radius:2px">预设</span>' : '<span style="font-size:10px;padding:1px 5px;background:#3491fa;color:#fff;border-radius:2px">自定义</span>';
+    const badge = m.is_preset
+      ? '<span style="font-size:10px;padding:1px 5px;background:var(--red);color:#fff;border-radius:2px">' + t('model_badge_preset', '预设') + '</span>'
+      : '<span style="font-size:10px;padding:1px 5px;background:#3491fa;color:#fff;border-radius:2px">' + t('model_badge_custom', '自定义') + '</span>';
     const apiBadge = (m.api_type === 'ccb_ainlplm')
-      ? '<span style="font-size:10px;padding:1px 5px;background:#6b4;border-radius:2px;color:#fff">建行</span>'
-      : '<span style="font-size:10px;padding:1px 5px;background:#888;border-radius:2px;color:#fff">OpenAI</span>';
+      ? '<span style="font-size:10px;padding:1px 5px;background:#6b4;border-radius:2px;color:#fff">' + t('model_badge_ccb', '建行') + '</span>'
+      : '<span style="font-size:10px;padding:1px 5px;background:#888;border-radius:2px;color:#fff">' + t('model_badge_openai', 'OpenAI') + '</span>';
+    const desc = lang === 'en' && MODEL_DESC_EN[m.name] ? MODEL_DESC_EN[m.name] : m.description;
     html += '<div class="model-card ' + cls + '">';
     html += '<div class="model-card-name">' + escapeHtml(m.name) + ' ' + badge + ' ' + apiBadge + '</div>';
     html += '<div class="model-card-model">' + escapeHtml(m.model) + '</div>';
-    if (m.description) html += '<div class="model-card-desc">' + escapeHtml(m.description) + '</div>';
+    if (desc) html += '<div class="model-card-desc">' + escapeHtml(desc) + '</div>';
     html += '<div class="model-card-url">' + escapeHtml(m.url) + '</div>';
-    html += '<div class="model-card-key">Key: ' + escapeHtml(m.api_key || m.api_key_masked || '') + '</div>';
+    html += '<div class="model-card-key">' + t('model_key', 'Key:') + ' ' + escapeHtml(m.api_key || m.api_key_masked || '') + '</div>';
     html += '<div class="model-card-actions">';
-    html += renderBtn({ variant: 'outline', size: 'sm', icon: 'pencil', text: '编辑', cls: 'model-card-btn', attrs: 'data-action="edit" data-model-index="' + idx + '"' });
-    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: '测试连接', cls: 'model-card-btn', attrs: 'data-action="test" data-model-index="' + idx + '"' });
-    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: '流式测试', cls: 'model-card-btn', attrs: 'data-action="stream" data-model-index="' + idx + '"' });
+    html += renderBtn({ variant: 'outline', size: 'sm', icon: 'pencil', text: t('model_edit', '编辑'), cls: 'model-card-btn', attrs: 'data-action="edit" data-model-index="' + idx + '"' });
+    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: t('model_test_connection', '测试连接'), cls: 'model-card-btn', attrs: 'data-action="test" data-model-index="' + idx + '"' });
+    html += renderBtn({ variant: 'ghost', size: 'sm', icon: 'activity', text: t('model_stream_test', '流式测试'), cls: 'model-card-btn', attrs: 'data-action="stream" data-model-index="' + idx + '"' });
     if (!m.is_preset) {
-      html += renderBtn({ variant: 'danger', size: 'sm', icon: 'trash-2', text: '删除', cls: 'model-card-btn', attrs: 'data-action="delete" data-model-index="' + idx + '"' });
+      html += renderBtn({ variant: 'danger', size: 'sm', icon: 'trash-2', text: t('model_delete', '删除'), cls: 'model-card-btn', attrs: 'data-action="delete" data-model-index="' + idx + '"' });
     }
     html += '</div>';
     html += '<div class="model-card-status" id="model-status-' + idx + '"></div>';
@@ -1961,11 +2028,11 @@ function refreshModelSelects() {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value;
-    el.innerHTML = '<option value="">-- 选择模型 --</option>';
+    el.innerHTML = '<option value="">' + t('model_select_placeholder', '-- 选择模型 --') + '</option>';
     allModels.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m.name;
-      opt.textContent = m.name + (m.is_preset ? ' (预设)' : '');
+      opt.textContent = m.name + (m.is_preset ? ' (' + t('model_badge_preset', '预设') + ')' : '');
       el.appendChild(opt);
     });
     if (cur) el.value = cur;
@@ -1983,7 +2050,7 @@ async function loadStepSkillSelects(step) {
   const el = document.getElementById(selectId);
   if (!el) return;
 
-  el.innerHTML = '<option value="">-- 选择 Skill --</option>';
+  el.innerHTML = '<option value="">' + t('model_select_skill_placeholder', '-- 选择 Skill --') + '</option>';
 
   try {
     const resp = await fetch(API_BASE + '/api/skills');
@@ -1998,9 +2065,12 @@ async function loadStepSkillSelects(step) {
       // If step has specific skill mapping, filter by it
       if (relevantIds.length > 0 && !relevantIds.includes(s.id)) return;
 
+      const en = App.I18n.getLang() === 'en' && SKILL_CONTENT_EN[s.id] ? SKILL_CONTENT_EN[s.id] : null;
+      const sName = en && en.name ? en.name : s.name;
+      const sDesc = en && en.description ? en.description : (s.description || '');
       const opt = document.createElement('option');
       opt.value = s.id;
-      opt.textContent = s.name + ' - ' + (s.description || '').substring(0, 30);
+      opt.textContent = sName + ' - ' + sDesc.substring(0, 30);
       el.appendChild(opt);
     });
   } catch (e) {
@@ -2023,16 +2093,16 @@ async function testModelStream(name, modelIndex, btnEl) {
   }
   if (btnEl) {
     btnEl.disabled = true;
-    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '流式中...' });
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: t('model_streaming', '流式中...') });
     refreshIcons();
   }
-  setModelTestStatus(statusEl, 'testing', '流式连接 ' + name + ' ...');
+  setModelTestStatus(statusEl, 'testing', t('model_stream_connect_prefix', '流式连接') + ' ' + name + ' ...');
   let fullText = '';
   try {
     const resp = await fetch(API_BASE + '/api/llm/stream-test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, prompt: '你好，请用一句话介绍你自己。' }),
+      body: JSON.stringify({ name: name, prompt: App.I18n.getLang() === 'en' ? 'Hello, please introduce yourself in one sentence.' : '你好，请用一句话介绍你自己。' }),
     });
     if (!resp.ok || !resp.body) {
       throw new Error('流式请求失败 HTTP ' + resp.status);
@@ -2062,14 +2132,14 @@ async function testModelStream(name, modelIndex, btnEl) {
         }
       }
     }
-    setModelTestStatus(statusEl, 'ok', '流式完成: ' + (fullText.slice(0, 80) || '(空)'));
+    setModelTestStatus(statusEl, 'ok', t('model_stream_complete_prefix', '流式完成: ') + (fullText.slice(0, 80) || t('model_empty_response', '(空)')));
   } catch (e) {
-    setModelTestStatus(statusEl, 'fail', e.message || '流式失败');
-    if (streamEl) streamEl.textContent = '错误: ' + (e.message || '流式失败');
+    setModelTestStatus(statusEl, 'fail', e.message || t('model_stream_failed', '流式失败'));
+    if (streamEl) streamEl.textContent = t('model_error_prefix', '错误: ') + (e.message || t('model_stream_failed', '流式失败'));
   }
   if (btnEl) {
     btnEl.disabled = false;
-    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '流式测试' });
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: t('model_stream_test', '流式测试') });
     refreshIcons();
   }
 }
@@ -2078,23 +2148,23 @@ async function testModel(name, modelIndex, btnEl) {
   const statusEl = document.getElementById('model-status-' + modelIndex);
   if (btnEl) {
     btnEl.disabled = true;
-    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '测试中...' });
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: t('model_testing', '测试中...') });
     refreshIcons();
   }
-  setModelTestStatus(statusEl, 'testing', '正在连接 ' + name + ' ...');
+  setModelTestStatus(statusEl, 'testing', t('model_connecting_prefix', '正在连接') + ' ' + name + ' ...');
   try {
     const result = await apiCallJSON('/api/llm/test', { name: name }, 'POST', 25000);
     if (result.status === 'ok') {
-      setModelTestStatus(statusEl, 'ok', result.message || '连接成功');
+      setModelTestStatus(statusEl, 'ok', result.message || t('model_connection_ok', '连接成功'));
     } else {
-      setModelTestStatus(statusEl, 'fail', result.error || '连接失败');
+      setModelTestStatus(statusEl, 'fail', result.error || t('model_connection_failed', '连接失败'));
     }
   } catch (e) {
-    setModelTestStatus(statusEl, 'fail', e.message || '连接失败');
+    setModelTestStatus(statusEl, 'fail', e.message || t('model_connection_failed', '连接失败'));
   }
   if (btnEl) {
     btnEl.disabled = false;
-    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: '测试连接' });
+    btnEl.innerHTML = renderBtnChildren({ icon: 'activity', text: t('model_test_connection', '测试连接') });
     refreshIcons();
   }
 }
@@ -2112,15 +2182,15 @@ async function saveModel() {
   const secNode = document.getElementById('new-model-sec-node')?.value.trim() || '';
 
   if (!name || !model || !url) {
-    alert('名称、模型标识、API 地址均为必填');
+    alert(t('model_required_fields', '名称、模型标识、API 地址均为必填'));
     return;
   }
   if (!editingModelName && !apiKey) {
-    alert('添加模型时 API Key 为必填');
+    alert(t('model_api_key_required', '添加模型时 API Key 为必填'));
     return;
   }
   if (apiType === 'ccb_ainlplm' && (!txCode || !secNode)) {
-    alert('建行接口需填写 Tx-Code 与 Sec-Node-No');
+    alert(t('model_ccb_required', '建行接口需填写 Tx-Code 与 Sec-Node-No'));
     return;
   }
 
@@ -2149,25 +2219,25 @@ async function saveModel() {
       hideAddModelForm();
       loadModels();
     } else {
-      alert(result.error || (editingModelName ? '保存失败' : '添加失败'));
+      alert(result.error || (editingModelName ? t('model_save_failed', '保存失败') : t('model_add_failed', '添加失败')));
     }
   } catch (e) {
-    alert((editingModelName ? '保存失败: ' : '添加失败: ') + e.message);
+    alert((editingModelName ? t('model_save_failed', '保存失败') + ': ' : t('model_add_failed', '添加失败') + ': ') + e.message);
   }
 }
 
 async function deleteModel(name) {
-  if (!confirm('确定删除模型 "' + name + '"？')) return;
+  if (!confirm(t('model_delete_confirm', '确定删除模型 "{name}"？').replace('{name}', name))) return;
   try {
     const resp = await fetch(API_BASE + '/api/llm/models/' + encodeURIComponent(name), { method: 'DELETE' });
     const result = await resp.json();
     if (result.status === 'ok') {
       loadModels();
     } else {
-      alert(result.error || '删除失败');
+      alert(result.error || t('model_delete_failed', '删除失败'));
     }
   } catch (e) {
-    alert('删除失败: ' + e.message);
+    alert(t('model_delete_failed', '删除失败') + ': ' + e.message);
   }
 }
 
