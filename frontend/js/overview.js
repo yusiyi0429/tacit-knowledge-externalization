@@ -50,7 +50,7 @@ async function loadPipelineOverview() {
     html += '<div class="overview-banner-title">隐性知识显性化 · 五步法萃取流水线</div>';
     html += '<div class="overview-banner-desc">将领域专家的隐性经验系统性显性化为 AI 可加载的结构化知识，通过五步法流水线，从场景定义到智能转化，层层递进、步步可追溯。</div>';
     html += '</div>';
-    html += '<button type="button" class="btn btn--light btn--lg" onclick="showNewPipelineForm()">';
+    html += '<button type="button" class="btn btn--primary btn--lg" onclick="showNewPipelineForm()">';
     html += '<span class="btn__icon btn__icon--left" data-lucide="plus"></span>';
     html += '<span class="btn__text">新建流水线</span>';
     html += '</button>';
