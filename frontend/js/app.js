@@ -665,6 +665,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.onAppLangChange = function(lang) {
   step1SyncKnowledgeColumnLanguage(lang);
+  // 语言切换后即时重渲当前视图，避免用户手动刷新
+  if (currentStep === 0) {
+    App.Overview.loadPipelineOverview();
+  } else if (currentPipeline) {
+    switchPanel(currentStep);
+  }
+  // 重渲配置面板（动态内容不走 data-i18n，需要重新生成才能同步语言）
+  if (App.Panels.loadSkills) App.Panels.loadSkills();
+  if (App.Panels.loadModels) App.Panels.loadModels();
 };
 
 /* ===== Navigation ===== */
@@ -747,18 +756,18 @@ function switchPanel(step) {
   renderPipelineProgressSummary(step);
 
   const navSteps = document.getElementById('nav-steps');
-  const brandEl = document.getElementById('nav-brand');
+  const brandTextEl = document.getElementById('nav-brand-text');
 
   if (step === 0) {
     // Overview mode: hide step nav
     navSteps.classList.remove('visible');
-    brandEl.textContent = '隐性知识显性化 · 五步法';
+    if (brandTextEl) brandTextEl.textContent = App.I18n.t('nav_brand', '隐性知识显性化 · 五步法');
     App.Overview.loadPipelineOverview();
   } else {
     // Pipeline mode: show step nav with progress
     navSteps.classList.add('visible');
     if (currentPipeline) {
-      brandEl.textContent = currentPipeline.name;
+      if (brandTextEl) brandTextEl.textContent = currentPipeline.name;
       updateStepProgress();
       // Restore form data for this step
       const stepDataKey = 'step' + step + '_form_data';
