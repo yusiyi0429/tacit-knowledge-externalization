@@ -929,6 +929,9 @@ window.onAppLangChange = function(lang) {
   } else if (currentPipeline) {
     switchPanel(currentStep);
   }
+  // 重渲配置面板（动态内容不走 data-i18n，需要重新生成才能同步语言）
+  if (document.getElementById('skill-panel')) loadSkills();
+  if (document.getElementById('model-panel')) loadModels();
 };
 
 /* ===== Navigation ===== */
