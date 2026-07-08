@@ -11,6 +11,7 @@ let _formSaveTimer = null;
 let _lastStep2ExtractedText = '';
 let _step2ActiveSkill = 'knowledge-extraction'; // 当前选中的 Skill
 let _alignTacitAnnotations = {}; // { noteId: { question, answer } } — Step3 修订经验批注缓存
+var _s1SubScenarioCount = 0; // Step1 子场景计数器（需在 step1.js 之前声明为全局）
 
 /* ===== i18n shortcut ===== */
 const t = function (key, fallback) { return App.I18n.t(key, fallback); };
