@@ -67,10 +67,17 @@ async function loadStep4PrevOutput() {
 }
 
 function getSelectedStep4Formats() {
+  const hasFmtCot = document.getElementById('s4-fmt-cot');
+  const hasFmtQa = document.getElementById('s4-fmt-qa');
+  const hasFmtSkill = document.getElementById('s4-fmt-skill');
+  // 如果页面未配置格式复选框，默认生成全部三种交付物
+  if (!hasFmtCot && !hasFmtQa && !hasFmtSkill) {
+    return ['cot', 'qa', 'skill'];
+  }
   const formats = [];
-  if (document.getElementById('s4-fmt-cot')?.checked) formats.push('cot');
-  if (document.getElementById('s4-fmt-qa')?.checked) formats.push('qa');
-  if (document.getElementById('s4-fmt-skill')?.checked) formats.push('skill');
+  if (hasFmtCot?.checked) formats.push('cot');
+  if (hasFmtQa?.checked) formats.push('qa');
+  if (hasFmtSkill?.checked) formats.push('skill');
   return formats;
 }
 
@@ -93,6 +100,76 @@ function renderStep4ArtifactCard(key, title, desc, countLabel, downloads, previe
   return html;
 }
 
+
+async function step4Compile() {
+  if (!currentPipeline) { showToast('请先进入流水线', 'error'); return; }
+
+  const formats = getSelectedStep4Formats();
+  if (!formats.length) { showToast('请至少选择一种交付物格式', 'error'); return; }
+
+  renderLoading('s4-output');
+  const output = document.getElementById('s4-output');
+  if (output) output.style.display = 'block';
+
+  try {
+    const fd = new FormData();
+    fd.append('pipeline_id', currentPipeline.id);
+    fd.append('formats', formats.join(','));
+
+    const resp = await fetch(API_BASE + '/api/step4/compile', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    if (data.status === 'ok') {
+      await refreshCurrentPipeline();
+      renderStep4CompileResult(data);
+    } else {
+      if (output) {
+        output.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(data.error || '编译失败') + '</div></div>';
+      }
+    }
+  } catch (e) {
+    if (output) {
+      output.innerHTML = '<div class="error-list"><div class="error-item">' + escapeHtml(e.message) + '</div></div>';
+    }
+  }
+}
+
+function renderStep4CompileResult(data) {
+  const output = document.getElementById('s4-output');
+  if (!output) return;
+
+  let html = '<div class="s4-compile-result">';
+  html += '<div class="s4-compile-header">';
+  html += '<div class="s4-compile-icon">&#9989;</div>';
+  html += '<div class="s4-compile-title">' + escapeHtml(t('compile_success', '编译完成')) + '</div>';
+  html += '<div class="s4-compile-subtitle">' + escapeHtml(data.knowledge_count || 0) + ' 条知识 · ' + (data.category_count || 0) + ' 个分类 · 质量分 ' + (data.quality_score || 0) + '</div>';
+  html += '</div>';
+
+  html += '<div class="s4-stats-grid">';
+  html += '<div class="s4-stat-card"><div class="s4-stat-value">' + (data.knowledge_count || 0) + '</div><div class="s4-stat-label">知识条目</div></div>';
+  html += '<div class="s4-stat-card"><div class="s4-stat-value">' + (data.quality_score || 0) + '</div><div class="s4-stat-label">质量评分</div></div>';
+  html += '</div>';
+
+  html += '<div class="s4-section"><div class="s4-section-title">交付物下载</div>';
+  html += '<div class="s4-downloads">';
+  const downloads = data.downloads || {};
+  if (downloads.skill_zip) {
+    html += '<a class="s4-download-link" href="' + API_BASE + downloads.skill_zip + '" download>' + escapeHtml(t('download_skill_zip', 'Agent-Skill 可执行包 (.zip)')) + '</a>';
+  }
+  if (downloads.skill) {
+    html += '<a class="s4-download-link" href="' + API_BASE + downloads.skill + '" download>' + escapeHtml(t('download_skill_md', 'SKILL.md')) + '</a>';
+  }
+  if (downloads.cot) {
+    html += '<a class="s4-download-link" href="' + API_BASE + downloads.cot + '" download>' + escapeHtml(t('download_cot', '思维链 (CoT)')) + '</a>';
+  }
+  if (downloads.qa) {
+    html += '<a class="s4-download-link" href="' + API_BASE + downloads.qa + '" download>' + escapeHtml(t('download_qa', 'QA 对')) + '</a>';
+  }
+  html += '</div></div>';
+
+  html += '</div>';
+  output.innerHTML = '<div class="output-result">' + html + '</div>';
+}
 
 async function step4GenerateCOT() {
   // Deprecated: functionality merged into step4Compile
@@ -332,6 +409,8 @@ function restoreStep4Output() {
     loadStep4PrevOutput,
     getSelectedStep4Formats,
     renderStep4ArtifactCard,
+    step4Compile,
+    renderStep4CompileResult,
     step4GenerateCOT,
     step4GenerateQA,
     step4GenerateExecSkill,
