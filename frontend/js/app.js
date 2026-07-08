@@ -2102,7 +2102,7 @@ async function testModelStream(name, modelIndex, btnEl) {
     const resp = await fetch(API_BASE + '/api/llm/stream-test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, prompt: App.I18n.getLang() === 'en' ? 'Hello, please introduce yourself in one sentence.' : '你好，请用一句话介绍你自己。' }),
+      body: JSON.stringify({ name: name, prompt: App.I18n.getLang() === 'en' ? 'Hello, please introduce yourself in one sentence.' : '你好，请用一句话介绍你自己。', lang: App.I18n.getLang() }),
     });
     if (!resp.ok || !resp.body) {
       throw new Error('流式请求失败 HTTP ' + resp.status);
@@ -2153,7 +2153,7 @@ async function testModel(name, modelIndex, btnEl) {
   }
   setModelTestStatus(statusEl, 'testing', t('model_connecting_prefix', '正在连接') + ' ' + name + ' ...');
   try {
-    const result = await apiCallJSON('/api/llm/test', { name: name }, 'POST', 25000);
+    const result = await apiCallJSON('/api/llm/test', { name: name, lang: App.I18n.getLang() }, 'POST', 25000);
     if (result.status === 'ok') {
       setModelTestStatus(statusEl, 'ok', result.message || t('model_connection_ok', '连接成功'));
     } else {

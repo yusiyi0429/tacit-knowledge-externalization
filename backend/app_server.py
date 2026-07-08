@@ -2527,6 +2527,8 @@ def api_llm_test():
     if not model_cfg:
         return jsonify({"status": "error", "error": f"模型 '{model_name}' 不存在"})
 
+    lang = data.get("lang", "zh-CN")
+    is_en = lang == "en"
     try:
         test_cfg = dict(model_cfg)
         test_cfg["timeout"] = min(int(test_cfg.get("timeout", 300)), 20)
@@ -2537,10 +2539,14 @@ def api_llm_test():
             max_tokens=10,
         )
         content = extract_assistant_content(result) if isinstance(result, dict) else ""
+        if is_en:
+            return jsonify({"status": "ok", "message": f"Connection successful, model reply: {content[:50]}"})
         return jsonify({"status": "ok", "message": f"连接成功，模型回复: {content[:50]}"})
     except LlmApiError as e:
         return jsonify({"status": "error", "error": str(e)})
     except Exception as e:
+        if is_en:
+            return jsonify({"status": "error", "error": f"Connection failed: {str(e)}"})
         return jsonify({"status": "error", "error": f"连接失败: {str(e)}"})
 
 
@@ -2557,6 +2563,8 @@ def api_llm_stream_test():
     messages = [{"role": "user", "content": prompt}]
 
     def generate():
+        lang = data.get("lang", "zh-CN")
+        is_en = lang == "en"
         try:
             test_cfg = dict(model_cfg)
             test_cfg["timeout"] = min(int(test_cfg.get("timeout", 300)), 120)
@@ -2569,7 +2577,8 @@ def api_llm_stream_test():
             err = json.dumps({"error": str(e)}, ensure_ascii=False)
             yield f"data: {err}\n\n"
         except Exception as e:
-            err = json.dumps({"error": f"流式连接失败: {str(e)}"}, ensure_ascii=False)
+            err_text = f"Stream connection failed: {str(e)}" if is_en else f"流式连接失败: {str(e)}"
+            err = json.dumps({"error": err_text}, ensure_ascii=False)
             yield f"data: {err}\n\n"
 
     return Response(
