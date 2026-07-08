@@ -22,6 +22,9 @@
     'zh-CN': {
       page_title: '隐性知识显性化 · 五步法萃取流水线',
       nav_brand: '隐性知识显性化 · 五步法',
+      banner_highlight_1: '五步闭环',
+      banner_highlight_2: '专家对齐',
+      banner_highlight_3: 'AI 驱动',
       nav_back: '返回',
       nav_save: '保存',
       nav_clear: '清空',
@@ -289,6 +292,9 @@
     en: {
       page_title: 'Tacit Knowledge Externalization · 5-Step Pipeline',
       nav_brand: 'Tacit Knowledge · 5 Steps',
+      banner_highlight_1: '5-Step Closed Loop',
+      banner_highlight_2: 'Expert Alignment',
+      banner_highlight_3: 'AI Powered',
       nav_back: 'Back',
       nav_save: 'Save',
       nav_clear: 'Clear',

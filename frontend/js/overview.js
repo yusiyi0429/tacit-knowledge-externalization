@@ -51,13 +51,26 @@ async function loadPipelineOverview() {
     html += '<div class="overview-banner-label">Tacit Knowledge Platform</div>';
     html += '<div class="overview-banner-title">隐性知识显性化 · 五步法萃取流水线</div>';
     html += '<div class="overview-banner-desc">将领域专家的隐性经验系统性显性化为 AI 可加载的结构化知识，通过五步法流水线，从场景定义到智能转化，层层递进、步步可追溯。</div>';
+    html += '<div class="overview-banner-highlights">';
+    html += '<div class="overview-banner-highlight"><i data-lucide="layers" width="18" height="18"></i><span>' + t('banner_highlight_1', '五步闭环') + '</span></div>';
+    html += '<div class="overview-banner-highlight"><i data-lucide="shield-check" width="18" height="18"></i><span>' + t('banner_highlight_2', '专家对齐') + '</span></div>';
+    html += '<div class="overview-banner-highlight"><i data-lucide="zap" width="18" height="18"></i><span>' + t('banner_highlight_3', 'AI 驱动') + '</span></div>';
     html += '</div>';
+    html += '</div>';
+    html += '<div class="overview-banner-cta">';
     html += '<button type="button" class="btn btn--primary btn--lg" onclick="showNewPipelineForm()">';
     html += '<span class="btn__icon btn__icon--left" data-lucide="plus"></span>';
     html += '<span class="btn__text">新建流水线</span>';
     html += '</button>';
     html += '</div>';
-    html += '<div class="overview-banner-decoration"></div>';
+    html += '</div>';
+    html += '<div class="overview-banner-visual">';
+    html += '<div class="banner-visual-orb banner-visual-orb--1"></div>';
+    html += '<div class="banner-visual-orb banner-visual-orb--2"></div>';
+    html += '<div class="banner-visual-orb banner-visual-orb--3"></div>';
+    html += '<div class="banner-visual-ring banner-visual-ring--1"></div>';
+    html += '<div class="banner-visual-ring banner-visual-ring--2"></div>';
+    html += '</div>';
     html += '</div>';
 
     // Steps Roadmap - vertical layout with timeline
