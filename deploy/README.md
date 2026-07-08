@@ -77,7 +77,7 @@ docker images | grep tacit-knowledge-externalization
 ```yaml
 services:
   tacit-knowledge-externalization:
-    image: tacit-knowledge-externalization:3.0.1-amd64
+    image: tacit-knowledge-externalization:3.0.2-amd64
     platform: linux/amd64
 ```
 
@@ -85,10 +85,10 @@ services:
 
 ```bash
 # AMD64
-TK_IMAGE=tacit-knowledge-externalization:3.0.1-amd64 TK_PLATFORM=linux/amd64 docker compose up -d
+TK_IMAGE=tacit-knowledge-externalization:3.0.2-amd64 TK_PLATFORM=linux/amd64 docker compose up -d
 
 # ARM64
-TK_IMAGE=tacit-knowledge-externalization:3.0.1-arm64 TK_PLATFORM=linux/arm64 docker compose up -d
+TK_IMAGE=tacit-knowledge-externalization:3.0.2-arm64 TK_PLATFORM=linux/arm64 docker compose up -d
 ```
 
 ### 7. 启动服务
@@ -102,7 +102,7 @@ docker compose up -d
 ```bash
 curl http://localhost:5000/api/health
 # 期望响应：
-# {"app_name":"tacit-knowledge-externalization","app_version":"3.0.1","status":"ok",...}
+# {"app_name":"tacit-knowledge-externalization","app_version":"3.0.2","status":"ok",...}
 ```
 
 浏览器访问 `http://服务器IP:5000`

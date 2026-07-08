@@ -5,7 +5,7 @@ name: tacit-knowledge
 
 services:
   tacit-knowledge-externalization:
-    image: tacit-knowledge-externalization:3.0.1-arm64
+    image: tacit-knowledge-externalization:3.0.2-arm64
     container_name: tacit-knowledge-externalization
     platform: linux/arm64
     ports:

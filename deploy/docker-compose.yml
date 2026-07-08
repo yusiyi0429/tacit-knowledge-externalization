@@ -7,7 +7,7 @@ name: tacit-knowledge
 services:
   tacit-knowledge-externalization:
     # 根据实际加载的镜像和机器架构修改下面两行
-    image: ${TK_IMAGE:-tacit-knowledge-externalization:3.0.1-amd64}
+    image: ${TK_IMAGE:-tacit-knowledge-externalization:3.0.2-amd64}
     platform: ${TK_PLATFORM:-linux/amd64}
     container_name: tacit-knowledge-externalization
     ports:

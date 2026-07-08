@@ -34,7 +34,7 @@ curl http://<host>:5000/api/build_info
 
 ## 发布流程
 
-1. 修改根目录 `VERSION`（如 `3.0.1`）
+1. 修改根目录 `VERSION`（如 `3.0.2`）
 2. Windows 构建：`.\scripts\build-docker-arm64.ps1`
 3. 得到：
    - `tacit-knowledge-externalization-3.0.1-arm64-*.tar`
