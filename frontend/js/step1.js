@@ -34,7 +34,7 @@ function step1AddSubScenario() {
   div.className = 's1-sub-item';
   div.id = 's1-sub-' + idx;
   div.innerHTML = '<div class="s1-sub-row">' +
-    '<input type="text" class="s1-sub-name" placeholder="子场景名称" data-idx="' + idx + '">' +
+    '<input type="text" class="s1-sub-name" placeholder="' + t('sub_scenario_name', '子场景名称') + '" data-idx="' + idx + '">' +
     '<button type="button" class="btn btn--ghost btn--sm s1-sub-remove" onclick="step1RemoveSubScenario(' + idx + ')"><span class="btn__icon" data-lucide="x"></span></button>' +
     '</div>' +
     '<textarea class="s1-sub-content" rows="2" placeholder="子场景内容描述" data-idx="' + idx + '"></textarea>';
@@ -77,7 +77,7 @@ async function step1Generate() {
   const knowledgeColumns = step1GetKnowledgeColumns();
   const hasCustomColumns = knowledgeColumns.length > 0;
 
-  if (!scenarioName) { alert('请填写场景名称'); return; }
+  if (!scenarioName) { alert(t('step1_scenario_name_required', '请填写场景名称')); return; }
   if (!currentPipeline) {
     alert('请先从总览页「新建流水线」或「继续」进入一条流水线，再生成场景骨架');
     return;
@@ -278,7 +278,7 @@ async function step1PreviewExcel(fileName) {
 function openExcelEditorWithSheets(sheets, fileName, filePath) {
   const modal = document.getElementById('excel-editor-modal');
   const stepLabel = document.getElementById('excel-editor-step-label');
-  if (stepLabel) stepLabel.textContent = '预览: ' + fileName;
+  if (stepLabel) stepLabel.textContent = t('preview_prefix', '预览：') + fileName;
   _excelEditorData.sheets = ExcelEditor.normalizeSheetsFromApi(
     typeof sheets === 'object' && !Array.isArray(sheets) ? sheets : { Sheet1: sheets }
   );

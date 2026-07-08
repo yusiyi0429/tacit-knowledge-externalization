@@ -67,8 +67,10 @@ async function loadPipelineOverview() {
     html += '<div class="banner-visual-orb banner-visual-orb--1"></div>';
     html += '<div class="banner-visual-orb banner-visual-orb--2"></div>';
     html += '<div class="banner-visual-orb banner-visual-orb--3"></div>';
+    html += '<div class="banner-visual-orb banner-visual-orb--4"></div>';
     html += '<div class="banner-visual-ring banner-visual-ring--1"></div>';
     html += '<div class="banner-visual-ring banner-visual-ring--2"></div>';
+    html += '<div class="banner-visual-ring banner-visual-ring--3"></div>';
     html += '</div>';
     html += '</div>';
 
@@ -101,24 +103,24 @@ async function loadPipelineOverview() {
 
     // New Pipeline Form (hidden)
     html += '<div class="new-pipeline-form" id="new-pipeline-form" style="display:none">';
-    html += '<h3>新建流水线</h3>';
+    html += '<h3>' + t('new_pipeline', '新建流水线') + '</h3>';
     html += '<div class="form-row">';
-    html += '<div class="form-group half"><label>流水线名称</label><input type="text" id="np-name" placeholder="如：信贷审批知识萃取"></div>';
-    html += '<div class="form-group half"><label>场景名称</label>';
+    html += '<div class="form-group half"><label>' + t('pipeline_name', '流水线名称') + '</label><input type="text" id="np-name" placeholder="' + t('placeholder_pipeline_name', '如：信贷审批知识萃取') + '"></div>';
+    html += '<div class="form-group half"><label>' + t('scenario_name', '场景名称') + '</label>';
     html += '<select id="np-scenario" onchange="if(this.value===\'custom\'){document.getElementById(\'np-scenario-custom\').classList.remove(\'hidden\')}else{document.getElementById(\'np-scenario-custom\').classList.add(\'hidden\')}">';
-    html += '<option value="">-- 选择预设场景 --</option>';
+    html += '<option value="">' + t('preset_scenario', '-- 选择预设场景 --') + '</option>';
     html += '<option value="信贷审批">信贷审批</option>';
     html += '<option value="风控">风控</option>';
     html += '<option value="营销">营销</option>';
-    html += '<option value="custom">自定义</option>';
+    html += '<option value="custom">' + t('model_badge_custom', '自定义') + '</option>';
     html += '</select>';
-    html += '<input type="text" id="np-scenario-custom" class="hidden" placeholder="输入自定义场景名称">';
+    html += '<input type="text" id="np-scenario-custom" class="hidden" placeholder="' + t('placeholder_scenario_name', '如：信贷审批') + '">';
     html += '</div>';
     html += '</div>';
-    html += '<div class="form-group"><label>业务领域</label><input type="text" id="np-domain" placeholder="如：信贷、风控、营销（默认同场景名称）"></div>';
+    html += '<div class="form-group"><label>' + t('business_domain', '业务领域') + '</label><input type="text" id="np-domain" placeholder="' + t('placeholder_business_domain', '如：信贷、风控、营销（默认同场景名称）') + '"></div>';
     html += '<div class="form-actions">';
-    html += '<button type="button" class="btn btn--secondary btn--md" onclick="hideNewPipelineForm()"><span class="btn__text">取消</span></button>';
-    html += '<button type="button" class="btn btn--primary btn--md" onclick="createPipeline()"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">创建并开始</span></button>';
+    html += '<button type="button" class="btn btn--secondary btn--md" onclick="hideNewPipelineForm()"><span class="btn__text">' + t('cancel', '取消') + '</span></button>';
+    html += '<button type="button" class="btn btn--primary btn--md" onclick="createPipeline()"><span class="btn__icon btn__icon--left" data-lucide="arrow-right"></span><span class="btn__text">' + t('create_and_start', '创建并开始') + '</span></button>';
     html += '</div>';
     html += '</div>';
 
@@ -291,8 +293,8 @@ async function createPipeline() {
   }
   const domain = (document.getElementById('np-domain') || {}).value || scenario;
 
-  if (!name.trim()) { alert('请输入流水线名称'); return; }
-  if (!scenario.trim()) { alert('请选择或输入场景名称'); return; }
+  if (!name.trim()) { alert(t('np_name_required', '请输入流水线名称')); return; }
+  if (!scenario.trim()) { alert(t('np_scenario_required', '请选择或输入场景名称')); return; }
 
   try {
     const result = await apiCallJSON('/api/pipelines', {

@@ -249,7 +249,7 @@ function step1AddKnowledgeColumn(name, idx) {
   div.className = 's1-k-col-row';
   div.id = 's1-k-col-' + i;
   div.innerHTML =
-    '<input type="text" class="s1-k-col-input" placeholder="如：具体方法、判断逻辑" value="' + escapeHtml(name || '') + '">' +
+    '<input type="text" class="s1-k-col-input" placeholder="' + t('placeholder_knowledge_column', '如：具体方法、判断逻辑') + '" value="' + escapeHtml(name || '') + '">' +
     '<button type="button" class="btn btn--ghost btn--sm s1-k-col-remove" onclick="step1RemoveKnowledgeColumn(' + i + ')" title="删除"><span class="btn__icon" data-lucide="x"></span></button>';
   container.appendChild(div);
   refreshIcons();
@@ -578,14 +578,15 @@ function _autoSaveUI(state) {
   if (!el || !txt) return;
   clearTimeout(_autoSaveTimer);
   el.className = 'auto-save-indicator ' + state + ' visible';
-  if (state === 'saving') { txt.textContent = '保存中...'; }
+  if (state === 'saving') { txt.textContent = t('autosave_saving', '保存中...'); }
   else if (state === 'saved') {
     var now = new Date();
-    txt.textContent = '已保存 ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    txt.textContent = t('autosave_saved', '已保存 {time}').replace('{time}', time);
     _autoSaveTimer = setTimeout(function () { el.classList.remove('visible'); }, 3000);
   }
   else if (state === 'failed') {
-    txt.textContent = '保存失败，点击重试';
+    txt.textContent = t('autosave_failed', '保存失败，点击重试');
     el.onclick = function () { scheduleFormSave(currentStep); };
   }
   else {
@@ -1397,7 +1398,7 @@ function renderExcelEditorContent() {
     '<div id="excel-luckysheet-mount" class="excel-luckysheet-mount"></div>' +
     '<div class="excel-status-bar">' +
     '<span id="excel-modified-indicator" style="display:none" class="modified-dot"></span>' +
-    '<span id="excel-modified-text">未修改</span>' +
+    '<span id="excel-modified-text">' + t('excel_unmodified', '未修改') + '</span>' +
     '</div></div>';
 
   const mountEl = document.getElementById('excel-luckysheet-mount');
@@ -1420,21 +1421,21 @@ function markExcelModified() {
   const indicator = document.getElementById('excel-modified-indicator');
   const text = document.getElementById('excel-modified-text');
   if (indicator) indicator.style.display = 'inline-block';
-  if (text) text.textContent = '已修改（未保存）';
+  if (text) text.textContent = t('modified_unsaved', '已修改（未保存）');
 }
 
 async function saveExcelEditor() {
   syncExcelDataFromDOM();
 
   if (!_excelEditorData.file_path) {
-    alert('无源文件路径，请重新上传');
+    alert(t('excel_save_no_path', '无源文件路径，请重新上传'));
     return;
   }
 
   const saveBtn = document.getElementById('excel-editor-save-btn');
   const saveBtnText = saveBtn ? saveBtn.querySelector('.btn__text') : null;
   if (saveBtn) { saveBtn.disabled = true; }
-  if (saveBtnText) { saveBtnText.textContent = '保存中...'; }
+  if (saveBtnText) { saveBtnText.textContent = t('excel_saving', '保存中...'); }
 
   try {
     const resp = await fetch(API_BASE + '/api/files/excel/save', {
@@ -1456,7 +1457,7 @@ async function saveExcelEditor() {
       const indicator = document.getElementById('excel-modified-indicator');
       const text = document.getElementById('excel-modified-text');
       if (indicator) indicator.style.display = 'none';
-      if (text) text.textContent = '已保存';
+      if (text) text.textContent = t('excel_saved', '已保存');
 
       const step = _excelEditorData.step;
       if (String(step) === '1' && currentPipeline && data.file_path) {
@@ -1468,7 +1469,7 @@ async function saveExcelEditor() {
         persistPipeline({
           step1_output_file: base,
           step1_download_url: data.download_url || ('/downloads/' + base),
-        }).catch(e => { console.error('Link step1 output failed:', e); showToast('Excel 已保存，但流水线同步失败', 'error'); });
+        }).catch(e => { console.error('Link step1 output failed:', e); showToast(t('excel_save_sync_failed', 'Excel 已保存，但流水线同步失败'), 'error'); });
         if (currentStep === 2) App.Step2.loadStep2PrevOutput();
       }
 
@@ -1529,13 +1530,13 @@ async function saveExcelEditor() {
         }
       }
     } else {
-      alert(data.error || '保存失败');
+      alert(data.error || t('excel_save_failed', '保存失败'));
     }
   } catch (e) {
-    alert('保存失败: ' + e.message);
+    alert(t('excel_save_failed', '保存失败') + ': ' + e.message);
   } finally {
     if (saveBtn) { saveBtn.disabled = false; }
-    if (saveBtnText) { saveBtnText.textContent = '保存'; }
+    if (saveBtnText) { saveBtnText.textContent = t('save', '保存'); }
   }
 }
 
