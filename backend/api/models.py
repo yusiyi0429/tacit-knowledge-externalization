@@ -62,4 +62,5 @@ def api_llm_stream_test():
     data = request.get_json(force=True) or {}
     model_name = data.get("name", "")
     prompt = (data.get("prompt") or "你好，请用一句话介绍你自己。").strip()
-    return stream_test_model(model_name, prompt)
+    lang = data.get("lang", "zh-CN")
+    return stream_test_model(model_name, prompt, lang)

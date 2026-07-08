@@ -13,6 +13,14 @@ let _step2ActiveSkill = 'knowledge-extraction'; // 当前选中的 Skill
 let _alignTacitAnnotations = {}; // { noteId: { question, answer } } — Step3 修订经验批注缓存
 var _s1SubScenarioCount = 0; // Step1 子场景计数器（需在 step1.js 之前声明为全局）
 
+function getCurrentPipelineId() {
+  if (!currentPipeline || !currentPipeline.id) {
+    console.warn('[getCurrentPipelineId] no current pipeline');
+    return null;
+  }
+  return currentPipeline.id;
+}
+
 /* ===== i18n shortcut ===== */
 const t = function (key, fallback) { return App.I18n.t(key, fallback); };
 
@@ -634,11 +642,11 @@ function setupFormAutoSave() {
   const s2TextInputs = document.getElementById('s2-text-inputs');
   const s3Expert = document.getElementById('s3-expert-text');
   const s3File = document.getElementById('s3-expert-file');
-  if (s2Model) s2Model.addEventListener('change', App.Step2.updateStep2Readiness);
-  if (s2SourceFiles) s2SourceFiles.addEventListener('change', App.Step2.updateStep2Readiness);
-  if (s2TextInputs) s2TextInputs.addEventListener('input', App.Step2.updateStep2Readiness);
-  if (s3Expert) s3Expert.addEventListener('input', App.Step3.updateStep3AlignModeHint);
-  if (s3File) s3File.addEventListener('change', App.Step3.updateStep3AlignModeHint);
+  if (s2Model && App.Step2 && App.Step2.updateStep2Readiness) s2Model.addEventListener('change', App.Step2.updateStep2Readiness);
+  if (s2SourceFiles && App.Step2 && App.Step2.updateStep2Readiness) s2SourceFiles.addEventListener('change', App.Step2.updateStep2Readiness);
+  if (s2TextInputs && App.Step2 && App.Step2.updateStep2Readiness) s2TextInputs.addEventListener('input', App.Step2.updateStep2Readiness);
+  if (s3Expert && App.Step3 && App.Step3.updateStep3AlignModeHint) s3Expert.addEventListener('input', App.Step3.updateStep3AlignModeHint);
+  if (s3File && App.Step3 && App.Step3.updateStep3AlignModeHint) s3File.addEventListener('change', App.Step3.updateStep3AlignModeHint);
 }
 /* ===== File upload name display ===== */
 document.addEventListener('DOMContentLoaded', () => {
@@ -651,9 +659,9 @@ document.addEventListener('DOMContentLoaded', () => {
           ? (input.files.length + ' ' + App.I18n.t('files_count', '个文件'))
           : App.I18n.t('no_file_chosen', '未选择');
         if (!input.files.length) return;
-        if (inputId === 's2-source-files') App.Step2.updateStep2Readiness();
+        if (inputId === 's2-source-files' && App.Step2 && App.Step2.updateStep2Readiness) App.Step2.updateStep2Readiness();
         if (inputId === 's3-expert-file') await cacheUploadedFile(3, input, nameEl);
-        if (inputId === 's3-expert-file') App.Step3.updateStep3AlignModeHint();
+        if (inputId === 's3-expert-file' && App.Step3 && App.Step3.updateStep3AlignModeHint) App.Step3.updateStep3AlignModeHint();
       });
     }
   });
@@ -804,10 +812,12 @@ function switchPanel(step) {
       const s2Prev = document.getElementById('s2-prev-output-area');
       if (s2Prev) s2Prev.innerHTML = '<div class="loading" style="padding:12px;"><div class="spinner"></div>加载上一步产出...</div>';
       refreshCurrentPipeline().then(() => {
-        App.Step2.loadStep2PrevOutput();
-        App.Step2.updateStep2Readiness();
-        App.Step2.loadStep2KbHint();
-        if (currentPipeline?.step_status?.['2'] === 'done') App.Step2.restoreStep2Output();
+        if (App.Step2) {
+          if (App.Step2.loadStep2PrevOutput) App.Step2.loadStep2PrevOutput();
+          if (App.Step2.updateStep2Readiness) App.Step2.updateStep2Readiness();
+          if (App.Step2.loadStep2KbHint) App.Step2.loadStep2KbHint();
+          if (currentPipeline?.step_status?.['2'] === 'done' && App.Step2.restoreStep2Output) App.Step2.restoreStep2Output();
+        }
       });
     }
   }
@@ -816,13 +826,15 @@ function switchPanel(step) {
     var s3Empty = document.getElementById('s3-prev-empty');
     if (s3Draft) { s3Draft.style.display = ''; }
     if (s3Empty) { s3Empty.style.display = 'none'; }
-    App.Step3.loadStep3PrevOutput();
-    App.Step3.loadStep3IRForAlignment();
-    App.Step3.loadStep3SkillMd();
-    App.Step3.loadStep3RevisionContext();
-    App.Step3.loadStep3SuggestionPool();
-    App.Step3.updateStep3AlignModeHint();
-    if (currentPipeline?.step_status?.['3'] === 'done') App.Step3.restoreStep3Output();
+    if (App.Step3) {
+      if (App.Step3.loadStep3PrevOutput) App.Step3.loadStep3PrevOutput();
+      if (App.Step3.loadStep3IRForAlignment) App.Step3.loadStep3IRForAlignment();
+      if (App.Step3.loadStep3SkillMd) App.Step3.loadStep3SkillMd();
+      if (App.Step3.loadStep3RevisionContext) App.Step3.loadStep3RevisionContext();
+      if (App.Step3.loadStep3SuggestionPool) App.Step3.loadStep3SuggestionPool();
+      if (App.Step3.updateStep3AlignModeHint) App.Step3.updateStep3AlignModeHint();
+      if (currentPipeline?.step_status?.['3'] === 'done' && App.Step3.restoreStep3Output) App.Step3.restoreStep3Output();
+    }
   }
   if (step === 4 && currentPipeline) {
     var s4Draft = document.getElementById('s4-prev-draft');
@@ -831,14 +843,18 @@ function switchPanel(step) {
     if (s4Empty) { s4Empty.style.display = 'none'; }
     var s4Name = document.getElementById('s4-prev-name');
     if (s4Name) s4Name.textContent = '加载中...';
-    App.Step4.loadStep4PrevOutput();
-    if (currentPipeline?.step_status?.['4'] === 'done') App.Step4.restoreStep4Output();
+    if (App.Step4) {
+      if (App.Step4.loadStep4PrevOutput) App.Step4.loadStep4PrevOutput();
+      if (currentPipeline?.step_status?.['4'] === 'done' && App.Step4.restoreStep4Output) App.Step4.restoreStep4Output();
+    }
   }
   if (step === 5 && currentPipeline) {
     refreshCurrentPipeline().then(function () {
-      App.Step5.loadStep5Context();
-      App.Step5.loadStep5PrevOutput();
-      if (currentPipeline?.step_status?.['5'] === 'done') App.Step5.restoreStep5Output();
+      if (App.Step5) {
+        if (App.Step5.loadStep5Context) App.Step5.loadStep5Context();
+        if (App.Step5.loadStep5PrevOutput) App.Step5.loadStep5PrevOutput();
+        if (currentPipeline?.step_status?.['5'] === 'done' && App.Step5.restoreStep5Output) App.Step5.restoreStep5Output();
+      }
     });
   }
   refreshCachedUploadLabels(step);
@@ -1580,52 +1596,56 @@ window.hideAddModelForm = function () { App.Panels.hideAddModelForm(); };
 window.saveModel = function () { App.Panels.saveModel(); };
 window.toggleCcbModelFields = function () { App.Panels.toggleCcbModelFields(); };
 
-window.step1AddSubScenario = function () { App.Step1.step1AddSubScenario(); };
-window.step1RemoveSubScenario = function (idx) { App.Step1.step1RemoveSubScenario(idx); };
-window.step1GetSubScenarios = function () { return App.Step1.step1GetSubScenarios(); };
+function _safeStep1(fnName) { return function () { var s = App.Step1; if (s && s[fnName]) return s[fnName].apply(s, arguments); console.warn('[app] Step1.' + fnName + ' not available'); }; }
+window.step1AddSubScenario = _safeStep1('step1AddSubScenario');
+window.step1RemoveSubScenario = function (idx) { var s = App.Step1; return s && s.step1RemoveSubScenario ? s.step1RemoveSubScenario(idx) : null; };
+window.step1GetSubScenarios = function () { var s = App.Step1; return s && s.step1GetSubScenarios ? s.step1GetSubScenarios() : []; };
 window.step1AddKnowledgeColumn = step1AddKnowledgeColumn;
 window.step1RemoveKnowledgeColumn = step1RemoveKnowledgeColumn;
 window.step1ResetKnowledgeColumns = step1ResetKnowledgeColumns;
-window.step1Generate = function () { App.Step1.step1Generate(); };
-window.step1PreviewExcel = function (fileName) { App.Step1.step1PreviewExcel(fileName); };
+window.step1Generate = _safeStep1('step1Generate');
+window.step1PreviewExcel = _safeStep1('step1PreviewExcel');
 
-window.selectStep2Skill = function (skillId) { App.Step2.selectStep2Skill(skillId); };
-window.addStep2TextRow = function () { App.Step2.addStep2TextRow(); };
-window.step2Execute = function () { App.Step2.step2Execute(); };
-window.step2ExtractSkillMd = function () { App.Step2.step2ExtractSkillMd(); };
-window.downloadCurrentIR = function () { App.Step2.downloadCurrentIR(); };
-window.isStep2PreextractFile = function (fileName) { return App.Step2.isStep2PreextractFile(fileName); };
+function _safeStep2(fnName) { return function () { var s = App.Step2; if (s && s[fnName]) return s[fnName].apply(s, arguments); console.warn('[app] Step2.' + fnName + ' not available'); }; }
+window.selectStep2Skill = _safeStep2('selectStep2Skill');
+window.addStep2TextRow = _safeStep2('addStep2TextRow');
+window.step2Execute = _safeStep2('step2Execute');
+window.step2ExtractSkillMd = _safeStep2('step2ExtractSkillMd');
+window.downloadCurrentIR = _safeStep2('downloadCurrentIR');
+window.isStep2PreextractFile = function (fileName) { var s = App.Step2; return s && s.isStep2PreextractFile ? s.isStep2PreextractFile(fileName) : false; };
 
-window.toggleSignalPanel = function () { App.Step3.toggleSignalPanel(); };
-window.step3GeneratePreview = function () { App.Step3.step3GeneratePreview(); };
-window.step3ToggleSelectAll = function () { App.Step3.step3ToggleSelectAll(); };
-window.loadStep3SuggestionPool = function () { App.Step3.loadStep3SuggestionPool(); };
-window.step3ApplySuggestions = function () { App.Step3.step3ApplySuggestions(); };
-window.step3RejectSuggestions = function () { App.Step3.step3RejectSuggestions(); };
-window.step3BackToInput = function () { App.Step3.step3BackToInput(); };
-window.alignFilterNotes = function (filter) { App.Step3.alignFilterNotes(filter); };
-window.alignSetState = function (id, state) { App.Step3.alignSetState(id, state); };
-window.alignToggleEdit = function (id) { App.Step3.alignToggleEdit(id); };
-window.alignSaveEdit = function (id) { App.Step3.alignSaveEdit(id); };
-window.alignBatchAcceptAll = function () { App.Step3.alignBatchAcceptAll(); };
-window.alignBatchRejectAll = function () { App.Step3.alignBatchRejectAll(); };
-window.step3ApplyNotes = function () { App.Step3.step3ApplyNotes(); };
-window.step3ConfirmAsIs = function () { App.Step3.step3ConfirmAsIs(); };
-window.step3SaveEntryRevision = function (entryId) { App.Step3.step3SaveEntryRevision(entryId); };
-window.step3RegenerateEntrySQL = function (entryId) { App.Step3.step3RegenerateEntrySQL(entryId); };
-window.dismissTacitFollowup = function (btn) { App.Step3.dismissTacitFollowup(btn); };
+function _safeStep3(fnName) { return function () { var s = App.Step3; if (s && s[fnName]) return s[fnName].apply(s, arguments); console.warn('[app] Step3.' + fnName + ' not available'); }; }
+window.toggleSignalPanel = _safeStep3('toggleSignalPanel');
+window.step3GeneratePreview = _safeStep3('step3GeneratePreview');
+window.step3ToggleSelectAll = _safeStep3('step3ToggleSelectAll');
+window.loadStep3SuggestionPool = _safeStep3('loadStep3SuggestionPool');
+window.step3ApplySuggestions = _safeStep3('step3ApplySuggestions');
+window.step3RejectSuggestions = _safeStep3('step3RejectSuggestions');
+window.step3BackToInput = _safeStep3('step3BackToInput');
+window.alignFilterNotes = _safeStep3('alignFilterNotes');
+window.alignSetState = _safeStep3('alignSetState');
+window.alignToggleEdit = _safeStep3('alignToggleEdit');
+window.alignSaveEdit = _safeStep3('alignSaveEdit');
+window.alignBatchAcceptAll = _safeStep3('alignBatchAcceptAll');
+window.alignBatchRejectAll = _safeStep3('alignBatchRejectAll');
+window.step3ApplyNotes = _safeStep3('step3ApplyNotes');
+window.step3ConfirmAsIs = _safeStep3('step3ConfirmAsIs');
+window.step3SaveEntryRevision = _safeStep3('step3SaveEntryRevision');
+window.step3RegenerateEntrySQL = _safeStep3('step3RegenerateEntrySQL');
+window.dismissTacitFollowup = _safeStep3('dismissTacitFollowup');
 
-window.step4Compile = function () { App.Step4.step4Compile(); };
-window.step4Quality = function () { App.Step4.step4Quality(); };
-window.step4PublishToKb = function () { App.Step4.step4PublishToKb(); };
-window.previewStep4File = function (fileName, title) { App.Step4.previewStep4File(fileName, title); };
-window.previewStep4Cot = function () { App.Step4.previewStep4Cot(); };
-window.previewStep4Qa = function () { App.Step4.previewStep4Qa(); };
-window.previewStep4Skill = function () { App.Step4.previewStep4Skill(); };
-window.closeMarkdownEditor = function () { App.Step4.closeMarkdownEditor(); };
-window.saveMarkdownContent = function () { App.Step4.saveMarkdownContent(); };
-window.downloadMarkdownContent = function () { App.Step4.downloadMarkdownContent(); };
-window.copyMarkdownContent = function () { App.Step4.copyMarkdownContent(); };
+function _safeStep4(fnName) { return function () { var s = App.Step4; if (s && s[fnName]) return s[fnName].apply(s, arguments); console.warn('[app] Step4.' + fnName + ' not available'); }; }
+window.step4Compile = _safeStep4('step4Compile');
+window.step4Quality = _safeStep4('step4Quality');
+window.step4PublishToKb = _safeStep4('step4PublishToKb');
+window.previewStep4File = _safeStep4('previewStep4File');
+window.previewStep4Cot = _safeStep4('previewStep4Cot');
+window.previewStep4Qa = _safeStep4('previewStep4Qa');
+window.previewStep4Skill = _safeStep4('previewStep4Skill');
+window.closeMarkdownEditor = _safeStep4('closeMarkdownEditor');
+window.saveMarkdownContent = _safeStep4('saveMarkdownContent');
+window.downloadMarkdownContent = _safeStep4('downloadMarkdownContent');
+window.copyMarkdownContent = _safeStep4('copyMarkdownContent');
 
 window.getCurrentPipelineId = function () {
   if (!currentPipeline || !currentPipeline.id) {
@@ -1634,12 +1654,13 @@ window.getCurrentPipelineId = function () {
   }
   return currentPipeline.id;
 };
-window.step5RunReplay = function () { App.Step5.step5RunReplay(); };
-window.step5RunFeedback = function () { App.Step5.step5RunFeedback(); };
-window.step5GoldenVerify = function () { App.Step5.step5GoldenVerify(); };
-window.step5Finalize = function () { App.Step5.step5Finalize(); };
-window.previewStep5InputJSON = function (url) { App.Step5.previewStep5InputJSON(url); };
-window.closeModal = function () { App.Step5.closeModal(); };
+function _safeStep5(fnName) { return function () { var s = App.Step5; if (s && s[fnName]) return s[fnName].apply(s, arguments); console.warn('[app] Step5.' + fnName + ' not available'); }; }
+window.step5RunReplay = _safeStep5('step5RunReplay');
+window.step5RunFeedback = _safeStep5('step5RunFeedback');
+window.step5GoldenVerify = _safeStep5('step5GoldenVerify');
+window.step5Finalize = _safeStep5('step5Finalize');
+window.previewStep5InputJSON = _safeStep5('previewStep5InputJSON');
+window.closeModal = _safeStep5('closeModal');
 
 /* ===== Initialization ===== */
 App.Overview.loadPipelineOverview();

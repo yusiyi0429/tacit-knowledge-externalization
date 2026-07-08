@@ -142,7 +142,7 @@ def delete_model(model_name: str) -> dict:
 
 def test_model(model_name: str, lang: str = "zh-CN") -> dict:
     model_cfg = get_model_by_name(model_name)
-    is_en = lang == "en"
+    is_en = bool(lang and lang.startswith("en"))
     if not model_cfg:
         return {
             "status": "error",
@@ -160,7 +160,7 @@ def test_model(model_name: str, lang: str = "zh-CN") -> dict:
         )
         content = extract_assistant_content(result) if isinstance(result, dict) else ""
         if is_en:
-            return {"status": "ok", "message": f"Connection successful, model reply: {content[:50]}"}
+            return {"status": "ok", "message": f"Connection successful. Response: {content[:50]}"}
         return {"status": "ok", "message": f"连接成功，模型回复: {content[:50]}"}
     except Exception as e:
         from llm_client import LlmApiError
@@ -171,13 +171,15 @@ def test_model(model_name: str, lang: str = "zh-CN") -> dict:
         return {"status": "error", "error": f"连接失败: {str(e)}"}
 
 
-def stream_test_model(model_name: str, prompt: str):
+def stream_test_model(model_name: str, prompt: str, lang: str = "zh-CN"):
     from flask import Response, stream_with_context
     import json
 
+    is_en = bool(lang and lang.startswith("en"))
     model_cfg = get_model_by_name(model_name)
     if not model_cfg:
-        err = json.dumps({"error": f"模型 '{model_name}' 不存在"}, ensure_ascii=False)
+        msg = f"Model '{model_name}' not found" if is_en else f"模型 '{model_name}' 不存在"
+        err = json.dumps({"error": msg}, ensure_ascii=False)
         return Response(err, mimetype="text/event-stream")
 
     messages = [{"role": "user", "content": prompt}]
@@ -196,7 +198,8 @@ def stream_test_model(model_name: str, prompt: str):
             if isinstance(e, LlmApiError):
                 err = json.dumps({"error": str(e)}, ensure_ascii=False)
             else:
-                err = json.dumps({"error": f"流式连接失败: {str(e)}"}, ensure_ascii=False)
+                msg = f"Stream connection failed: {str(e)}" if is_en else f"流式连接失败: {str(e)}"
+                err = json.dumps({"error": msg}, ensure_ascii=False)
             yield f"data: {err}\n\n"
 
     return Response(
