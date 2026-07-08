@@ -135,12 +135,24 @@
   function renderOutput(containerId, html) {
     var el = document.getElementById(containerId);
     if (!el) return;
+    el.style.display = '';
     el.innerHTML = '<div class="output-result">' + html + '</div>';
+    console.log('[renderOutput]', containerId, 'set innerHTML length:', el.innerHTML.length);
+    // 保险：部分浏览器/环境下 innerHTML 写入后会被异常清空，50ms 后检查并重绘
+    var expectedHtml = html;
+    setTimeout(function() {
+      if (!el.querySelector('.output-result') || el.innerHTML.length < 50) {
+        console.warn('[renderOutput] output was cleared, re-render', containerId);
+        el.style.display = '';
+        el.innerHTML = '<div class="output-result">' + expectedHtml + '</div>';
+      }
+    }, 50);
   }
 
   function renderLoading(containerId) {
     var el = document.getElementById(containerId);
     if (!el) return;
+    el.style.display = '';
     el.innerHTML = '<div class="loading"><div class="spinner"></div>处理中...</div>';
   }
 

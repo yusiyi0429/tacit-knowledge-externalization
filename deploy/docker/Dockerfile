@@ -72,4 +72,6 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3)" || exit 1
 
-CMD ["python", "backend/app_server.py", "--host", "0.0.0.0", "--port", "5000"]
+# Use Gunicorn instead of Flask development server for production
+COPY gunicorn.conf.py .
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "backend.app_server:app"]

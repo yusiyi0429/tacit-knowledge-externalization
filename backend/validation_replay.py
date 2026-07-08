@@ -84,8 +84,8 @@ def compare_predictions(predictions: list[dict], cases: list[dict]) -> dict:
     }
 
 
-def _normalize_label(label: str) -> str:
-    s = label.strip().lower()
+def _normalize_label(label: str | None) -> str:
+    s = (label or "").strip().lower()
     if not s:
         return ""
     if any(k in s for k in ("通过", "approve", "yes", "同意")):
@@ -300,10 +300,10 @@ def compare_verification_output(actual: dict, expected: dict) -> dict:
     score = 1.0 if match else 0.0
     diff = {
         "prediction_match": match,
-        "actual_prediction": actual.get("prediction", ""),
-        "expected_prediction": expected.get("prediction", expected.get("结论", "")),
-        "actual_reasoning": actual.get("reasoning", "")[:500],
-        "expected_reasoning": expected.get("reasoning", "")[:500],
+        "actual_prediction": actual.get("prediction") or "",
+        "expected_prediction": expected.get("prediction") or expected.get("结论") or "",
+        "actual_reasoning": (actual.get("reasoning") or "")[:500],
+        "expected_reasoning": (expected.get("reasoning") or "")[:500],
     }
     status = "pass" if match else "fail"
     return {"status": status, "score": score, "diff": diff}
