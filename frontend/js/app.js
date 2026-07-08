@@ -1249,7 +1249,7 @@ async function editStep2Preextract() {
   renderExcelEditorLoading();
 
   try {
-    const resp = await fetch(API_BASE + '/api/excel/read', {
+    const resp = await fetch(API_BASE + '/api/files/excel/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1314,7 +1314,7 @@ async function editStep3Revision() {
   renderExcelEditorLoading();
 
   try {
-    const resp = await fetch(API_BASE + '/api/excel/read', {
+    const resp = await fetch(API_BASE + '/api/files/excel/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1361,7 +1361,7 @@ async function loadExcelToEditor(fileInputId, step) {
   fd.append('step', String(step));
 
   try {
-    const resp = await fetch(API_BASE + '/api/excel/read', { method: 'POST', body: fd });
+    const resp = await fetch(API_BASE + '/api/files/excel/read', { method: 'POST', body: fd });
     const data = await resp.json();
     if (data.status === 'ok') {
       _excelEditorData.sheets = ExcelEditor.normalizeSheetsFromApi(data.sheets);
@@ -1437,7 +1437,7 @@ async function saveExcelEditor() {
   if (saveBtnText) { saveBtnText.textContent = '保存中...'; }
 
   try {
-    const resp = await fetch(API_BASE + '/api/excel/save', {
+    const resp = await fetch(API_BASE + '/api/files/excel/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

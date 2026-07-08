@@ -69,9 +69,9 @@
     saveFile(payload) { return fetch(API_BASE + '/api/files/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json()); },
 
     // Excel
-    readExcel(payload) { return fetch(API_BASE + '/api/excel/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json()); },
-    readExcelFormData(formData) { return fetch(API_BASE + '/api/excel/read', { method: 'POST', body: formData }).then(r => r.json()); },
-    saveExcel(payload) { return fetch(API_BASE + '/api/excel/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json()); },
+    readExcel(payload) { return fetch(API_BASE + '/api/files/excel/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json()); },
+    readExcelFormData(formData) { return fetch(API_BASE + '/api/files/excel/read', { method: 'POST', body: formData }).then(r => r.json()); },
+    saveExcel(payload) { return fetch(API_BASE + '/api/files/excel/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json()); },
   };
 
   global.App = global.App || {};

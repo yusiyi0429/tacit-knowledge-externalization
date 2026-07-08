@@ -262,7 +262,7 @@ async function step1PreviewExcel(fileName) {
   if (currentPipeline) fd.append('pipeline_id', currentPipeline.id);
   fd.append('step', '1');
   try {
-    const result = await apiCall('/api/excel/read', fd);
+    const result = await apiCall('/api/files/excel/read', fd);
     if (result.status === 'ok') {
       openExcelEditorWithSheets(result.sheets, fileName, result.file_path || fileName);
     } else {
