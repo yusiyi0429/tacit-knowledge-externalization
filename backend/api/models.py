@@ -53,7 +53,7 @@ def api_llm_delete_model(model_name):
 def api_llm_test():
     """Test connection to a model."""
     data = request.get_json(force=True)
-    return jsonify(test_model(data.get("name", "")))
+    return jsonify(test_model(data.get("name", ""), data.get("lang", "zh-CN")))
 
 
 @bp.route("/stream-test", methods=["POST"])

@@ -140,10 +140,14 @@ def delete_model(model_name: str) -> dict:
     return {"status": "ok", "message": f"模型 '{model_name}' 已删除"}
 
 
-def test_model(model_name: str) -> dict:
+def test_model(model_name: str, lang: str = "zh-CN") -> dict:
     model_cfg = get_model_by_name(model_name)
+    is_en = lang == "en"
     if not model_cfg:
-        return {"status": "error", "error": f"模型 '{model_name}' 不存在"}
+        return {
+            "status": "error",
+            "error": f"Model '{model_name}' not found" if is_en else f"模型 '{model_name}' 不存在",
+        }
     try:
         from llm_client import LlmApiError
         test_cfg = dict(model_cfg)
@@ -155,11 +159,15 @@ def test_model(model_name: str) -> dict:
             max_tokens=10,
         )
         content = extract_assistant_content(result) if isinstance(result, dict) else ""
+        if is_en:
+            return {"status": "ok", "message": f"Connection successful, model reply: {content[:50]}"}
         return {"status": "ok", "message": f"连接成功，模型回复: {content[:50]}"}
     except Exception as e:
         from llm_client import LlmApiError
         if isinstance(e, LlmApiError):
             return {"status": "error", "error": str(e)}
+        if is_en:
+            return {"status": "error", "error": f"Connection failed: {str(e)}"}
         return {"status": "error", "error": f"连接失败: {str(e)}"}
 
 
