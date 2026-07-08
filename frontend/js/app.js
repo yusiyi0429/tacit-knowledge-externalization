@@ -923,6 +923,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.onAppLangChange = function(lang) {
   step1SyncKnowledgeColumnLanguage(lang);
+  // 语言切换后即时重渲当前视图，避免用户手动刷新
+  if (currentStep === 0) {
+    loadPipelineOverview();
+  } else if (currentPipeline) {
+    switchPanel(currentStep);
+  }
 };
 
 /* ===== Navigation ===== */
